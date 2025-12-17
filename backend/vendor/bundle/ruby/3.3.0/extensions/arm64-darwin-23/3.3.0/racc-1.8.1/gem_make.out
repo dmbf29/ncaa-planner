@@ -1,0 +1,18 @@
+current directory: /Users/dougberks/code/dmbf29/ncaa-planner/backend/vendor/bundle/ruby/3.3.0/gems/racc-1.8.1/ext/racc/cparse
+/Users/dougberks/.rbenv/versions/3.3.5/bin/ruby extconf.rb
+creating Makefile
+
+current directory: /Users/dougberks/code/dmbf29/ncaa-planner/backend/vendor/bundle/ruby/3.3.0/gems/racc-1.8.1/ext/racc/cparse
+make DESTDIR\= sitearchdir\=./.gem.20251217-11079-udwsrp sitelibdir\=./.gem.20251217-11079-udwsrp clean
+
+current directory: /Users/dougberks/code/dmbf29/ncaa-planner/backend/vendor/bundle/ruby/3.3.0/gems/racc-1.8.1/ext/racc/cparse
+make DESTDIR\= sitearchdir\=./.gem.20251217-11079-udwsrp sitelibdir\=./.gem.20251217-11079-udwsrp
+compiling cparse.c
+linking shared-object racc/cparse.bundle
+
+current directory: /Users/dougberks/code/dmbf29/ncaa-planner/backend/vendor/bundle/ruby/3.3.0/gems/racc-1.8.1/ext/racc/cparse
+make DESTDIR\= sitearchdir\=./.gem.20251217-11079-udwsrp sitelibdir\=./.gem.20251217-11079-udwsrp install
+/usr/local/bin/ginstall -c -m 0755 cparse.bundle ./.gem.20251217-11079-udwsrp/racc
+
+current directory: /Users/dougberks/code/dmbf29/ncaa-planner/backend/vendor/bundle/ruby/3.3.0/gems/racc-1.8.1/ext/racc/cparse
+make DESTDIR\= sitearchdir\=./.gem.20251217-11079-udwsrp sitelibdir\=./.gem.20251217-11079-udwsrp clean

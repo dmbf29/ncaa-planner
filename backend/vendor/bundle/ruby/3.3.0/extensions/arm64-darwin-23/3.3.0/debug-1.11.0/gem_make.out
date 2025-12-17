@@ -1,0 +1,19 @@
+current directory: /Users/dougberks/code/dmbf29/ncaa-planner/backend/vendor/bundle/ruby/3.3.0/gems/debug-1.11.0/ext/debug
+/Users/dougberks/.rbenv/versions/3.3.5/bin/ruby extconf.rb
+creating Makefile
+
+current directory: /Users/dougberks/code/dmbf29/ncaa-planner/backend/vendor/bundle/ruby/3.3.0/gems/debug-1.11.0/ext/debug
+make DESTDIR\= sitearchdir\=./.gem.20251217-11079-h6n49a sitelibdir\=./.gem.20251217-11079-h6n49a clean
+
+current directory: /Users/dougberks/code/dmbf29/ncaa-planner/backend/vendor/bundle/ruby/3.3.0/gems/debug-1.11.0/ext/debug
+make DESTDIR\= sitearchdir\=./.gem.20251217-11079-h6n49a sitelibdir\=./.gem.20251217-11079-h6n49a
+compiling debug.c
+compiling iseq_collector.c
+linking shared-object debug/debug.bundle
+
+current directory: /Users/dougberks/code/dmbf29/ncaa-planner/backend/vendor/bundle/ruby/3.3.0/gems/debug-1.11.0/ext/debug
+make DESTDIR\= sitearchdir\=./.gem.20251217-11079-h6n49a sitelibdir\=./.gem.20251217-11079-h6n49a install
+/usr/local/bin/ginstall -c -m 0755 debug.bundle ./.gem.20251217-11079-h6n49a/debug
+
+current directory: /Users/dougberks/code/dmbf29/ncaa-planner/backend/vendor/bundle/ruby/3.3.0/gems/debug-1.11.0/ext/debug
+make DESTDIR\= sitearchdir\=./.gem.20251217-11079-h6n49a sitelibdir\=./.gem.20251217-11079-h6n49a clean

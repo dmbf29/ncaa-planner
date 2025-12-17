@@ -1,0 +1,24 @@
+current directory: /Users/dougberks/code/dmbf29/ncaa-planner/backend/vendor/bundle/ruby/3.3.0/gems/date-3.5.1/ext/date
+/Users/dougberks/.rbenv/versions/3.3.5/bin/ruby extconf.rb
+checking for rb_category_warn()... yes
+checking for timezone in time.h with  -Werror... yes
+checking for altzone in time.h with  -Werror... no
+creating Makefile
+
+current directory: /Users/dougberks/code/dmbf29/ncaa-planner/backend/vendor/bundle/ruby/3.3.0/gems/date-3.5.1/ext/date
+make DESTDIR\= sitearchdir\=./.gem.20251217-11079-iersij sitelibdir\=./.gem.20251217-11079-iersij clean
+
+current directory: /Users/dougberks/code/dmbf29/ncaa-planner/backend/vendor/bundle/ruby/3.3.0/gems/date-3.5.1/ext/date
+make DESTDIR\= sitearchdir\=./.gem.20251217-11079-iersij sitelibdir\=./.gem.20251217-11079-iersij
+compiling date_core.c
+compiling date_parse.c
+compiling date_strftime.c
+compiling date_strptime.c
+linking shared-object date_core.bundle
+
+current directory: /Users/dougberks/code/dmbf29/ncaa-planner/backend/vendor/bundle/ruby/3.3.0/gems/date-3.5.1/ext/date
+make DESTDIR\= sitearchdir\=./.gem.20251217-11079-iersij sitelibdir\=./.gem.20251217-11079-iersij install
+/usr/local/bin/ginstall -c -m 0755 date_core.bundle ./.gem.20251217-11079-iersij
+
+current directory: /Users/dougberks/code/dmbf29/ncaa-planner/backend/vendor/bundle/ruby/3.3.0/gems/date-3.5.1/ext/date
+make DESTDIR\= sitearchdir\=./.gem.20251217-11079-iersij sitelibdir\=./.gem.20251217-11079-iersij clean

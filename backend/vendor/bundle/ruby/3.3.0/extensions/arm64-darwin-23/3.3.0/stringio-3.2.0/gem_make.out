@@ -1,0 +1,19 @@
+current directory: /Users/dougberks/code/dmbf29/ncaa-planner/backend/vendor/bundle/ruby/3.3.0/gems/stringio-3.2.0/ext/stringio
+/Users/dougberks/.rbenv/versions/3.3.5/bin/ruby extconf.rb
+checking for rb_io_mode_t in ruby/io.h... no
+creating Makefile
+
+current directory: /Users/dougberks/code/dmbf29/ncaa-planner/backend/vendor/bundle/ruby/3.3.0/gems/stringio-3.2.0/ext/stringio
+make DESTDIR\= sitearchdir\=./.gem.20251217-11079-w3m4y5 sitelibdir\=./.gem.20251217-11079-w3m4y5 clean
+
+current directory: /Users/dougberks/code/dmbf29/ncaa-planner/backend/vendor/bundle/ruby/3.3.0/gems/stringio-3.2.0/ext/stringio
+make DESTDIR\= sitearchdir\=./.gem.20251217-11079-w3m4y5 sitelibdir\=./.gem.20251217-11079-w3m4y5
+compiling stringio.c
+linking shared-object stringio.bundle
+
+current directory: /Users/dougberks/code/dmbf29/ncaa-planner/backend/vendor/bundle/ruby/3.3.0/gems/stringio-3.2.0/ext/stringio
+make DESTDIR\= sitearchdir\=./.gem.20251217-11079-w3m4y5 sitelibdir\=./.gem.20251217-11079-w3m4y5 install
+/usr/local/bin/ginstall -c -m 0755 stringio.bundle ./.gem.20251217-11079-w3m4y5
+
+current directory: /Users/dougberks/code/dmbf29/ncaa-planner/backend/vendor/bundle/ruby/3.3.0/gems/stringio-3.2.0/ext/stringio
+make DESTDIR\= sitearchdir\=./.gem.20251217-11079-w3m4y5 sitelibdir\=./.gem.20251217-11079-w3m4y5 clean

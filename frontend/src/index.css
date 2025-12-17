@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+body {
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: #e6e3de;
+}
+
+.yard-line {
+  background-image: linear-gradient(
+    to right,
+    transparent 0,
+    transparent 12%,
+    rgba(161, 161, 161, 0.35) 12%,
+    rgba(161, 161, 161, 0.35) 13%,
+    transparent 13%,
+    transparent 25%
+  );
+  background-size: 120px 1px;
+}

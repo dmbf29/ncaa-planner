@@ -1,0 +1,22 @@
+current directory: /Users/dougberks/code/dmbf29/ncaa-planner/backend/vendor/bundle/ruby/3.3.0/gems/bootsnap-1.19.0/ext/bootsnap
+/Users/dougberks/.rbenv/versions/3.3.5/bin/ruby extconf.rb
+checking for fdatasync() in unistd.h... yes
+checking for whether -D_GNU_SOURCE is accepted as CPPFLAGS... yes
+checking for whether -O3 is accepted as CFLAGS... yes
+checking for whether -std=c99 is accepted as CFLAGS... yes
+creating Makefile
+
+current directory: /Users/dougberks/code/dmbf29/ncaa-planner/backend/vendor/bundle/ruby/3.3.0/gems/bootsnap-1.19.0/ext/bootsnap
+make DESTDIR\= sitearchdir\=./.gem.20251217-11079-thdx90 sitelibdir\=./.gem.20251217-11079-thdx90 clean
+
+current directory: /Users/dougberks/code/dmbf29/ncaa-planner/backend/vendor/bundle/ruby/3.3.0/gems/bootsnap-1.19.0/ext/bootsnap
+make DESTDIR\= sitearchdir\=./.gem.20251217-11079-thdx90 sitelibdir\=./.gem.20251217-11079-thdx90
+compiling bootsnap.c
+linking shared-object bootsnap/bootsnap.bundle
+
+current directory: /Users/dougberks/code/dmbf29/ncaa-planner/backend/vendor/bundle/ruby/3.3.0/gems/bootsnap-1.19.0/ext/bootsnap
+make DESTDIR\= sitearchdir\=./.gem.20251217-11079-thdx90 sitelibdir\=./.gem.20251217-11079-thdx90 install
+/usr/local/bin/ginstall -c -m 0755 bootsnap.bundle ./.gem.20251217-11079-thdx90/bootsnap
+
+current directory: /Users/dougberks/code/dmbf29/ncaa-planner/backend/vendor/bundle/ruby/3.3.0/gems/bootsnap-1.19.0/ext/bootsnap
+make DESTDIR\= sitearchdir\=./.gem.20251217-11079-thdx90 sitelibdir\=./.gem.20251217-11079-thdx90 clean
