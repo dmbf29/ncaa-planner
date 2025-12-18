@@ -79,6 +79,9 @@ export const createPlayer = (teamId, payload) =>
 export const updatePlayer = (teamId, id, payload) =>
   api.put(`/api/v1/teams/${teamId}/players/${id}`, { player: payload }).then((r) => r.data);
 
+export const deletePlayer = (teamId, id) =>
+  api.delete(`/api/v1/teams/${teamId}/players/${id}`).then((r) => r.data);
+
 export const createRosterSlot = (positionBoardId, payload) =>
   api.post(`/api/v1/position_boards/${positionBoardId}/roster_slots`, { roster_slot: payload }).then((r) => r.data);
 

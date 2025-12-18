@@ -35,6 +35,7 @@ module Api
 
       def destroy
         authorize @player
+        @player.roster_slot&.destroy
         @player.destroy
         head :no_content
       end

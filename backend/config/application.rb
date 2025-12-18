@@ -42,3 +42,62 @@ module Backend
     config.api_only = true
   end
 end
+
+
+{
+  "Quarterback" => {
+    "Backfield Creator" => "BC",
+    "Dual Threat" => "DT",
+    "Pocket Passer" => "PP",
+    "Pure Runner" => "PR"
+  },
+  "Halfback" => {
+    "Backfield Threat" => "BT",
+    "Contact Seeker" => "CS",
+    "East/West Playmaker" => "EWP",
+    "Elusive Bruiser" => "EB",
+    "North/South Blocker" => "NSB",
+    "North/South Receiver" => "NSR"
+  },
+  "Fullback" => {
+    "Blocking" => "B",
+    "Utility" => "U"
+  },
+  "Wide Receiver / Tight End" => {
+    "Contested Specialist" => "CS",
+    "Elusive Route Runner" => "ERR",
+    "Gadget" => "G",
+    "Gritty Possession" => "GP",
+    "Possession" => "P",
+    "Physical Route Runner" => "PRR",
+    "Pure Blocker" => "PB",
+    "Route Artist" => "RA",
+    "Speedster" => "S",
+    "Vertical Threat" => "VT",
+  },
+  "Offensive Line" => {
+    "Agile" => "A",
+    "Pass Protector" => "PP",
+    "Raw Strength" => "RS",
+    "Well Rounded" => "WR"
+  },
+  "Defensive Line" => {
+    "Edge Setter" => "ES",
+    "Gap Specialist" => "GS",
+    "Power Rusher" => "PR",
+    "Pure Power" => "PP",
+    "Speed Rusher" => "SR"
+  },
+  "Linebacker" => {
+    "Signal Caller" => "SC",
+    "Lurker" => "L",
+    "Thumper" => "T"
+  },
+    "Boundary Corner" => "BC",
+    "Bump and Run" => "BR",
+    "Field" => "F",
+    "Zone" => "Z",
+    "Coverage Specialist" => "CS",
+    "Box Specialist" => "BS",
+    "Hybrid" => "H",
+}

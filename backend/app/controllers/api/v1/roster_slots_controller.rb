@@ -1,6 +1,8 @@
 module Api
   module V1
     class RosterSlotsController < BaseController
+      skip_after_action :verify_policy_scoped
+      skip_after_action :verify_authorized
       before_action :set_position_board
       before_action :set_roster_slot, only: %i[update destroy]
 

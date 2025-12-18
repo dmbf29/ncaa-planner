@@ -12,7 +12,85 @@ import {
   updatePositionBoard,
   createPlayer,
   updatePlayer,
+  deletePlayer,
+  deleteRosterSlot,
 } from "../lib/apiClient";
+
+const archetypeGroups = {
+  Quarterback: {
+    "Backfield Creator": "BC",
+    "Dual Threat": "DT",
+    "Pocket Passer": "PP",
+    "Pure Runner": "PR",
+  },
+  Halfback: {
+    "Backfield Threat": "BT",
+    "Contact Seeker": "CS",
+    "East/West Playmaker": "EWP",
+    "Elusive Bruiser": "EB",
+    "North/South Blocker": "NSB",
+    "North/South Receiver": "NSR",
+  },
+  Fullback: {
+    Blocking: "B",
+    Utility: "U",
+  },
+  "Wide Receiver / Tight End": {
+    "Contested Specialist": "CS",
+    "Elusive Route Runner": "ERR",
+    Gadget: "G",
+    "Gritty Possession": "GP",
+    Possession: "P",
+    "Physical Route Runner": "PRR",
+    "Pure Blocker": "PB",
+    "Route Artist": "RA",
+    Speedster: "S",
+    "Vertical Threat": "VT",
+  },
+  "Offensive Line": {
+    Agile: "A",
+    "Pass Protector": "PP",
+    "Raw Strength": "RS",
+    "Well Rounded": "WR",
+  },
+  "Defensive Line": {
+    "Edge Setter": "ES",
+    "Gap Specialist": "GS",
+    "Power Rusher": "PR",
+    "Pure Power": "PP",
+    "Speed Rusher": "SR",
+  },
+  Linebacker: {
+    Lurker: "L",
+    "Signal Caller": "SC",
+    Thumper: "T",
+  },
+  Cornerback: {
+    "Boundary Corner": "BC",
+    "Bump and Run": "BR",
+    Field: "F",
+    Zone: "Z",
+  },
+  Safety: {
+    "Box Specialist": "BS",
+    "Coverage Specialist": "CS",
+    Hybrid: "H",
+  },
+  "Kicker / Punter": {
+    Accurate: "A",
+    Power: "P",
+  },
+};
+
+const archetypeShort = (longLabel) => {
+  for (const group of Object.values(archetypeGroups)) {
+    for (const [label, code] of Object.entries(group)) {
+      if (label === longLabel) return code;
+      if (code === longLabel) return code;
+    }
+  }
+  return longLabel || "";
+};
 
 function SquadBoardPage() {
   const { id, squadId } = useParams();
@@ -22,8 +100,12 @@ function SquadBoardPage() {
   const [players, setPlayers] = useState([]);
   const [busyBoardId, setBusyBoardId] = useState(null);
   const [showFormBoardId, setShowFormBoardId] = useState(null);
-  const [newPlayer, setNewPlayer] = useState({ name: "", starRating: "", archetype: "" });
-  const [draggingId, setDraggingId] = useState(null);
+  const [newPlayer, setNewPlayer] = useState({ name: "", starRating: 3, archetype: "" });
+  const [draggingCardId, setDraggingCardId] = useState(null);
+  const [draggingPlayer, setDraggingPlayer] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const [dragOverSlot, setDragOverSlot] = useState(null); // { boardId, slotNum }
+  const [dragOverRecruitBoard, setDragOverRecruitBoard] = useState(null); // boardId
 
   useEffect(() => {
     const load = async () => {
@@ -31,7 +113,7 @@ function SquadBoardPage() {
         const [teamData, boardsData, playersData] = await Promise.all([
           fetchTeam(id),
           fetchSquadBoards(id, squadId),
-          fetchPlayers(id, { status: "rostered" }),
+          fetchPlayers(id, { status: ["recruit", "rostered", "graduated", "departed"] }),
         ]);
         setTeam(teamData);
         setBoards(boardsData);
@@ -57,35 +139,112 @@ function SquadBoardPage() {
     [filteredBoards],
   );
 
-  const assignedPlayerIds = useMemo(() => {
-    const ids = new Set();
-    filteredBoards.forEach((b) =>
-      (b.rosterSlots || b.roster_slots || []).forEach((rs) => ids.add(rs.playerId || rs.player_id)),
-    );
-    return ids;
-  }, [filteredBoards]);
+  const devTraitMeta = {
+    normal: { icon: "fa-minus", color: "text-textSecondary" },
+    impact: { icon: "fa-dumbbell", color: "text-olive" },
+    star: { icon: "fa-star", color: "text-[#F5C518]" },
+    elite: { icon: "fa-crown", color: "text-burnt" },
+  };
 
-  const availablePlayers = useMemo(
-    () => players.filter((p) => !assignedPlayerIds.has(p.id)),
-    [players, assignedPlayerIds],
-  );
+  const renderTrait = (trait) => {
+    const meta = devTraitMeta[trait] || devTraitMeta.normal;
+    const label =
+      trait === "impact"
+        ? "💪"
+        : trait === "star"
+          ? "⭐️"
+          : trait === "elite"
+            ? "👑"
+            : "➖";
+    return (
+      <span className="inline-flex items-center gap-1 text-xs">
+        <i className={`fa-solid ${meta.icon} ${meta.color}`} />
+        <span className="text-textSecondary">{label}</span>
+      </span>
+    );
+  };
+
+  const classColor = (cls) => {
+    const map = {
+      FR: "text-[#4C7A4F]",
+      "FR(RS)": "text-[#5C6F4E]",
+      SO: "text-[#8DA1B9]",
+      "SO(RS)": "text-[#8DA1B9]",
+      JR: "text-[#C2410C]",
+      "JR(RS)": "text-[#C2410C]",
+      SR: "text-[#991B1B]",
+      "SR(RS)": "text-[#991B1B]",
+    };
+    return map[cls] || "text-textSecondary";
+  };
+
+  const PlayerSummary = ({ player }) => {
+    if (!player) return null;
+    const star = player.starRating ?? player.star_rating;
+    const classYear = player.classYear ?? player.class_year;
+    const archetype = archetypeShort(player.archetype);
+    const overall = player.overall;
+    const trait = player.devTrait ?? player.dev_trait;
+
+    return (
+      <div className="flex flex-col w-full">
+        <span className="text-textPrimary dark:text-white font-semibold">
+          {player.name || player.id}
+        </span>
+        <span className="text-xs text-textSecondary flex items-center gap-1 justify-between">
+          {classYear ? (
+            <>
+              <span className={classColor(classYear)}>{classYear}</span>
+            </>
+          ) : null}
+          <span>
+            {star}
+            <span className="text-burnt">★</span>
+          </span>
+          {overall ? <> {overall}ovr</> : null}
+          {trait ? (
+            <>
+              {" "}
+              {renderTrait(trait)}
+            </>
+          ) : null}
+          {archetype ? archetype : ""}
+        </span>
+      </div>
+    );
+  };
 
   const handleAssign = async (boardId, playerId, slotNumber) => {
     if (!playerId || !slotNumber) return;
     setBusyBoardId(boardId);
     try {
-      const existing = filteredBoards
-        .find((b) => b.id === boardId)
-        ?.rosterSlots?.find((rs) => rs.slotNumber === slotNumber || rs.slot_number === slotNumber);
-      if (existing) {
-        await updateRosterSlot(boardId, existing.id, { player_id: playerId, slot_number: slotNumber });
+      const allBoards = boards || [];
+      const existingForPlayer = allBoards
+        .map((b) => ({
+          boardId: b.id,
+          slot: (b.rosterSlots || b.roster_slots || []).find(
+            (rs) => (rs.playerId || rs.player_id) === playerId,
+          ),
+        }))
+        .find((entry) => entry.slot);
+
+      if (existingForPlayer?.slot) {
+        if (existingForPlayer.boardId === boardId) {
+          // Same board: just move slot number
+          await updateRosterSlot(boardId, existingForPlayer.slot.id, { player_id: playerId, slot_number: slotNumber });
+        } else {
+          // Different board: remove from old, add to new
+          await deleteRosterSlot(existingForPlayer.boardId, existingForPlayer.slot.id);
+          await createRosterSlot(boardId, { player_id: playerId, slot_number: slotNumber });
+        }
       } else {
         await createRosterSlot(boardId, { player_id: playerId, slot_number: slotNumber });
       }
+
       await updatePlayer(id, playerId, { status: "rostered", position_board_id: boardId });
       const boardsData = await fetchSquadBoards(id, squadId);
       setBoards(boardsData);
-      const playersData = await fetchPlayers(id, { status: "rostered" });
+      const playersData = await fetchPlayers(id, { status: ["recruit", "rostered", "graduated", "departed"] });
       setPlayers(playersData);
     } catch (err) {
       setError(err.message);
@@ -107,7 +266,7 @@ function SquadBoardPage() {
       });
       setNewPlayer({ name: "", starRating: "", archetype: "" });
       setShowFormBoardId(null);
-      const playersData = await fetchPlayers(id, { status: ["recruit", "rostered"] });
+      const playersData = await fetchPlayers(id, { status: ["recruit", "rostered", "graduated", "departed"] });
       setPlayers(playersData);
     } catch (err) {
       setError(err.message);
@@ -142,7 +301,117 @@ function SquadBoardPage() {
       setError(err.message);
     } finally {
       setBusyBoardId(null);
-      setDraggingId(null);
+    }
+  };
+
+  const onPlayerDragStart = (playerId, fromBoardId) => {
+    setDraggingPlayer({ playerId, fromBoardId });
+  };
+
+  const onPlayerDragEnd = () => {
+    setDraggingPlayer(null);
+  };
+
+  const onSlotDrop = (boardId, slotNum) => {
+    if (draggingPlayer?.playerId) {
+      handleAssign(boardId, draggingPlayer.playerId, slotNum);
+      setDraggingPlayer(null);
+    }
+    setDragOverSlot(null);
+  };
+
+  const moveToRecruit = async (boardId, playerId) => {
+    if (!playerId) return;
+    setBusyBoardId(boardId);
+    try {
+      // find existing slot for this player on any board
+      const existing = boards
+        .map((b) => ({
+          boardId: b.id,
+          slot: (b.rosterSlots || b.roster_slots || []).find(
+            (rs) => (rs.playerId || rs.player_id) === playerId,
+          ),
+        }))
+        .find((entry) => entry.slot);
+      if (existing?.slot) {
+        await deleteRosterSlot(existing.boardId, existing.slot.id);
+      }
+      await updatePlayer(id, playerId, { status: "recruit", position_board_id: boardId });
+      const boardsData = await fetchSquadBoards(id, squadId);
+      setBoards(boardsData);
+      const playersData = await fetchPlayers(id, { status: ["recruit", "rostered", "graduated", "departed"] });
+      setPlayers(playersData);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyBoardId(null);
+      setDraggingPlayer(null);
+      setDragOverRecruitBoard(null);
+    }
+  };
+
+  const openEdit = (player, boardId, slotNum) => {
+    setEditing({
+      id: player.id,
+      boardId,
+      slotNum,
+      name: player.name || "",
+      classYear: player.classYear || "",
+      devTrait: player.devTrait || "",
+      archetype: player.archetype || "",
+      overall: player.overall || "",
+      starRating: player.starRating || 3,
+      status: player.status || "recruit",
+    });
+  };
+
+  const closeEdit = () => setEditing(null);
+
+  const saveEdit = async (draft = null) => {
+    const payload = draft || editing;
+    if (!payload) return;
+    setBusyBoardId("edit");
+    try {
+      await updatePlayer(id, payload.id, {
+        name: payload.name,
+        class_year: payload.classYear,
+        dev_trait: payload.devTrait,
+        archetype: payload.archetype,
+        overall: payload.overall,
+        star_rating: payload.starRating,
+        status: payload.status,
+      });
+      const boardsData = await fetchSquadBoards(id, squadId);
+      setBoards(boardsData);
+      const playersData = await fetchPlayers(id, { status: ["recruit", "rostered", "graduated", "departed"] });
+      setPlayers(playersData);
+      closeEdit();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyBoardId(null);
+    }
+  };
+
+  const deleteEditPlayer = async () => {
+    if (!editing) return;
+    setBusyBoardId("edit");
+    try {
+      const board = sortedBoards.find((b) => b.id === editing.boardId);
+      const slot = board?.rosterSlots?.find((rs) => (rs.playerId || rs.player_id) === editing.id);
+      if (slot) {
+        await deleteRosterSlot(editing.boardId, slot.id);
+      }
+      await deletePlayer(id, editing.id);
+      const boardsData = await fetchSquadBoards(id, squadId);
+      setBoards(boardsData);
+      const playersData = await fetchPlayers(id, { status: ["recruit", "rostered", "graduated", "departed"] });
+      setPlayers(playersData);
+      closeEdit();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyBoardId(null);
     }
   };
 
@@ -176,6 +445,9 @@ function SquadBoardPage() {
       <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {sortedBoards.map((board) => {
           const rosterSlots = board.rosterSlots || board.roster_slots || [];
+          const assignedIds = new Set(
+            rosterSlots.map((rs) => rs.playerId || rs.player_id).filter(Boolean),
+          );
           const slotCount = board.slotsCount || board.slots_count || 0;
           const slotsArray = Array.from({ length: slotCount }).map((_, idx) => {
             const slotNum = idx + 1;
@@ -185,74 +457,111 @@ function SquadBoardPage() {
           const recruits = players.filter(
             (p) =>
               p.status === "recruit" &&
-              String(p.positionBoardId || p.position_board_id || "") === String(board.id),
+              String(p.positionBoardId || p.position_board_id || "") === String(board.id) &&
+              !assignedIds.has(p.id),
           );
           return (
           <Card
             key={board.id}
-            draggable
-            onDragStart={() => setDraggingId(board.id)}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={() => reorderBoards(draggingId, board.id)}
-            className="cursor-move"
+            onDragOver={(e) => {
+              if (draggingCardId) e.preventDefault();
+            }}
+            onDrop={() => {
+              if (draggingCardId) reorderBoards(draggingCardId, board.id);
+            }}
+            className="relative"
           >
-            <div className="p-5 space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.14em] text-textSecondary">Position</p>
-                  <h3 className="font-varsity text-xl tracking-[0.07em] uppercase">{board.name}</h3>
-                </div>
-                <StatPill label="Slots" value={board.slotsCount} />
-              </div>
-              <div className="yard-line rounded-lg border border-border bg-surface/60 p-3 text-sm text-textSecondary dark:border-darkborder dark:bg-darksurface/60 space-y-2">
-                <p className="mb-1 font-semibold text-charcoal dark:text-white">Roster Slots</p>
-                <ul className="space-y-1">
-                  {slotsArray.map(({ slotNum, occupant }) => (
-                    <li
-                      key={slotNum}
-                      className="flex items-center justify-between gap-2 rounded-md border border-border bg-white/80 px-2 py-2 text-sm dark:border-darkborder dark:bg-darksurface/80"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-burnt/80 text-xs font-bold text-charcoal">
-                          {slotNum}
-                        </span>
-                        {occupant ? (
-                          <span className="text-textPrimary dark:text-white">
-                            Player #{occupant.playerId || occupant.player_id}
-                          </span>
-                        ) : (
-                          <span className="text-textSecondary">Empty</span>
-                        )}
-                      </div>
-                      {!occupant && availablePlayers.length > 0 && (
-                        <select
-                          defaultValue=""
-                          onChange={(e) => {
-                            const pid = e.target.value;
-                            if (!pid) return;
-                            handleAssign(board.id, pid, slotNum);
-                            e.target.value = "";
-                          }}
-                          className="w-40 rounded-md border border-border bg-white px-2 py-1 text-xs focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
-                          disabled={busyBoardId === board.id}
-                        >
-                          <option value="" disabled>
-                            Assign player
-                          </option>
-                          {availablePlayers.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name} · OVR {p.overall || "—"}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="rounded-lg border border-border bg-surface/60 p-3 dark:border-darkborder dark:bg-darksurface/60 space-y-2">
+            <div className="p-5 space-y-3 flex flex-col justify-between h-full">
+              <div>
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-textSecondary">Recruits</p>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.14em] text-textSecondary">Position</p>
+                    <div className="flex">
+                      <button
+                        type="button"
+                        draggable
+                        onDragStart={() => setDraggingCardId(board.id)}
+                        onDragEnd={() => setDraggingCardId(null)}
+                        className="cursor-grab text-textSecondary hover:text-charcoal dark:text-white/60 dark:hover:text-white"
+                        title="Drag to reorder"
+                      >
+                        ⠇
+                      </button>
+                    <h3 className="font-varsity text-xl tracking-[0.07em] uppercase">{board.name}</h3>
+                    </div>
+                  </div>
+                  <StatPill label="Slots" value={board.slotsCount} />
+                </div>
+                <div className="rounded-lg bg-surface/60 text-sm text-textSecondary dark:border-darkborder dark:bg-darksurface/60 space-y-2 mt-2">
+                  <ul className="space-y-1">
+                    {slotsArray.map(({ slotNum, occupant }) => (
+                      <li
+                        key={slotNum}
+                        className={`flex items-center justify-between gap-2 rounded-md border px-2 py-2 text-sm dark:border-darkborder dark:bg-darksurface/80 transition ${
+                          dragOverSlot?.boardId === board.id && dragOverSlot?.slotNum === slotNum
+                            ? "border-burnt bg-burnt/10 scale-[1.02]"
+                            : "border-border bg-white/80"
+                        }`}
+                        draggable={Boolean(occupant)}
+                        onDragStart={() =>
+                          occupant && onPlayerDragStart(occupant.playerId || occupant.player_id, board.id)
+                        }
+                        onDragEnd={onPlayerDragEnd}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setDragOverSlot({ boardId: board.id, slotNum });
+                        }}
+                        onDragEnter={(e) => {
+                          e.preventDefault();
+                          setDragOverSlot({ boardId: board.id, slotNum });
+                        }}
+                        onDragLeave={() => setDragOverSlot(null)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          onSlotDrop(board.id, slotNum);
+                        }}
+                      >
+                        <div className="flex items-center gap-2 w-full">
+                          {occupant ? (
+                            <div
+                              className="flex flex-col cursor-pointer w-full"
+                              onClick={() => openEdit(occupant.player || {}, board.id, slotNum)}
+                            >
+                              <PlayerSummary
+                                player={occupant.player || { id: occupant.playerId || occupant.player_id }}
+                              />
+                            </div>
+                          ) : (
+                            <span className="text-textSecondary">-</span>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+                <div
+                  className={`rounded-lg border p-3 space-y-2 transition dark:bg-darksurface/60 ${
+                    dragOverRecruitBoard === board.id
+                      ? "border-burnt bg-burnt/10 scale-[1.01]"
+                      : "border-border bg-surface/60 dark:border-darkborder"
+                  }`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOverRecruitBoard(board.id);
+                  }}
+                  onDragEnter={(e) => {
+                    e.preventDefault();
+                    setDragOverRecruitBoard(board.id);
+                  }}
+                  onDragLeave={() => setDragOverRecruitBoard(null)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    draggingPlayer && moveToRecruit(board.id, draggingPlayer.playerId);
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                   <p className="text-sm font-semibold text-textSecondary">Board</p>
                   <button
                     type="button"
                     onClick={() => setShowFormBoardId((prev) => (prev === board.id ? null : board.id))}
@@ -262,72 +571,68 @@ function SquadBoardPage() {
                   </button>
                 </div>
                 {showFormBoardId === board.id && (
-                  <div className="grid gap-2 md:grid-cols-3">
-                    <input
-                      placeholder="Name"
-                      value={newPlayer.name}
-                      onChange={(e) => setNewPlayer((p) => ({ ...p, name: e.target.value }))}
-                      className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
-                    />
-                    <input
-                      type="number"
-                      min={1}
-                      max={5}
-                      placeholder="Stars"
-                      value={newPlayer.starRating}
-                      onChange={(e) => setNewPlayer((p) => ({ ...p, starRating: e.target.value }))}
-                      className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
-                    />
-                    <input
-                      placeholder="Archetype"
-                      value={newPlayer.archetype}
-                      onChange={(e) => setNewPlayer((p) => ({ ...p, archetype: e.target.value }))}
-                      className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleCreatePlayer(board.id)}
-                      disabled={busyBoardId === board.id || !newPlayer.name.trim()}
-                      className="md:col-span-3 rounded-md bg-burnt px-3 py-2 text-sm font-semibold text-charcoal shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
-                    >
-                      Create Recruit
-                    </button>
+                <div className="flex flex-col gap-2">
+                  <input
+                    placeholder="Name"
+                    value={newPlayer.name}
+                    onChange={(e) => setNewPlayer((p) => ({ ...p, name: e.target.value }))}
+                    className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+                  />
+                  <div className="flex items-center gap-1 text-burnt">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        aria-label={`${star} star${star > 1 ? "s" : ""}`}
+                        onClick={() => setNewPlayer((p) => ({ ...p, starRating: star }))}
+                        className="focus:outline-none"
+                      >
+                        <span
+                          className={`text-lg ${
+                            ((newPlayer.starRating ?? 3)) >= star ? "text-burnt" : "text-border opacity-60"
+                          }`}
+                        >
+                          ★
+                        </span>
+                      </button>
+                    ))}
                   </div>
+                <select
+                  value={newPlayer.archetype}
+                  onChange={(e) => setNewPlayer((p) => ({ ...p, archetype: e.target.value }))}
+                  className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+                >
+                  <option value="">Archetype</option>
+                  {Object.entries(archetypeGroups).map(([group, items]) => (
+                    <optgroup key={group} label={group}>
+                      {Object.entries(items).map(([label, code]) => (
+                        <option key={label} value={label}>{`${label} - ${code}`}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+                  <button
+                    type="button"
+                    onClick={() => handleCreatePlayer(board.id)}
+                    disabled={busyBoardId === board.id || !newPlayer.name.trim()}
+                    className="md:col-span-3 rounded-md bg-burnt px-3 py-2 text-sm font-semibold text-charcoal shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    Add
+                  </button>
+                </div>
                 )}
-                {recruits.length === 0 && <p className="text-xs text-textSecondary">No recruits yet.</p>}
                 {recruits.length > 0 && (
                   <ul className="space-y-2">
                     {recruits.map((p) => (
                       <li
                         key={p.id}
                         className="flex items-center justify-between rounded-md border border-border bg-white/80 px-3 py-2 text-sm dark:border-darkborder dark:bg-darksurface/80"
+                        draggable
+                        onDragStart={() => onPlayerDragStart(p.id, board.id)}
+                        onDragEnd={onPlayerDragEnd}
+                        onClick={() => openEdit(p, board.id, null)}
                       >
-                        <div>
-                          <p className="font-semibold text-charcoal dark:text-white">{p.name}</p>
-                          <p className="text-xs text-textSecondary">
-                            Stars: {p.starRating || "—"} · Archetype: {p.archetype || "—"}
-                          </p>
-                        </div>
-                        <select
-                          defaultValue=""
-                          onChange={(e) => {
-                            const slot = e.target.value;
-                            if (!slot) return;
-                            handleAssign(board.id, p.id, Number(slot));
-                            e.target.value = "";
-                          }}
-                          className="w-32 rounded-md border border-border bg-white px-2 py-1 text-xs focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
-                          disabled={busyBoardId === board.id}
-                        >
-                          <option value="" disabled>
-                            Send to slot
-                          </option>
-                          {Array.from({ length: slotCount }).map((_, idx) => (
-                            <option key={idx + 1} value={idx + 1}>
-                              Slot {idx + 1}
-                            </option>
-                          ))}
-                        </select>
+                        <PlayerSummary player={p} />
                       </li>
                     ))}
                   </ul>
@@ -338,8 +643,184 @@ function SquadBoardPage() {
           );
         })}
       </div>
+      <PlayerEditModal
+        editing={editing}
+        onClose={closeEdit}
+        onSaveDraft={(draft) => setEditing(draft)}
+        onSave={() => saveEdit()}
+        onDelete={deleteEditPlayer}
+        busy={busyBoardId === "edit"}
+      />
     </div>
   );
 }
 
 export default SquadBoardPage;
+
+// Modal for editing a player
+function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy }) {
+  if (!editing) return null;
+  const statuses = [
+    { value: "recruit", label: "Recruit" },
+    { value: "rostered", label: "Rostered" },
+    { value: "graduated", label: "Graduated" },
+    { value: "departed", label: "Departed" },
+  ];
+  const classYears = [
+    "",
+    "FR",
+    "FR(RS)",
+    "SO",
+    "SO(RS)",
+    "JR",
+    "JR(RS)",
+    "SR",
+    "SR(RS)",
+    "✍️",
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+      <div className="w-full max-w-lg rounded-xl bg-surface p-6 shadow-2xl dark:bg-darksurface">
+        <div className="flex items-center justify-between">
+          <h3 className="font-varsity text-xl uppercase tracking-[0.06em]">Edit Player</h3>
+          <button onClick={onClose} className="text-textSecondary hover:text-charcoal dark:hover:text-white">
+            ✕
+          </button>
+        </div>
+        <div className="mt-4 space-y-3">
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+              <span>Name</span>
+              <input
+                value={editing.name}
+                onChange={(e) => onSaveDraft({ ...editing, name: e.target.value })}
+                placeholder="Name"
+                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+              />
+            </label>
+            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+              <span>Class</span>
+              <select
+                value={editing.classYear}
+                onChange={(e) => onSaveDraft({ ...editing, classYear: e.target.value })}
+                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+              >
+                {classYears.map((c) => (
+                  <option key={c || "blank"} value={c}>
+                    {c || "—"}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+              <span>Dev Trait</span>
+              <select
+                value={editing.devTrait}
+                onChange={(e) => onSaveDraft({ ...editing, devTrait: e.target.value })}
+                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+              >
+                <option value="">—</option>
+                <option value="normal">Normal ➖</option>
+                <option value="impact">Impact 💪</option>
+                <option value="star">Star ⭐️</option>
+                <option value="elite">Elite 👑</option>
+              </select>
+            </label>
+            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+              <span>Archetype</span>
+              <select
+                value={editing.archetype}
+                onChange={(e) => onSaveDraft({ ...editing, archetype: e.target.value })}
+                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+              >
+                <option value="">—</option>
+                {Object.entries(archetypeGroups).map(([group, items]) => (
+                  <optgroup key={group} label={group}>
+                    {Object.entries(items).map(([label, code]) => (
+                      <option key={label} value={label}>{`${label} - ${code}`}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+              <span>Overall</span>
+              <input
+                type="number"
+                value={editing.overall}
+                onChange={(e) => onSaveDraft({ ...editing, overall: e.target.value })}
+                placeholder="OVR"
+                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+              />
+            </label>
+            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+              <span>Stars</span>
+              <div className="flex items-center gap-1 text-burnt">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    aria-label={`${star} star${star > 1 ? "s" : ""}`}
+                    onClick={() => onSaveDraft({ ...editing, starRating: star })}
+                    className="focus:outline-none"
+                  >
+                    <span
+                      className={`text-lg ${
+                        (+editing.starRating || 3) >= star ? "text-burnt" : "text-border opacity-60"
+                      }`}
+                    >
+                      ★
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </label>
+            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+              <span>Status</span>
+              <select
+                value={editing.status}
+                onChange={(e) => onSaveDraft({ ...editing, status: e.target.value })}
+                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+              >
+                {statuses.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
+        <div className="mt-5 flex justify-between">
+          <button
+            onClick={onDelete}
+            disabled={busy}
+            className="rounded-md border border-danger px-4 py-2 text-sm font-semibold text-danger hover:bg-danger/10 disabled:opacity-60"
+          >
+            Delete
+          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-textSecondary hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => onSave(editing, false)}
+              disabled={busy}
+              className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-charcoal shadow-card transition hover:-translate-y-0.5 disabled:opacity-60"
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
