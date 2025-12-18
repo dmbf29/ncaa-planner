@@ -15,7 +15,7 @@ function TopNav() {
 
   return (
     <header className="border-b border-border bg-charcoal text-white dark:border-darkborder">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+      <div className="mx-auto flex items-center justify-between px-4 py-3">
         <Link to="/" className="font-varsity text-xl tracking-[0.08em] uppercase">
           NCAA Planner
         </Link>

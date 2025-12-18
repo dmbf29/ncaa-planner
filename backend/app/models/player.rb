@@ -10,6 +10,7 @@ class Player < ApplicationRecord
   validates :name, presence: true
   validate :squad_belongs_to_team
   validate :position_board_belongs_to_team
+  before_validation :ensure_defaults
 
   def attributes_payload
     attribute_values
@@ -23,6 +24,12 @@ class Player < ApplicationRecord
   end
 
   private
+
+  def ensure_defaults
+    self.attribute_values ||= {}
+    self.abilities ||= []
+    self.tags ||= []
+  end
 
   def squad_belongs_to_team
     return if squad.blank?

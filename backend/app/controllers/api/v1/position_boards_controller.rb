@@ -12,6 +12,7 @@ module Api
       def create
         board = @team.position_boards.build(position_board_params)
         board.squad_id ||= params[:squad_id]
+        board.sort_order ||= @team.position_boards.where(squad_id: board.squad_id).maximum(:sort_order).to_i + 1
         authorize board
         if board.save
           render json: board, status: :created
@@ -49,6 +50,7 @@ module Api
         params.require(:position_board).permit(
           :name,
           :slots_count,
+          :sort_order,
           :notes,
           :squad_id,
           highlighted_attributes: [],

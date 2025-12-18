@@ -73,6 +73,21 @@ export const deletePositionBoard = (teamId, id) =>
 export const fetchPlayers = (teamId, params = {}) =>
   api.get(`/api/v1/teams/${teamId}/players`, { params }).then((r) => r.data);
 
+export const createPlayer = (teamId, payload) =>
+  api.post(`/api/v1/teams/${teamId}/players`, { player: payload }).then((r) => r.data);
+
+export const updatePlayer = (teamId, id, payload) =>
+  api.put(`/api/v1/teams/${teamId}/players/${id}`, { player: payload }).then((r) => r.data);
+
+export const createRosterSlot = (positionBoardId, payload) =>
+  api.post(`/api/v1/position_boards/${positionBoardId}/roster_slots`, { roster_slot: payload }).then((r) => r.data);
+
+export const updateRosterSlot = (positionBoardId, id, payload) =>
+  api.put(`/api/v1/position_boards/${positionBoardId}/roster_slots/${id}`, { roster_slot: payload }).then((r) => r.data);
+
+export const deleteRosterSlot = (positionBoardId, id) =>
+  api.delete(`/api/v1/position_boards/${positionBoardId}/roster_slots/${id}`).then((r) => r.data);
+
 export const login = ({ email, password }) =>
   api.post("/users/sign_in", { user: { email, password } }).then((r) => r.data);
 

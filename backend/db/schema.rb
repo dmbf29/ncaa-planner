@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_17_121000) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_17_123000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -52,6 +52,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_121000) do
     t.bigint "squad_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "sort_order", default: 0, null: false
+    t.index ["squad_id", "sort_order"], name: "index_position_boards_on_squad_id_and_sort_order"
     t.index ["squad_id"], name: "index_position_boards_on_squad_id"
     t.index ["team_id"], name: "index_position_boards_on_team_id"
   end

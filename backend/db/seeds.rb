@@ -21,7 +21,8 @@ special = team.squads.find_or_create_by!(name: "Graduates/Departures")
 qb_board = PositionBoard.find_or_create_by!(
   team: team,
   squad: offense,
-  name: "Quarterback"
+  name: "Quarterback",
+  sort_order: 1
 ) do |pb|
   pb.slots_count = 5
   pb.highlighted_attributes = %w[speed throw_power throw_accuracy awareness]
@@ -31,7 +32,8 @@ end
 wr_board = PositionBoard.find_or_create_by!(
   team: team,
   squad: offense,
-  name: "Wide Receiver"
+  name: "Wide Receiver",
+  sort_order: 2
 ) do |pb|
   pb.slots_count = 8
   pb.highlighted_attributes = %w[speed route_running catching release]
