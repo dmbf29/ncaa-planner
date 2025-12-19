@@ -26,8 +26,8 @@ function TeamCreatePage() {
   };
 
   return (
-    <div className="space-y-4 max-w-3xl">
-      <PageHeader title="Create Team" eyebrow="Setup" />
+    <div className="max-w-md mx-auto">
+      <PageHeader title="New Team" eyebrow="Setup" />
       <Card>
         <form onSubmit={handleSubmit} className="space-y-5 p-6">
           {error && <p className="text-sm text-danger">{error}</p>}
@@ -44,9 +44,9 @@ function TeamCreatePage() {
           <button
             type="submit"
             disabled={loading}
-            className="rounded-lg bg-burnt px-4 py-2 text-charcoal font-semibold shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
+            className="rounded-lg bg-burnt px-4 py-2 text-white font-semibold shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {loading ? "Creating..." : "Create Team"}
+            {loading ? "Creating..." : "Create"}
           </button>
         </form>
       </Card>

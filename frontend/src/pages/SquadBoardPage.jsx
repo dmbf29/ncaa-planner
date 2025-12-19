@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import StatPill from "../components/StatPill";
+import OverallPill from "../components/OverallPill";
 import {
   fetchTeam,
   fetchSquadBoards,
@@ -92,6 +93,68 @@ const archetypeShort = (longLabel) => {
   return longLabel || "";
 };
 
+const classYears = ["FR", "FR(RS)", "SO", "SO(RS)", "JR", "JR(RS)", "SR", "SR(RS)", "Rec", "✍️"];
+
+const devTraitOptions = [
+  { value: "normal", label: "Normal ➖" },
+  { value: "impact", label: "Impact 💪" },
+  { value: "star", label: "Star ⭐️" },
+  { value: "elite", label: "Elite 👑" },
+];
+
+const statusButtonOptions = [
+  { value: "graduated", label: "Graduated" },
+  { value: "departed", label: "Departed" },
+];
+
+function DevTraitButtons({ value, onChange }) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {devTraitOptions.map((option) => {
+        const selected = value === option.value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(selected ? "" : option.value)}
+            className={`rounded-md border px-3 py-2 text-xs transition ${
+              selected
+                ? "bg-success text-white border-success shadow-card"
+                : "border-border text-charcoal hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+            }`}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function StatusButtons({ value, onChange }) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {statusButtonOptions.map((option) => {
+        const selected = value === option.value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(selected ? "" : option.value)}
+            className={`rounded-md border px-3 py-2 text-sm font-semibold transition ${
+              selected
+                ? "bg-burnt text-white border-burnt shadow-card"
+                : "border-border text-charcoal hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+            }`}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function SquadBoardPage() {
   const { id, squadId } = useParams();
   const [team, setTeam] = useState(null);
@@ -100,12 +163,20 @@ function SquadBoardPage() {
   const [players, setPlayers] = useState([]);
   const [busyBoardId, setBusyBoardId] = useState(null);
   const [showFormBoardId, setShowFormBoardId] = useState(null);
-  const [newPlayer, setNewPlayer] = useState({ name: "", starRating: 3, archetype: "" });
+  const [newPlayer, setNewPlayer] = useState({
+    name: "",
+    starRating: 3,
+    archetype: "",
+    overall: "",
+    classYear: "",
+    devTrait: "",
+  });
   const [draggingCardId, setDraggingCardId] = useState(null);
   const [draggingPlayer, setDraggingPlayer] = useState(null);
   const [editing, setEditing] = useState(null);
   const [dragOverSlot, setDragOverSlot] = useState(null); // { boardId, slotNum }
   const [dragOverRecruitBoard, setDragOverRecruitBoard] = useState(null); // boardId
+  const cardRefs = useRef({});
 
   useEffect(() => {
     const load = async () => {
@@ -189,7 +260,7 @@ function SquadBoardPage() {
     return (
       <div className="flex flex-col w-full">
         <span className="text-textPrimary dark:text-white font-semibold">
-          {player.name || player.id}
+          {player.name || player.id} <span>{overall ? <> <OverallPill value={overall} /></> : null}</span>
         </span>
         <span className="text-xs text-textSecondary flex items-center gap-1 justify-between">
           {classYear ? (
@@ -201,7 +272,6 @@ function SquadBoardPage() {
             {star}
             <span className="text-burnt">★</span>
           </span>
-          {overall ? <> {overall}ovr</> : null}
           {trait ? (
             <>
               {" "}
@@ -261,10 +331,13 @@ function SquadBoardPage() {
         name: newPlayer.name,
         star_rating: newPlayer.starRating || null,
         archetype: newPlayer.archetype || null,
+        overall: newPlayer.overall || null,
+        class_year: newPlayer.classYear || null,
+        dev_trait: newPlayer.devTrait || null,
         status: "recruit",
         position_board_id: boardId,
       });
-      setNewPlayer({ name: "", starRating: "", archetype: "" });
+      setNewPlayer({ name: "", starRating: "", archetype: "", overall: "", classYear: "", devTrait: "" });
       setShowFormBoardId(null);
       const playersData = await fetchPlayers(id, { status: ["recruit", "rostered", "graduated", "departed"] });
       setPlayers(playersData);
@@ -318,6 +391,18 @@ function SquadBoardPage() {
       setDraggingPlayer(null);
     }
     setDragOverSlot(null);
+  };
+
+  const handleBoardDragStart = (e, boardId) => {
+    if (!e?.dataTransfer) return;
+    setDraggingCardId(boardId);
+    const cardEl = cardRefs.current[boardId];
+    if (cardEl) {
+      const rect = cardEl.getBoundingClientRect();
+      e.dataTransfer.setDragImage(cardEl, rect.width / 2, rect.height / 6);
+    }
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", String(boardId));
   };
 
   const moveToRecruit = async (boardId, playerId) => {
@@ -456,20 +541,27 @@ function SquadBoardPage() {
           });
           const recruits = players.filter(
             (p) =>
-              p.status === "recruit" &&
+              (p.status === "recruit" || p.status === "rostered") &&
               String(p.positionBoardId || p.position_board_id || "") === String(board.id) &&
               !assignedIds.has(p.id),
           );
           return (
           <Card
             key={board.id}
+            ref={(el) => {
+              if (el) {
+                cardRefs.current[board.id] = el;
+              } else {
+                delete cardRefs.current[board.id];
+              }
+            }}
             onDragOver={(e) => {
               if (draggingCardId) e.preventDefault();
             }}
             onDrop={() => {
               if (draggingCardId) reorderBoards(draggingCardId, board.id);
             }}
-            className="relative"
+            className={`relative ${draggingCardId === board.id ? "opacity-70" : ""}`}
           >
             <div className="p-5 space-y-3 flex flex-col justify-between h-full">
               <div>
@@ -480,7 +572,7 @@ function SquadBoardPage() {
                       <button
                         type="button"
                         draggable
-                        onDragStart={() => setDraggingCardId(board.id)}
+                        onDragStart={(e) => handleBoardDragStart(e, board.id)}
                         onDragEnd={() => setDraggingCardId(null)}
                         className="cursor-grab text-textSecondary hover:text-charcoal dark:text-white/60 dark:hover:text-white"
                         title="Drag to reorder"
@@ -490,7 +582,7 @@ function SquadBoardPage() {
                     <h3 className="font-varsity text-xl tracking-[0.07em] uppercase">{board.name}</h3>
                     </div>
                   </div>
-                  <StatPill label="Slots" value={board.slotsCount} />
+                  <StatPill label="Spots" value={board.slotsCount} />
                 </div>
                 <div className="rounded-lg bg-surface/60 text-sm text-textSecondary dark:border-darkborder dark:bg-darksurface/60 space-y-2 mt-2">
                   <ul className="space-y-1">
@@ -501,7 +593,7 @@ function SquadBoardPage() {
                           dragOverSlot?.boardId === board.id && dragOverSlot?.slotNum === slotNum
                             ? "border-burnt bg-burnt/10 scale-[1.02]"
                             : "border-border bg-white/80"
-                        }`}
+                        } ${occupant ? "cursor-grab active:cursor-grabbing" : ""}`}
                         draggable={Boolean(occupant)}
                         onDragStart={() =>
                           occupant && onPlayerDragStart(occupant.playerId || occupant.player_id, board.id)
@@ -560,7 +652,7 @@ function SquadBoardPage() {
                     draggingPlayer && moveToRecruit(board.id, draggingPlayer.playerId);
                   }}
                 >
-                  <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between">
                    <p className="text-sm font-semibold text-textSecondary">Board</p>
                   <button
                     type="button"
@@ -597,25 +689,51 @@ function SquadBoardPage() {
                       </button>
                     ))}
                   </div>
-                <select
-                  value={newPlayer.archetype}
-                  onChange={(e) => setNewPlayer((p) => ({ ...p, archetype: e.target.value }))}
-                  className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
-                >
-                  <option value="">Archetype</option>
-                  {Object.entries(archetypeGroups).map(([group, items]) => (
-                    <optgroup key={group} label={group}>
-                      {Object.entries(items).map(([label, code]) => (
-                        <option key={label} value={label}>{`${label} - ${code}`}</option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
+                  <select
+                    value={newPlayer.archetype}
+                    onChange={(e) => setNewPlayer((p) => ({ ...p, archetype: e.target.value }))}
+                    className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+                  >
+                    <option value="">Archetype</option>
+                    {Object.entries(archetypeGroups).map(([group, items]) => (
+                      <optgroup key={group} label={group}>
+                        {Object.entries(items).map(([label, code]) => (
+                          <option key={label} value={label}>{`${label} - ${code}`}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    placeholder="Overall"
+                    value={newPlayer.overall}
+                    onChange={(e) => setNewPlayer((p) => ({ ...p, overall: e.target.value }))}
+                    className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+                  />
+                  <select
+                    value={newPlayer.classYear}
+                    onChange={(e) => setNewPlayer((p) => ({ ...p, classYear: e.target.value }))}
+                    className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+                  >
+                    <option value="">Class</option>
+                    {classYears.map((c) => (
+                      <option key={c || "blank"} value={c}>
+                        {c || "—"}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="space-y-1">
+                    <span className="text-sm font-medium text-textSecondary dark:text-white/80">Dev Trait</span>
+                    <DevTraitButtons
+                      value={newPlayer.devTrait}
+                      onChange={(val) => setNewPlayer((p) => ({ ...p, devTrait: val }))}
+                    />
+                  </div>
                   <button
                     type="button"
                     onClick={() => handleCreatePlayer(board.id)}
                     disabled={busyBoardId === board.id || !newPlayer.name.trim()}
-                    className="md:col-span-3 rounded-md bg-burnt px-3 py-2 text-sm font-semibold text-charcoal shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
+                    className="md:col-span-3 rounded-md bg-burnt px-3 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     Add
                   </button>
@@ -626,7 +744,7 @@ function SquadBoardPage() {
                     {recruits.map((p) => (
                       <li
                         key={p.id}
-                        className="flex items-center justify-between rounded-md border border-border bg-white/80 px-3 py-2 text-sm dark:border-darkborder dark:bg-darksurface/80"
+                        className="flex items-center justify-between rounded-md border border-border bg-white/80 px-3 py-2 text-sm dark:border-darkborder dark:bg-darksurface/80 cursor-grab active:cursor-grabbing"
                         draggable
                         onDragStart={() => onPlayerDragStart(p.id, board.id)}
                         onDragEnd={onPlayerDragEnd}
@@ -660,24 +778,6 @@ export default SquadBoardPage;
 // Modal for editing a player
 function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy }) {
   if (!editing) return null;
-  const statuses = [
-    { value: "recruit", label: "Recruit" },
-    { value: "rostered", label: "Rostered" },
-    { value: "graduated", label: "Graduated" },
-    { value: "departed", label: "Departed" },
-  ];
-  const classYears = [
-    "",
-    "FR",
-    "FR(RS)",
-    "SO",
-    "SO(RS)",
-    "JR",
-    "JR(RS)",
-    "SR",
-    "SR(RS)",
-    "✍️",
-  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
@@ -706,6 +806,7 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
                 onChange={(e) => onSaveDraft({ ...editing, classYear: e.target.value })}
                 className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
               >
+                <option value="">-</option>
                 {classYears.map((c) => (
                   <option key={c || "blank"} value={c}>
                     {c || "—"}
@@ -715,20 +816,13 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
             </label>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+            <div className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
               <span>Dev Trait</span>
-              <select
+              <DevTraitButtons
                 value={editing.devTrait}
-                onChange={(e) => onSaveDraft({ ...editing, devTrait: e.target.value })}
-                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
-              >
-                <option value="">—</option>
-                <option value="normal">Normal ➖</option>
-                <option value="impact">Impact 💪</option>
-                <option value="star">Star ⭐️</option>
-                <option value="elite">Elite 👑</option>
-              </select>
-            </label>
+                onChange={(val) => onSaveDraft({ ...editing, devTrait: val })}
+              />
+            </div>
             <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
               <span>Archetype</span>
               <select
@@ -780,31 +874,30 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
                 ))}
               </div>
             </label>
-            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
-              <span>Status</span>
-              <select
-                value={editing.status}
-                onChange={(e) => onSaveDraft({ ...editing, status: e.target.value })}
-                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
-              >
-                {statuses.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </label>
           </div>
         </div>
-        <div className="mt-5 flex justify-between">
-          <button
-            onClick={onDelete}
-            disabled={busy}
-            className="rounded-md border border-danger px-4 py-2 text-sm font-semibold text-danger hover:bg-danger/10 disabled:opacity-60"
-          >
-            Delete
-          </button>
-          <div className="flex gap-2">
+        <div className="mt-5 flex justify-between items-end">
+          <div className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+            <span>Remove from board</span>
+            <StatusButtons
+              value={editing.status}
+              onChange={(val) => onSaveDraft({ ...editing, status: val })}
+            />
+          </div>
+
+          <div className="flex gap-1">
+            <button
+              onClick={() => {
+                if (busy) return;
+                const message = "Delete this player completely? This action cannot be undone. If you want to save his name, mark the player as graduated or departed. instead";
+                if (window.confirm(message)) onDelete();
+              }}
+              disabled={busy}
+              data-confirm="Delete this player completely? This action cannot be undone. If you want to save his name, mark the player as graduated or departed instead."
+              className="rounded-md border border-danger px-4 py-2 text-sm font-semibold text-danger hover:bg-danger/10 disabled:opacity-60"
+            >
+              Delete
+            </button>
             <button
               onClick={onClose}
               className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-textSecondary hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
@@ -814,7 +907,7 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
             <button
               onClick={() => onSave(editing, false)}
               disabled={busy}
-              className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-charcoal shadow-card transition hover:-translate-y-0.5 disabled:opacity-60"
+              className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:opacity-60"
             >
               Save
             </button>

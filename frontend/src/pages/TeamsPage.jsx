@@ -30,7 +30,7 @@ function TeamsPage() {
   }, [navigate]);
 
   return (
-    <div>
+    <div className="max-w-6xl mx-auto px-4">
       <PageHeader
         title="Teams"
         eyebrow="Dashboard"

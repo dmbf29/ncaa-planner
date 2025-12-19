@@ -9,7 +9,7 @@ const featureList = [
 
 function LandingPage() {
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-8 max-w-6xl mx-auto px-4">
       <section className="rounded-2xl bg-gradient-to-r from-charcoal to-olive p-8 text-white shadow-card">
         <p className="font-chalk text-lg text-white/80">Fall Saturday energy, coach-only clarity.</p>
         <h1 className="mt-2 font-varsity text-4xl tracking-[0.08em] uppercase">NCAA Team Planner</h1>
