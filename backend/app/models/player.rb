@@ -8,6 +8,7 @@ class Player < ApplicationRecord
   enum :status, { recruit: 0, rostered: 1, graduated: 2, departed: 3 }
 
   validates :name, presence: true
+  before_validation :sync_squad_from_position_board
   validate :squad_belongs_to_team
   validate :position_board_belongs_to_team
   before_validation :ensure_defaults
@@ -29,6 +30,13 @@ class Player < ApplicationRecord
     self.attribute_values ||= {}
     self.abilities ||= []
     self.tags ||= []
+  end
+
+  def sync_squad_from_position_board
+    return if position_board.blank?
+
+    # Keep squad aligned with the position board so roster moves do not orphan players
+    self.squad_id = position_board.squad_id
   end
 
   def squad_belongs_to_team
