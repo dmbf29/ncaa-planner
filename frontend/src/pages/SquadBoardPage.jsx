@@ -239,10 +239,10 @@ function SquadBoardPage() {
     const map = {
       FR: "text-[#4C7A4F]",
       "FR(RS)": "text-[#5C6F4E]",
-      SO: "text-[#8DA1B9]",
-      "SO(RS)": "text-[#8DA1B9]",
-      JR: "text-[#C2410C]",
-      "JR(RS)": "text-[#C2410C]",
+      SO: "text-[#7595ba]",
+      "SO(RS)": "text-[#7595ba]",
+      JR: "text-[#bf8167]",
+      "JR(RS)": "text-[#bf8167]",
       SR: "text-[#991B1B]",
       "SR(RS)": "text-[#991B1B]",
     };
@@ -257,29 +257,39 @@ function SquadBoardPage() {
     const overall = player.overall;
     const trait = player.devTrait ?? player.dev_trait;
 
+    const AttributeCell = ({ value }) => (
+      <div className="flex flex-col">
+        <span className="text-xs text-textSecondary font-medium min-h-[1.1rem] flex items-center">
+          {value ?? <span className="text-border">—</span>}
+        </span>
+      </div>
+    );
+
     return (
-      <div className="flex flex-col w-full">
-        <span className="text-textPrimary dark:text-white font-semibold">
-          {player.name || player.id} <span>{overall ? <> <OverallPill value={overall} /></> : null}</span>
-        </span>
-        <span className="text-xs text-textSecondary flex items-center gap-1 justify-between">
-          {classYear ? (
-            <>
-              <span className={classColor(classYear)}>{classYear}</span>
-            </>
-          ) : null}
-          <span>
-            {star}
-            <span className="text-burnt">★</span>
+      <div className="flex flex-col w-full gap-1">
+        <div className="flex items-center justify-between gap-2 px-2 pt-2">
+          <span className="text-textPrimary dark:text-white font-semibold">
+            {player.name || player.id}
           </span>
-          {trait ? (
-            <>
-              {" "}
-              {renderTrait(trait)}
-            </>
-          ) : null}
-          {archetype ? archetype : ""}
-        </span>
+          {overall ? <OverallPill value={overall} /> : null}
+        </div>
+        <div className="grid grid-cols-4 gap-1 px-2 bg-textSecondary/5 py-1">
+          <AttributeCell
+            value={classYear ? <span className={classColor(classYear)}>{classYear}</span> : null}
+          />
+          <AttributeCell
+            value={
+              star ? (
+                <span className="flex items-center gap-0">
+                  <span className="text-textPrimary dark:text-white">{star}</span>
+                  <span className="text-textSecondary/50">★</span>
+                </span>
+              ) : null
+            }
+          />
+          <AttributeCell value={trait ? renderTrait(trait) : null} />
+          <AttributeCell value={archetype ? archetype : null} />
+        </div>
       </div>
     );
   };
@@ -512,9 +522,9 @@ function SquadBoardPage() {
                 <Link
                   key={sq.id}
                   to={`/teams/${id}/squads/${sq.id}`}
-                  className={`rounded-md px-3 py-2 text-sm font-semibold transition ${
+                  className={`rounded-md px-3 py-2 text-sm transition ${
                     String(sq.id) === String(squadId)
-                      ? "bg-burnt text-charcoal shadow-card"
+                      ? "border bg-burnt/5 border-burnt font-semibold text-burnt shadow-card"
                       : "border border-border text-charcoal hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
                   }`}
                 >
@@ -582,14 +592,14 @@ function SquadBoardPage() {
                     <h3 className="font-varsity text-xl tracking-[0.07em] uppercase">{board.name}</h3>
                     </div>
                   </div>
-                  <StatPill label="Spots" value={board.slotsCount} />
+                  <StatPill label="Needs" value={board.slotsCount} />
                 </div>
                 <div className="rounded-lg bg-surface/60 text-sm text-textSecondary dark:border-darkborder dark:bg-darksurface/60 space-y-2 mt-2">
                   <ul className="space-y-1">
                     {slotsArray.map(({ slotNum, occupant }) => (
                       <li
                         key={slotNum}
-                        className={`flex items-center justify-between gap-2 rounded-md border px-2 py-2 text-sm dark:border-darkborder dark:bg-darksurface/80 transition ${
+                        className={`flex items-center justify-between gap-2 rounded-md border text-sm dark:border-darkborder dark:bg-darksurface/80 transition ${
                           dragOverSlot?.boardId === board.id && dragOverSlot?.slotNum === slotNum
                             ? "border-burnt bg-burnt/10 scale-[1.02]"
                             : "border-border bg-white/80"
@@ -624,7 +634,7 @@ function SquadBoardPage() {
                               />
                             </div>
                           ) : (
-                            <span className="text-textSecondary">-</span>
+                            <span className="text-textSecondary px-2 py-2">-</span>
                           )}
                         </div>
                       </li>
@@ -744,7 +754,7 @@ function SquadBoardPage() {
                     {recruits.map((p) => (
                       <li
                         key={p.id}
-                        className="flex items-center justify-between rounded-md border border-border bg-white/80 px-3 py-2 text-sm dark:border-darkborder dark:bg-darksurface/80 cursor-grab active:cursor-grabbing"
+                        className="flex items-center justify-between rounded-md border border-border bg-white/80 text-sm dark:border-darkborder dark:bg-darksurface/80 cursor-grab active:cursor-grabbing"
                         draggable
                         onDragStart={() => onPlayerDragStart(p.id, board.id)}
                         onDragEnd={onPlayerDragEnd}
