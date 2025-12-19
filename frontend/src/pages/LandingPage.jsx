@@ -20,7 +20,7 @@ function LandingPage() {
         <div className="mt-6 flex gap-3">
           <Link
             to="/teams"
-            className="rounded-lg bg-burnt px-4 py-2 text-charcoal font-semibold shadow-card transition hover:-translate-y-0.5"
+            className="rounded-lg bg-burnt px-4 py-2 text-white shadow-card transition hover:-translate-y-0.5"
           >
             View Teams
           </Link>

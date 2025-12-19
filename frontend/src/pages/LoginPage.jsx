@@ -29,7 +29,7 @@ function LoginPage() {
   };
 
   return (
-    <div className="max-w-md">
+    <div className="max-w-md mx-auto">
       <PageHeader title="Log In" eyebrow="Access" />
       <Card>
         <form onSubmit={handleSubmit} className="space-y-4 p-6">
@@ -59,7 +59,7 @@ function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-burnt px-4 py-2 text-charcoal font-semibold shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
+            className="w-full rounded-lg bg-burnt px-4 py-2 text-white font-semibold shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
           >
             {loading ? "Signing in..." : "Log In"}
           </button>

@@ -40,6 +40,10 @@ module Backend
     # Middleware like session, flash, cookies can be added back manually.
     # Skip views, helpers and assets when generating a new resource.
     config.api_only = true
+
+    # Enable minimal cookie/session middleware for Devise + JWT (required to avoid DisabledSessionError)
+    config.middleware.use ActionDispatch::Cookies
+    config.middleware.use ActionDispatch::Session::CookieStore, key: "_ncaa_planner_session", same_site: :lax
   end
 end
 
