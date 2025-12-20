@@ -156,9 +156,9 @@ function StatusButtons({ value, onChange }) {
             key={option.value}
             type="button"
             onClick={() => onChange(selected ? "" : option.value)}
-            className={`rounded-md border px-3 py-2 text-sm font-semibold transition ${
+            className={`rounded-md border px-3 py-2 text-sm font-normal transition ${
               selected
-                ? "bg-burnt text-white border-burnt shadow-card"
+                ? "bg-success text-white border-success shadow-card"
                 : "border-border text-charcoal hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
             }`}
           >
@@ -809,7 +809,30 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
       <div className="w-full max-w-lg rounded-xl bg-surface p-6 shadow-2xl dark:bg-darksurface">
         <div className="flex items-center justify-between">
-          <h3 className="font-varsity text-xl uppercase tracking-[0.06em]">Edit Player</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="font-varsity text-xl uppercase tracking-[0.06em]">Edit Player</h3>
+            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+              <div className="flex items-center gap-1 text-burnt">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    aria-label={`${star} star${star > 1 ? "s" : ""}`}
+                    onClick={() => onSaveDraft({ ...editing, starRating: star })}
+                    className="focus:outline-none"
+                  >
+                    <span
+                      className={`text-lg ${
+                        (+editing.starRating || 3) >= star ? "text-burnt" : "text-border opacity-60"
+                      }`}
+                    >
+                      ★
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </label>
+          </div>
           <button onClick={onClose} className="text-textSecondary hover:text-charcoal dark:hover:text-white">
             ✕
           </button>
@@ -842,13 +865,16 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
             </label>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <div className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
-              <span>Dev Trait</span>
-              <DevTraitButtons
-                value={editing.devTrait}
-                onChange={(val) => onSaveDraft({ ...editing, devTrait: val })}
+            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+              <span>Overall</span>
+              <input
+                type="number"
+                value={editing.overall}
+                onChange={(e) => onSaveDraft({ ...editing, overall: e.target.value })}
+                placeholder="OVR"
+                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
               />
-            </div>
+            </label>
             <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
               <span>Archetype</span>
               <select
@@ -867,50 +893,24 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
               </select>
             </label>
           </div>
-          <div className="grid gap-3 md:grid-cols-3">
-            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
-              <span>Overall</span>
-              <input
-                type="number"
-                value={editing.overall}
-                onChange={(e) => onSaveDraft({ ...editing, overall: e.target.value })}
-                placeholder="OVR"
-                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
-              />
-            </label>
-            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
-              <span>Stars</span>
-              <div className="flex items-center gap-1 text-burnt">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    type="button"
-                    aria-label={`${star} star${star > 1 ? "s" : ""}`}
-                    onClick={() => onSaveDraft({ ...editing, starRating: star })}
-                    className="focus:outline-none"
-                  >
-                    <span
-                      className={`text-lg ${
-                        (+editing.starRating || 3) >= star ? "text-burnt" : "text-border opacity-60"
-                      }`}
-                    >
-                      ★
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </label>
+          <div className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+            <span>Dev Trait</span>
+            <DevTraitButtons
+              value={editing.devTrait}
+              onChange={(val) => onSaveDraft({ ...editing, devTrait: val })}
+            />
           </div>
         </div>
-        <div className="mt-5 flex justify-between items-end">
-          <div className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+        <div className="mt-4 flex justify-between items-end">
+          <div className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80 w-full">
             <span>Remove from board</span>
             <StatusButtons
               value={editing.status}
               onChange={(val) => onSaveDraft({ ...editing, status: val })}
             />
           </div>
-
+        </div>
+        <div className="mt-4 flex justify-end items-end">
           <div className="flex gap-1">
             <button
               onClick={() => {
@@ -920,9 +920,9 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
               }}
               disabled={busy}
               data-confirm="Delete this player completely? This action cannot be undone. If you want to save his name, mark the player as graduated or departed instead."
-              className="rounded-md border border-danger px-4 py-2 text-sm font-semibold text-danger hover:bg-danger/10 disabled:opacity-60"
+              className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-textSecondary hover:bg-danger/10 disabled:opacity-60"
             >
-              Delete
+              <i className="fa-solid fa-trash-can"></i>
             </button>
             <button
               onClick={onClose}
