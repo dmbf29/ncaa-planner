@@ -96,11 +96,18 @@ const archetypeShort = (longLabel) => {
 const classYears = ["FR", "FR(RS)", "SO", "SO(RS)", "JR", "JR(RS)", "SR", "SR(RS)", "Rec", "✍️"];
 
 const devTraitOptions = [
-  { value: "normal", label: "Normal ➖" },
-  { value: "impact", label: "Impact 💪" },
-  { value: "star", label: "Star ⭐️" },
-  { value: "elite", label: "Elite 👑" },
+  { value: "normal", label: "Normal" },
+  { value: "impact", label: "Impact" },
+  { value: "star", label: "Star" },
+  { value: "elite", label: "Elite" },
 ];
+
+const devTraitMeta = {
+  normal: { icon: "fa-lemon", color: "text-textSecondary/40", label: "Normal" },
+  impact: { icon: "fa-dumbbell", color: "text-textSecondary/50", label: "Impact" },
+  star: { icon: "fa-star", color: "text-textSecondary/70", label: "Star" },
+  elite: { icon: "fa-crown", color: "text-textSecondary/80", label: "Elite" },
+};
 
 const statusButtonOptions = [
   { value: "graduated", label: "Graduated" },
@@ -112,6 +119,7 @@ function DevTraitButtons({ value, onChange }) {
     <div className="grid grid-cols-2 gap-2">
       {devTraitOptions.map((option) => {
         const selected = value === option.value;
+        const meta = devTraitMeta[option.value] || devTraitMeta.normal;
         return (
           <button
             key={option.value}
@@ -123,7 +131,14 @@ function DevTraitButtons({ value, onChange }) {
                 : "border-border text-charcoal hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
             }`}
           >
-            {option.label}
+            <span className="inline-flex items-center gap-2">
+              <i
+                className={`fa-solid ${meta.icon} ${
+                  selected ? "text-white" : meta.color
+                }`}
+              />
+              <span>{option.label}</span>
+            </span>
           </button>
         );
       })}
@@ -184,7 +199,7 @@ function SquadBoardPage() {
         const [teamData, boardsData, playersData] = await Promise.all([
           fetchTeam(id),
           fetchSquadBoards(id, squadId),
-          fetchPlayers(id, { status: ["recruit", "rostered", "graduated", "departed"] }),
+          fetchPlayers(id, { status: ["recruit", "rostered"] }),
         ]);
         setTeam(teamData);
         setBoards(boardsData);
@@ -210,27 +225,11 @@ function SquadBoardPage() {
     [filteredBoards],
   );
 
-  const devTraitMeta = {
-    normal: { icon: "fa-minus", color: "text-textSecondary" },
-    impact: { icon: "fa-dumbbell", color: "text-olive" },
-    star: { icon: "fa-star", color: "text-[#F5C518]" },
-    elite: { icon: "fa-crown", color: "text-burnt" },
-  };
-
   const renderTrait = (trait) => {
     const meta = devTraitMeta[trait] || devTraitMeta.normal;
-    const label =
-      trait === "impact"
-        ? "💪"
-        : trait === "star"
-          ? "⭐️"
-          : trait === "elite"
-            ? "👑"
-            : "➖";
     return (
       <span className="inline-flex items-center gap-1 text-xs">
-        <i className={`fa-solid ${meta.icon} ${meta.color}`} />
-        <span className="text-textSecondary">{label}</span>
+        <i className={`fa-solid ${meta.color} ${meta.icon}`} />
       </span>
     );
   };
@@ -281,7 +280,7 @@ function SquadBoardPage() {
             value={
               star ? (
                 <span className="flex items-center gap-0">
-                  <span className="text-textPrimary dark:text-white">{star}</span>
+                  <span className="text-textSecondary/80 dark:text-white">{star}</span>
                   <span className="text-textSecondary/50">★</span>
                 </span>
               ) : null
@@ -324,7 +323,7 @@ function SquadBoardPage() {
       await updatePlayer(id, playerId, { status: "rostered", position_board_id: boardId });
       const boardsData = await fetchSquadBoards(id, squadId);
       setBoards(boardsData);
-      const playersData = await fetchPlayers(id, { status: ["recruit", "rostered", "graduated", "departed"] });
+      const playersData = await fetchPlayers(id, { status: ["recruit", "rostered"] });
       setPlayers(playersData);
     } catch (err) {
       setError(err.message);
@@ -349,7 +348,7 @@ function SquadBoardPage() {
       });
       setNewPlayer({ name: "", starRating: "", archetype: "", overall: "", classYear: "", devTrait: "" });
       setShowFormBoardId(null);
-      const playersData = await fetchPlayers(id, { status: ["recruit", "rostered", "graduated", "departed"] });
+      const playersData = await fetchPlayers(id, { status: ["recruit", "rostered"] });
       setPlayers(playersData);
     } catch (err) {
       setError(err.message);
@@ -434,7 +433,7 @@ function SquadBoardPage() {
       await updatePlayer(id, playerId, { status: "recruit", position_board_id: boardId });
       const boardsData = await fetchSquadBoards(id, squadId);
       setBoards(boardsData);
-      const playersData = await fetchPlayers(id, { status: ["recruit", "rostered", "graduated", "departed"] });
+      const playersData = await fetchPlayers(id, { status: ["recruit", "rostered"] });
       setPlayers(playersData);
     } catch (err) {
       setError(err.message);
@@ -467,6 +466,16 @@ function SquadBoardPage() {
     if (!payload) return;
     setBusyBoardId("edit");
     try {
+      const isAlumni = payload.status === "graduated" || payload.status === "departed";
+
+      if (isAlumni) {
+        const board = sortedBoards.find((b) => b.id === payload.boardId);
+        const slot = board?.rosterSlots?.find((rs) => (rs.playerId || rs.player_id) === payload.id);
+        if (slot) {
+          await deleteRosterSlot(payload.boardId, slot.id);
+        }
+      }
+
       await updatePlayer(id, payload.id, {
         name: payload.name,
         class_year: payload.classYear,
@@ -475,10 +484,11 @@ function SquadBoardPage() {
         overall: payload.overall,
         star_rating: payload.starRating,
         status: payload.status,
+        position_board_id: isAlumni ? null : payload.boardId || null,
       });
       const boardsData = await fetchSquadBoards(id, squadId);
       setBoards(boardsData);
-      const playersData = await fetchPlayers(id, { status: ["recruit", "rostered", "graduated", "departed"] });
+      const playersData = await fetchPlayers(id, { status: ["recruit", "rostered"] });
       setPlayers(playersData);
       closeEdit();
     } catch (err) {
@@ -500,7 +510,7 @@ function SquadBoardPage() {
       await deletePlayer(id, editing.id);
       const boardsData = await fetchSquadBoards(id, squadId);
       setBoards(boardsData);
-      const playersData = await fetchPlayers(id, { status: ["recruit", "rostered", "graduated", "departed"] });
+      const playersData = await fetchPlayers(id, { status: ["recruit", "rostered"] });
       setPlayers(playersData);
       closeEdit();
     } catch (err) {
@@ -531,6 +541,12 @@ function SquadBoardPage() {
                   {sq.name}
                 </Link>
               ))}
+              <Link
+                to={`/teams/${id}/graduates`}
+                className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+              >
+                Alumni
+              </Link>
             </div>
           )
         }

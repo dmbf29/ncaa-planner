@@ -10,6 +10,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@fortawesome/fontawesome-free": "^6.5.2",
     "axios": "^1.7.9",
     "clsx": "^2.1.1",
     "react": "^18.3.1",

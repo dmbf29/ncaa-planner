@@ -10,9 +10,23 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_17_123000) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_20_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+
+  create_table "needs", force: :cascade do |t|
+    t.bigint "position_board_id", null: false
+    t.bigint "replacement_player_id"
+    t.bigint "departing_player_id"
+    t.integer "slot_number"
+    t.boolean "resolved", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["departing_player_id"], name: "index_needs_on_departing_player_id"
+    t.index ["position_board_id", "slot_number"], name: "index_needs_on_position_board_id_and_slot_number", unique: true, where: "(slot_number IS NOT NULL)"
+    t.index ["position_board_id"], name: "index_needs_on_position_board_id"
+    t.index ["replacement_player_id"], name: "index_needs_on_replacement_player_id"
+  end
 
   create_table "players", force: :cascade do |t|
     t.string "name", null: false
@@ -103,6 +117,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_123000) do
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
   end
 
+  add_foreign_key "needs", "players", column: "departing_player_id"
+  add_foreign_key "needs", "players", column: "replacement_player_id"
+  add_foreign_key "needs", "position_boards"
   add_foreign_key "players", "position_boards"
   add_foreign_key "players", "squads"
   add_foreign_key "players", "teams"

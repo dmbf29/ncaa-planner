@@ -4,6 +4,8 @@ class Player < ApplicationRecord
   belongs_to :position_board, optional: true
 
   has_one :roster_slot, dependent: :destroy
+  has_many :replacement_needs, class_name: "Need", foreign_key: :replacement_player_id, dependent: :nullify
+  has_many :departing_needs, class_name: "Need", foreign_key: :departing_player_id, dependent: :nullify
 
   enum :status, { recruit: 0, rostered: 1, graduated: 2, departed: 3 }
 
