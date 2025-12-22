@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import OverallPill from "../components/OverallPill";
-import { fetchPlayers, fetchTeam, updatePlayer } from "../lib/apiClient";
+import { deletePlayer, fetchPlayers, fetchTeam, fetchSquadBoards, updatePlayer } from "../lib/apiClient";
 
 const archetypeGroups = {
   Quarterback: {
@@ -97,13 +97,6 @@ const devTraitMeta = {
   elite: { icon: "fa-crown", color: "text-textSecondary/80", label: "Elite" },
 };
 
-const statusOptions = [
-  { value: "graduated", label: "Graduated" },
-  { value: "departed", label: "Departed" },
-  { value: "rostered", label: "Rostered" },
-  { value: "recruit", label: "Recruit" },
-];
-
 const classColor = (cls) => {
   const map = {
     FR: "text-[#4C7A4F]",
@@ -196,14 +189,37 @@ const PlayerSummary = ({ player }) => {
   );
 };
 
-function AlumniEditModal({ editing, onChange, onSave, onClose, saving }) {
+function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy }) {
   if (!editing) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
       <div className="w-full max-w-lg rounded-xl bg-surface p-6 shadow-2xl dark:bg-darksurface">
         <div className="flex items-center justify-between">
-          <h3 className="font-varsity text-xl uppercase tracking-[0.06em]">Edit Player</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="font-varsity text-xl uppercase tracking-[0.06em]">Edit Player</h3>
+            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+              <div className="flex items-center gap-1 text-burnt">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    aria-label={`${star} star${star > 1 ? "s" : ""}`}
+                    onClick={() => onSaveDraft({ ...editing, starRating: star })}
+                    className="focus:outline-none"
+                  >
+                    <span
+                      className={`text-lg ${
+                        (+editing.starRating || 3) >= star ? "text-burnt" : "text-border opacity-60"
+                      }`}
+                    >
+                      ★
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </label>
+          </div>
           <button onClick={onClose} className="text-textSecondary hover:text-charcoal dark:hover:text-white">
             ✕
           </button>
@@ -214,7 +230,7 @@ function AlumniEditModal({ editing, onChange, onSave, onClose, saving }) {
               <span>Name</span>
               <input
                 value={editing.name}
-                onChange={(e) => onChange({ ...editing, name: e.target.value })}
+                onChange={(e) => onSaveDraft({ ...editing, name: e.target.value })}
                 placeholder="Name"
                 className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
               />
@@ -223,7 +239,7 @@ function AlumniEditModal({ editing, onChange, onSave, onClose, saving }) {
               <span>Class</span>
               <select
                 value={editing.classYear}
-                onChange={(e) => onChange({ ...editing, classYear: e.target.value })}
+                onChange={(e) => onSaveDraft({ ...editing, classYear: e.target.value })}
                 className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
               >
                 <option value="">-</option>
@@ -236,15 +252,21 @@ function AlumniEditModal({ editing, onChange, onSave, onClose, saving }) {
             </label>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <div className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
-              <span>Dev Trait</span>
-              <DevTraitButtons value={editing.devTrait} onChange={(val) => onChange({ ...editing, devTrait: val })} />
-            </div>
+            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+              <span>Overall</span>
+              <input
+                type="number"
+                value={editing.overall}
+                onChange={(e) => onSaveDraft({ ...editing, overall: e.target.value })}
+                placeholder="OVR"
+                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+              />
+            </label>
             <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
               <span>Archetype</span>
               <select
                 value={editing.archetype}
-                onChange={(e) => onChange({ ...editing, archetype: e.target.value })}
+                onChange={(e) => onSaveDraft({ ...editing, archetype: e.target.value })}
                 className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
               >
                 <option value="">—</option>
@@ -258,65 +280,58 @@ function AlumniEditModal({ editing, onChange, onSave, onClose, saving }) {
               </select>
             </label>
           </div>
-          <div className="grid gap-3 md:grid-cols-3">
-            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
-              <span>Overall</span>
-              <input
-                type="number"
-                value={editing.overall}
-                onChange={(e) => onChange({ ...editing, overall: e.target.value })}
-                placeholder="OVR"
-                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
-              />
-            </label>
-            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
-              <span>Stars</span>
-              <div className="flex items-center gap-1 text-burnt">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    type="button"
-                    aria-label={`${star} star${star > 1 ? "s" : ""}`}
-                    onClick={() => onChange({ ...editing, starRating: star })}
-                    className="focus:outline-none"
-                  >
-                    <span className={`text-lg ${(+editing.starRating || 3) >= star ? "text-burnt" : "text-border opacity-60"}`}>
-                      ★
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </label>
-            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
-              <span>Status</span>
-              <select
-                value={editing.status}
-                onChange={(e) => onChange({ ...editing, status: e.target.value })}
-                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
-              >
-                {statusOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+          <div className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+            <span>Dev Trait</span>
+            <DevTraitButtons value={editing.devTrait} onChange={(val) => onSaveDraft({ ...editing, devTrait: val })} />
           </div>
+          <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+            <div className="flex items-center justify-between">
+              <span>Assign to position board (returns as recruit)</span>
+              <span className="text-xs text-textSecondary/70">Optional</span>
+            </div>
+            <select
+              value={editing.boardId || ""}
+              onChange={(e) => onSaveDraft({ ...editing, boardId: e.target.value || null })}
+              className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+            >
+              <option value="">— Keep as alumni —</option>
+              {editing.boardOptions?.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-textSecondary hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onSave}
-            disabled={saving}
-            className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:opacity-60"
-          >
-            Save
-          </button>
+        <div className="mt-4 flex justify-end items-end">
+          <div className="flex gap-1">
+            <button
+              onClick={() => {
+                if (busy) return;
+                const message =
+                  "Delete this player completely? This action cannot be undone. If you want to save his name, mark the player as graduated or departed. instead";
+                if (window.confirm(message)) onDelete();
+              }}
+              disabled={busy}
+              data-confirm="Delete this player completely? This action cannot be undone. If you want to save his name, mark the player as graduated or departed instead."
+              className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-textSecondary hover:bg-danger/10 disabled:opacity-60"
+            >
+              <i className="fa-solid fa-trash-can"></i>
+            </button>
+            <button
+              onClick={onClose}
+              className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-textSecondary hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => onSave(editing, false)}
+              disabled={busy}
+              className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:opacity-60"
+            >
+              Save
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -327,6 +342,7 @@ function GraduatesPage() {
   const { id } = useParams();
   const [team, setTeam] = useState(null);
   const [players, setPlayers] = useState([]);
+  const [boards, setBoards] = useState([]);
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -340,6 +356,20 @@ function GraduatesPage() {
         ]);
         setTeam(teamData);
         setPlayers(playerData);
+        if (teamData?.squads?.length) {
+          const boardGroups = await Promise.all(
+            teamData.squads.map((sq) => fetchSquadBoards(id, sq.id)),
+          );
+          const flattened = boardGroups.flat().map((b) => ({
+            ...b,
+            label: `${teamData.squads.find((sq) => sq.id === (b.squadId || b.squad_id))?.name || "Squad"} • ${
+              b.name
+            }`,
+          }));
+          setBoards(flattened);
+        } else {
+          setBoards([]);
+        }
       } catch (err) {
         setError(err.message);
       }
@@ -363,6 +393,8 @@ function GraduatesPage() {
       overall: player.overall || "",
       starRating: player.starRating || player.star_rating || 3,
       status: player.status || "graduated",
+      boardId: player.positionBoardId || player.position_board_id || "",
+      boardOptions: boards,
     });
   };
 
@@ -372,6 +404,7 @@ function GraduatesPage() {
     if (!editing) return;
     setSaving(true);
     try {
+      const wantsReturn = !!editing.boardId;
       await updatePlayer(id, editing.id, {
         name: editing.name,
         class_year: editing.classYear || null,
@@ -379,8 +412,24 @@ function GraduatesPage() {
         archetype: editing.archetype || null,
         overall: editing.overall || null,
         star_rating: editing.starRating || null,
-        status: editing.status || null,
+        status: wantsReturn ? "recruit" : editing.status || "graduated",
+        position_board_id: editing.boardId || null,
       });
+      const playerData = await fetchPlayers(id, { status: ["graduated", "departed"] });
+      setPlayers(playerData);
+      closeEdit();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteEditPlayer = async () => {
+    if (!editing) return;
+    setSaving(true);
+    try {
+      await deletePlayer(id, editing.id);
       const playerData = await fetchPlayers(id, { status: ["graduated", "departed"] });
       setPlayers(playerData);
       closeEdit();
@@ -440,7 +489,14 @@ function GraduatesPage() {
           </Card>
         ))}
       </div>
-      <AlumniEditModal editing={editing} onChange={setEditing} onSave={saveEdit} onClose={closeEdit} saving={saving} />
+      <PlayerEditModal
+        editing={editing}
+        onClose={closeEdit}
+        onSaveDraft={(draft) => setEditing(draft)}
+        onSave={() => saveEdit()}
+        onDelete={deleteEditPlayer}
+        busy={saving}
+      />
     </div>
   );
 }

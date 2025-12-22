@@ -91,6 +91,15 @@ export const updateRosterSlot = (positionBoardId, id, payload) =>
 export const deleteRosterSlot = (positionBoardId, id) =>
   api.delete(`/api/v1/position_boards/${positionBoardId}/roster_slots/${id}`).then((r) => r.data);
 
+export const createNeed = (positionBoardId, payload) =>
+  api.post(`/api/v1/position_boards/${positionBoardId}/needs`, { need: payload }).then((r) => r.data);
+
+export const updateNeed = (positionBoardId, id, payload) =>
+  api.put(`/api/v1/position_boards/${positionBoardId}/needs/${id}`, { need: payload }).then((r) => r.data);
+
+export const deleteNeed = (positionBoardId, id) =>
+  api.delete(`/api/v1/position_boards/${positionBoardId}/needs/${id}`).then((r) => r.data);
+
 export const login = ({ email, password }) =>
   api.post("/users/sign_in", { user: { email, password } }).then((r) => r.data);
 

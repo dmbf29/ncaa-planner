@@ -7,6 +7,7 @@ class Need < ApplicationRecord
   validates :slot_number, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   validate :slot_or_departing_present
   validate :departing_player_matches_board
+  validate :replacement_player_matches_board
   validate :replacement_differs_from_departing
 
   private
@@ -31,5 +32,12 @@ class Need < ApplicationRecord
     return if replacement_player_id != departing_player_id
 
     errors.add(:replacement_player_id, "must differ from the departing player")
+  end
+
+  def replacement_player_matches_board
+    return if replacement_player.blank? || position_board.blank?
+    return if replacement_player.team_id == position_board.team_id
+
+    errors.add(:replacement_player_id, "must belong to the same team as the position board")
   end
 end

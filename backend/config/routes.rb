@@ -16,6 +16,7 @@ Rails.application.routes.draw do
 
       resources :position_boards, only: [] do
         resources :roster_slots, only: %i[create update destroy]
+      resources :needs, only: %i[create update destroy]
       end
     end
   end

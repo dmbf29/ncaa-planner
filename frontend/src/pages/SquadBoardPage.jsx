@@ -15,6 +15,9 @@ import {
   updatePlayer,
   deletePlayer,
   deleteRosterSlot,
+  createNeed,
+  updateNeed,
+  deleteNeed,
 } from "../lib/apiClient";
 
 const archetypeGroups = {
@@ -155,7 +158,7 @@ function StatusButtons({ value, onChange }) {
           <button
             key={option.value}
             type="button"
-            onClick={() => onChange(selected ? "" : option.value)}
+            onClick={() => onChange(option.value)}
             className={`rounded-md border px-3 py-2 text-sm font-normal transition ${
               selected
                 ? "bg-success text-white border-success shadow-card"
@@ -191,6 +194,17 @@ function SquadBoardPage() {
   const [editing, setEditing] = useState(null);
   const [dragOverSlot, setDragOverSlot] = useState(null); // { boardId, slotNum }
   const [dragOverRecruitBoard, setDragOverRecruitBoard] = useState(null); // boardId
+  const [previewOrder, setPreviewOrder] = useState({ boardId: null, order: [] }); // local visual reorder
+  const [needDraft, setNeedDraft] = useState({
+    boardId: null,
+    needId: null,
+    departingPlayerId: "",
+    replacementPlayerId: "",
+    slotNumber: "",
+    resolved: false,
+  });
+  const [needBusy, setNeedBusy] = useState(false);
+  const [needMessage, setNeedMessage] = useState("");
   const cardRefs = useRef({});
 
   useEffect(() => {
@@ -224,6 +238,181 @@ function SquadBoardPage() {
       ),
     [filteredBoards],
   );
+
+  const getRosterSlots = (board) =>
+    [...((board?.rosterSlots || board?.roster_slots || []))].sort(
+      (a, b) => (a.slotNumber || a.slot_number || 0) - (b.slotNumber || b.slot_number || 0),
+    );
+
+  const getOrderedSlotsForBoard = (board) => {
+    const slots = getRosterSlots(board);
+    const slotCount = board.slotsCount || board.slots_count || slots.length || 0;
+    const playerMap = new Map(
+      slots.map((rs) => [rs.playerId || rs.player_id, rs]),
+    );
+    const order =
+      previewOrder.boardId === board.id && (previewOrder.order || []).length > 0
+        ? previewOrder.order
+        : slots.map((rs) => rs.playerId || rs.player_id);
+
+    const orderedPlayers = order.map((pid) => playerMap.get(pid)).filter(Boolean);
+    const slotsArray = Array.from({ length: slotCount }).map((_, idx) => {
+      const occupant = orderedPlayers[idx] || null;
+      return { slotNum: idx + 1, occupant };
+    });
+    return slotsArray;
+  };
+
+  const clearPreview = () => setPreviewOrder({ boardId: null, order: [] });
+
+  const updatePreviewOrder = (boardId, dragPlayerId, targetPlayerId) => {
+    if (!dragPlayerId || !targetPlayerId || dragPlayerId === targetPlayerId) return;
+    const board = sortedBoards.find((b) => b.id === boardId);
+    if (!board) return;
+    const baseSlots = getRosterSlots(board);
+    const currentOrder =
+      previewOrder.boardId === boardId && previewOrder.order.length > 0
+        ? [...previewOrder.order]
+        : baseSlots.map((rs) => rs.playerId || rs.player_id);
+
+    const fromIdx = currentOrder.indexOf(dragPlayerId);
+    const toIdx = currentOrder.indexOf(targetPlayerId);
+    if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return;
+
+    const nextOrder = [...currentOrder];
+    nextOrder.splice(fromIdx, 1);
+    nextOrder.splice(toIdx, 0, dragPlayerId);
+    setPreviewOrder({ boardId, order: nextOrder });
+  };
+
+  const applyRosterOrder = async (board, desiredOrder, existingSlots = null) => {
+    if (!board || !desiredOrder || desiredOrder.length === 0) return;
+    const safeOrder = desiredOrder.filter(Boolean);
+    if (safeOrder.length === 0) return;
+
+    const slots = existingSlots ? [...existingSlots] : getRosterSlots(board);
+    const idToSlot = new Map(
+      slots.map((rs) => [rs.playerId || rs.player_id, rs.id]).filter(([pid]) => pid),
+    );
+
+    // Use a fixed high-but-safe offset to avoid collisions while staying in 32-bit int range.
+    const tempBase = 1_000_000;
+
+    // Create any missing roster slots for players not yet on the board.
+    for (let idx = 0; idx < safeOrder.length; idx += 1) {
+      const pid = safeOrder[idx];
+      if (!pid || idToSlot.has(pid)) continue;
+      const slot = await createRosterSlot(board.id, { player_id: pid, slot_number: tempBase + idx });
+      if (slot?.id) {
+        idToSlot.set(pid, slot.id);
+      }
+    }
+
+    // Phase 1: move everyone to unique temporary slots (sequential to avoid unique constraint races).
+    for (let idx = 0; idx < safeOrder.length; idx += 1) {
+      const pid = safeOrder[idx];
+      const slotId = idToSlot.get(pid);
+      if (!slotId) continue;
+      await updateRosterSlot(board.id, slotId, { slot_number: tempBase + idx });
+    }
+
+    // Phase 2: finalize the target ordering (1-based).
+    for (let idx = 0; idx < safeOrder.length; idx += 1) {
+      const pid = safeOrder[idx];
+      const slotId = idToSlot.get(pid);
+      if (!slotId) continue;
+      await updateRosterSlot(board.id, slotId, { slot_number: idx + 1 });
+    }
+  };
+
+  const reorderWithinBoard = async (boardId, playerId, targetSlot) => {
+    const board = sortedBoards.find((b) => b.id === boardId);
+    if (!board) return;
+    const slots = getRosterSlots(board);
+    const currentIdx = slots.findIndex((rs) => (rs.playerId || rs.player_id) === playerId);
+    if (currentIdx === -1) return;
+
+    const order = slots.map((rs) => rs.playerId || rs.player_id);
+    const clampedIdx = Math.max(0, Math.min(targetSlot - 1, order.length - 1));
+    const nextOrder = [...order];
+    nextOrder.splice(currentIdx, 1);
+    nextOrder.splice(clampedIdx, 0, playerId);
+
+    setBusyBoardId(boardId);
+    try {
+      await applyRosterOrder(board, nextOrder, slots);
+      const boardsData = await fetchSquadBoards(id, squadId);
+      setBoards(boardsData);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyBoardId(null);
+      setDraggingPlayer(null);
+      clearPreview();
+    }
+  };
+
+  const movePlayerToBoard = async (boardId, playerId, targetSlot) => {
+    const targetBoard = sortedBoards.find((b) => b.id === boardId);
+    if (!targetBoard) return;
+    const targetSlots = getRosterSlots(targetBoard);
+    const alreadyOnBoard = targetSlots.some((rs) => (rs.playerId || rs.player_id) === playerId);
+    const slotLimit = targetBoard.slotsCount || targetBoard.slots_count || 0;
+    if (!alreadyOnBoard && slotLimit && targetSlots.length >= slotLimit) {
+      setError("This board is full. Remove a player first.");
+      return;
+    }
+
+    setBusyBoardId(boardId);
+    try {
+      if (draggingPlayer?.fromBoardId && draggingPlayer.fromBoardId !== boardId) {
+        const sourceBoard = sortedBoards.find((b) => b.id === draggingPlayer.fromBoardId);
+        if (sourceBoard) {
+          const sourceSlots = getRosterSlots(sourceBoard);
+          const sourceSlot = sourceSlots.find((rs) => (rs.playerId || rs.player_id) === playerId);
+          if (sourceSlot) {
+            await deleteRosterSlot(sourceBoard.id, sourceSlot.id);
+            const remainingOrder = sourceSlots
+              .filter((rs) => (rs.playerId || rs.player_id) !== playerId)
+              .map((rs) => rs.playerId || rs.player_id);
+            if (remainingOrder.length > 0) {
+              await applyRosterOrder(sourceBoard, remainingOrder, sourceSlots.filter((rs) => rs.id !== sourceSlot.id));
+            }
+          }
+        }
+      }
+
+      const targetOrder = targetSlots
+        .map((rs) => rs.playerId || rs.player_id)
+        .filter((pid) => pid !== playerId);
+      const insertIdx = Math.max(0, Math.min(targetSlot - 1, targetOrder.length));
+      targetOrder.splice(insertIdx, 0, playerId);
+
+      await applyRosterOrder(targetBoard, targetOrder, targetSlots);
+      await updatePlayer(id, playerId, { status: "rostered", position_board_id: boardId });
+
+      const boardsData = await fetchSquadBoards(id, squadId);
+      setBoards(boardsData);
+      const playersData = await fetchPlayers(id, { status: ["recruit", "rostered"] });
+      setPlayers(playersData);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyBoardId(null);
+      setDraggingPlayer(null);
+      setDragOverSlot(null);
+      setDragOverRecruitBoard(null);
+      clearPreview();
+    }
+  };
+
+  const startPlayerDrag = (e, playerId, fromBoardId) => {
+    setDraggingPlayer({ playerId, fromBoardId });
+    if (e?.dataTransfer) {
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", String(playerId));
+    }
+  };
 
   const renderTrait = (trait) => {
     const meta = devTraitMeta[trait] || devTraitMeta.normal;
@@ -293,45 +482,6 @@ function SquadBoardPage() {
     );
   };
 
-  const handleAssign = async (boardId, playerId, slotNumber) => {
-    if (!playerId || !slotNumber) return;
-    setBusyBoardId(boardId);
-    try {
-      const allBoards = boards || [];
-      const existingForPlayer = allBoards
-        .map((b) => ({
-          boardId: b.id,
-          slot: (b.rosterSlots || b.roster_slots || []).find(
-            (rs) => (rs.playerId || rs.player_id) === playerId,
-          ),
-        }))
-        .find((entry) => entry.slot);
-
-      if (existingForPlayer?.slot) {
-        if (existingForPlayer.boardId === boardId) {
-          // Same board: just move slot number
-          await updateRosterSlot(boardId, existingForPlayer.slot.id, { player_id: playerId, slot_number: slotNumber });
-        } else {
-          // Different board: remove from old, add to new
-          await deleteRosterSlot(existingForPlayer.boardId, existingForPlayer.slot.id);
-          await createRosterSlot(boardId, { player_id: playerId, slot_number: slotNumber });
-        }
-      } else {
-        await createRosterSlot(boardId, { player_id: playerId, slot_number: slotNumber });
-      }
-
-      await updatePlayer(id, playerId, { status: "rostered", position_board_id: boardId });
-      const boardsData = await fetchSquadBoards(id, squadId);
-      setBoards(boardsData);
-      const playersData = await fetchPlayers(id, { status: ["recruit", "rostered"] });
-      setPlayers(playersData);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusyBoardId(null);
-    }
-  };
-
   const handleCreatePlayer = async (boardId) => {
     if (!newPlayer.name.trim()) return;
     setBusyBoardId(boardId);
@@ -386,20 +536,30 @@ function SquadBoardPage() {
     }
   };
 
-  const onPlayerDragStart = (playerId, fromBoardId) => {
-    setDraggingPlayer({ playerId, fromBoardId });
-  };
-
   const onPlayerDragEnd = () => {
     setDraggingPlayer(null);
+    clearPreview();
   };
 
   const onSlotDrop = (boardId, slotNum) => {
     if (draggingPlayer?.playerId) {
-      handleAssign(boardId, draggingPlayer.playerId, slotNum);
-      setDraggingPlayer(null);
+      const targetBoard = sortedBoards.find((b) => b.id === boardId);
+      const targetSlots = targetBoard ? getRosterSlots(targetBoard) : [];
+      const alreadyOnTarget = targetSlots.some((rs) => (rs.playerId || rs.player_id) === draggingPlayer.playerId);
+      if (alreadyOnTarget) {
+        // Use preview order to pick intended position if available
+        const previewIdx =
+          previewOrder.boardId === boardId
+            ? previewOrder.order.indexOf(draggingPlayer.playerId)
+            : -1;
+        const targetPosition = previewIdx >= 0 ? previewIdx + 1 : slotNum;
+        reorderWithinBoard(boardId, draggingPlayer.playerId, targetPosition);
+      } else {
+        movePlayerToBoard(boardId, draggingPlayer.playerId, slotNum);
+      }
     }
     setDragOverSlot(null);
+    clearPreview();
   };
 
   const handleBoardDragStart = (e, boardId) => {
@@ -520,6 +680,74 @@ function SquadBoardPage() {
     }
   };
 
+  const allNeeds = useMemo(() => {
+    return sortedBoards.flatMap((b) =>
+      (b.needs || []).map((n) => ({
+        ...n,
+        boardName: b.name,
+        boardId: b.id,
+      })),
+    );
+  }, [sortedBoards]);
+
+  const handleDeleteNeed = async (boardId, needId) => {
+    setNeedBusy(true);
+    setNeedMessage("");
+    try {
+      await deleteNeed(boardId, needId);
+      const boardsData = await fetchSquadBoards(id, squadId);
+      setBoards(boardsData);
+      closeNeedModal();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setNeedBusy(false);
+    }
+  };
+
+  const closeNeedModal = () => {
+    setNeedDraft({
+      boardId: null,
+      needId: null,
+      departingPlayerId: "",
+      replacementPlayerId: "",
+      slotNumber: "",
+      resolved: false,
+    });
+    setNeedMessage("");
+    setNeedBusy(false);
+  };
+
+  const handleSaveNeed = async () => {
+    if (!needDraft.boardId) return;
+    if (!needDraft.departingPlayerId && !needDraft.slotNumber) {
+      setNeedMessage("Pick a departing player or an empty slot.");
+      return;
+    }
+    setNeedBusy(true);
+    setNeedMessage("");
+    try {
+      const payload = {
+        departing_player_id: needDraft.departingPlayerId || null,
+        slot_number: needDraft.slotNumber ? Number(needDraft.slotNumber) : null,
+        replacement_player_id: needDraft.replacementPlayerId || null,
+        resolved: !!needDraft.resolved,
+      };
+      if (needDraft.needId) {
+        await updateNeed(needDraft.boardId, needDraft.needId, payload);
+      } else {
+        await createNeed(needDraft.boardId, payload);
+      }
+      const boardsData = await fetchSquadBoards(id, squadId);
+      setBoards(boardsData);
+      closeNeedModal();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setNeedBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -527,7 +755,7 @@ function SquadBoardPage() {
         eyebrow="Roster Planner"
         actions={
           squadList.length > 0 && (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 mt-2 sm:mt-0">
               {squadList.map((sq) => (
                 <Link
                   key={sq.id}
@@ -553,18 +781,58 @@ function SquadBoardPage() {
       />
       {error && <p className="text-sm text-danger">{error}</p>}
       {!team && !error && <p className="text-sm text-textSecondary">Loading squad...</p>}
+      {allNeeds.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-textSecondary uppercase tracking-[0.12em]">
+            Planned Replacements ({allNeeds.length})
+          </h3>
+          <div className="flex flex-wrap gap-1">
+            {allNeeds.map((need) => {
+              const departing =
+                need.departingPlayer?.name ||
+                (need.departing_player?.name) ||
+                (need.slotNumber || need.slot_number ? `Empty Slot` : "Departing?");
+              const replacement =
+                need.replacementPlayer?.name ||
+                (need.replacement_player?.name) ||
+                "TBD";
+              return (
+                <button
+                  key={need.id}
+                  type="button"
+                  onClick={() => {
+                    setNeedDraft({
+                      boardId: need.boardId,
+                      needId: need.id,
+                      departingPlayerId: need.departingPlayerId || need.departing_player_id || "",
+                      replacementPlayerId: need.replacementPlayerId || need.replacement_player_id || "",
+                      slotNumber: need.slotNumber || need.slot_number || "",
+                      resolved: !!need.resolved,
+                    });
+                    setNeedMessage("");
+                    setNeedBusy(false);
+                  }}
+                  className={`inline-flex items-center gap-1 rounded-full border px-2 bg-white py-1 text-xs font-semibold text-textSecondary shadow-sm ${
+                    need.resolved ? "border-success/70" : "border-border dark:border-darkborder dark:bg-darksurface"
+                  }`}
+                >
+                  <span className="text-burnt">{need.boardName}</span>
+                  <span className="text-textPrimary">{departing}</span>
+                  <span className="text-textSecondary/50">→</span>
+                  <span className="text-textPrimary">{replacement}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
       <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {sortedBoards.map((board) => {
           const rosterSlots = board.rosterSlots || board.roster_slots || [];
           const assignedIds = new Set(
             rosterSlots.map((rs) => rs.playerId || rs.player_id).filter(Boolean),
           );
-          const slotCount = board.slotsCount || board.slots_count || 0;
-          const slotsArray = Array.from({ length: slotCount }).map((_, idx) => {
-            const slotNum = idx + 1;
-            const occupant = rosterSlots.find((rs) => (rs.slotNumber || rs.slot_number) === slotNum);
-            return { slotNum, occupant };
-          });
+          const slotsArray = getOrderedSlotsForBoard(board);
           const recruits = players.filter(
             (p) =>
               (p.status === "recruit" || p.status === "rostered") &&
@@ -608,7 +876,27 @@ function SquadBoardPage() {
                     <h3 className="font-varsity text-xl tracking-[0.07em] uppercase">{board.name}</h3>
                     </div>
                   </div>
-                  <StatPill label="Needs" value={board.slotsCount} />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNeedDraft({
+                        boardId: board.id,
+                        needId: null,
+                        departingPlayerId: "",
+                        replacementPlayerId: "",
+                        slotNumber: "",
+                        resolved: false,
+                      });
+                      setNeedMessage("");
+                      setNeedBusy(false);
+                    }}
+                    className="text-left"
+                  >
+                    <StatPill
+                      label="Needs"
+                      value={(board.needs || []).filter((n) => !n.resolved).length}
+                    />
+                  </button>
                 </div>
                 <div className="rounded-lg bg-surface/60 text-sm text-textSecondary dark:border-darkborder dark:bg-darksurface/60 space-y-2 mt-2">
                   <ul className="space-y-1">
@@ -616,24 +904,41 @@ function SquadBoardPage() {
                       <li
                         key={slotNum}
                         className={`flex items-center justify-between gap-2 rounded-md border text-sm dark:border-darkborder dark:bg-darksurface/80 transition ${
-                          dragOverSlot?.boardId === board.id && dragOverSlot?.slotNum === slotNum
-                            ? "border-burnt bg-burnt/10 scale-[1.02]"
+                          !occupant && dragOverSlot?.boardId === board.id && dragOverSlot?.slotNum === slotNum
+                            ? "border-burnt bg-burnt/15 scale-[1.02] shadow-inner"
                             : "border-border bg-white/80"
-                        } ${occupant ? "cursor-grab active:cursor-grabbing" : ""}`}
+                        } ${
+                          occupant
+                            ? `cursor-grab active:cursor-grabbing ${
+                                draggingPlayer?.playerId === (occupant.playerId || occupant.player_id)
+                                  ? "opacity-70 ring-2 ring-burnt/50"
+                                  : ""
+                              }`
+                            : ""
+                        }`}
                         draggable={Boolean(occupant)}
-                        onDragStart={() =>
-                          occupant && onPlayerDragStart(occupant.playerId || occupant.player_id, board.id)
+                        onDragStart={(e) =>
+                          occupant && startPlayerDrag(e, occupant.playerId || occupant.player_id, board.id)
                         }
                         onDragEnd={onPlayerDragEnd}
                         onDragOver={(e) => {
                           e.preventDefault();
-                          setDragOverSlot({ boardId: board.id, slotNum });
+                          if (!occupant) setDragOverSlot({ boardId: board.id, slotNum });
                         }}
                         onDragEnter={(e) => {
                           e.preventDefault();
-                          setDragOverSlot({ boardId: board.id, slotNum });
+                          if (!draggingPlayer?.playerId) return;
+                          if (occupant) {
+                            if (draggingPlayer.fromBoardId === board.id) {
+                              updatePreviewOrder(board.id, draggingPlayer.playerId, occupant.playerId || occupant.player_id);
+                            }
+                          } else {
+                            setDragOverSlot({ boardId: board.id, slotNum });
+                          }
                         }}
-                        onDragLeave={() => setDragOverSlot(null)}
+                        onDragLeave={() => {
+                          if (!occupant) setDragOverSlot(null);
+                        }}
                         onDrop={(e) => {
                           e.preventDefault();
                           onSlotDrop(board.id, slotNum);
@@ -683,7 +988,7 @@ function SquadBoardPage() {
                   <button
                     type="button"
                     onClick={() => setShowFormBoardId((prev) => (prev === board.id ? null : board.id))}
-                    className="text-sm font-semibold text-burnt hover:underline"
+                    className="text-sm font-semibold text-success hover:underline"
                   >
                     {showFormBoardId === board.id ? "Close" : "+ Add"}
                   </button>
@@ -770,9 +1075,11 @@ function SquadBoardPage() {
                     {recruits.map((p) => (
                       <li
                         key={p.id}
-                        className="flex items-center justify-between rounded-md border border-border bg-white/80 text-sm dark:border-darkborder dark:bg-darksurface/80 cursor-grab active:cursor-grabbing"
+                        className={`flex items-center justify-between rounded-md border border-border bg-white/80 text-sm dark:border-darkborder dark:bg-darksurface/80 cursor-grab active:cursor-grabbing ${
+                          draggingPlayer?.playerId === p.id ? "opacity-70 ring-2 ring-burnt/50" : ""
+                        }`}
                         draggable
-                        onDragStart={() => onPlayerDragStart(p.id, board.id)}
+                        onDragStart={(e) => startPlayerDrag(e, p.id, board.id)}
                         onDragEnd={onPlayerDragEnd}
                         onClick={() => openEdit(p, board.id, null)}
                       >
@@ -787,6 +1094,17 @@ function SquadBoardPage() {
           );
         })}
       </div>
+      <NeedModal
+        needDraft={needDraft}
+        setNeedDraft={setNeedDraft}
+        needBusy={needBusy}
+        needMessage={needMessage}
+        onClose={closeNeedModal}
+        onSave={handleSaveNeed}
+        onDelete={handleDeleteNeed}
+        boards={sortedBoards}
+        players={players}
+      />
       <PlayerEditModal
         editing={editing}
         onClose={closeEdit}
@@ -799,7 +1117,148 @@ function SquadBoardPage() {
   );
 }
 
-export default SquadBoardPage;
+// Modal for creating a need from a board
+function NeedModal({
+  needDraft,
+  setNeedDraft,
+  needBusy,
+  needMessage,
+  onClose,
+  onSave,
+  onDelete,
+  boards,
+  players,
+}) {
+  if (!needDraft.boardId) return null;
+  const board = boards.find((b) => b.id === needDraft.boardId);
+  const rosterSlots = board?.rosterSlots || board?.roster_slots || [];
+  const occupants = rosterSlots
+    .map((rs) => rs.player || players.find((p) => p.id === (rs.playerId || rs.player_id)))
+    .filter(Boolean);
+  const rosteredIds = new Set(
+    boards
+      .flatMap((b) => b.rosterSlots || b.roster_slots || [])
+      .map((rs) => rs.playerId || rs.player_id)
+      .filter(Boolean),
+  );
+  const slotCount = board?.slotsCount || board?.slots_count || 0;
+  const occupiedSlotNumbers = new Set(
+    (rosterSlots || []).map((rs) => rs.slotNumber || rs.slot_number).filter(Boolean),
+  );
+  const emptySlots = Array.from({ length: slotCount })
+    .map((_, idx) => idx + 1)
+    .filter((num) => !occupiedSlotNumbers.has(num));
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+      <div className="w-full max-w-lg rounded-xl bg-surface p-6 shadow-2xl dark:bg-darksurface">
+        <div className="flex items-center justify-between">
+          <h3 className="font-varsity text-xl uppercase tracking-[0.06em]">
+            {needDraft.needId ? "Edit planned replacement" : "Plan a replacement"}
+          </h3>
+          <button onClick={onClose} className="text-textSecondary hover:text-charcoal dark:hover:text-white">
+            ✕
+          </button>
+        </div>
+        <div className="mt-4 space-y-3">
+          <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+            <span>Departing player or empty slot</span>
+            <select
+              value={
+                needDraft.slotNumber
+                  ? `slot:${needDraft.slotNumber}`
+                  : needDraft.departingPlayerId || ""
+              }
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val.startsWith("slot:")) {
+                  const num = val.replace("slot:", "");
+                  setNeedDraft((prev) => ({ ...prev, departingPlayerId: "", slotNumber: num }));
+                } else {
+                  setNeedDraft((prev) => ({ ...prev, departingPlayerId: val, slotNumber: "" }));
+                }
+              }}
+              className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+            >
+              <option value="">— Pick a player or empty slot —</option>
+              {occupants.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+              {emptySlots.length > 0 && (
+                <optgroup label="Empty slots">
+                  {emptySlots.map((num) => (
+                    <option key={num} value={`slot:${num}`}>
+                      Empty Slot (#{num})
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+          </label>
+          <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+            <span>Optional replacement player</span>
+            <select
+              value={needDraft.replacementPlayerId}
+              onChange={(e) => setNeedDraft((prev) => ({ ...prev, replacementPlayerId: e.target.value }))}
+              className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+            >
+              <option value="">Select later</option>
+              {players
+                .filter((p) => p.id !== needDraft.departingPlayerId)
+                .filter((p) => !rosteredIds.has(p.id))
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.positionBoardId || p.position_board_id || "unassigned"})
+                  </option>
+                ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-sm font-medium text-textSecondary dark:text-white/80">
+            <input
+              type="checkbox"
+              checked={!!needDraft.resolved}
+              onChange={(e) => setNeedDraft((prev) => ({ ...prev, resolved: e.target.checked }))}
+              className="h-4 w-4 rounded border-border text-burnt focus:ring-burnt"
+            />
+            <span>Mark as resolved</span>
+          </label>
+          {needMessage && <p className="text-xs text-success">{needMessage}</p>}
+        </div>
+        <div className="mt-4 flex justify-between items-end gap-2">
+          {needDraft.needId ? (
+            <button
+              onClick={() => onDelete(needDraft.boardId, needDraft.needId)}
+              disabled={needBusy}
+              data-confirm="Delete this planned replacement?"
+              className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-danger hover:bg-danger/10 disabled:opacity-60"
+            >
+              Delete
+            </button>
+          ) : (
+            <div />
+          )}
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-textSecondary hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onSave}
+              disabled={needBusy}
+              className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:opacity-60"
+            >
+              {needBusy ? "Saving..." : needDraft.needId ? "Save" : "Plan"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Modal for editing a player
 function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy }) {
@@ -943,3 +1402,5 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
     </div>
   );
 }
+
+export default SquadBoardPage;

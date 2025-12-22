@@ -5,13 +5,49 @@ module Api
       before_action :set_position_board, only: %i[update destroy]
 
       def index
-        boards = policy_scope(@team.position_boards.includes(roster_slots: :player))
+        boards = policy_scope(
+          @team.position_boards.includes(
+            { roster_slots: :player },
+            { needs: %i[replacement_player departing_player] }
+          )
+        )
         render json: boards.as_json(
           include: {
             roster_slots: {
               only: %i[id player_id slot_number],
               include: {
                 player: {
+                  only: %i[
+                    id
+                    name
+                    class_year
+                    dev_trait
+                    archetype
+                    overall
+                    star_rating
+                    status
+                    position_board_id
+                  ]
+                }
+              }
+            },
+            needs: {
+              only: %i[id replacement_player_id departing_player_id slot_number resolved],
+              include: {
+                replacement_player: {
+                  only: %i[
+                    id
+                    name
+                    class_year
+                    dev_trait
+                    archetype
+                    overall
+                    star_rating
+                    status
+                    position_board_id
+                  ]
+                },
+                departing_player: {
                   only: %i[
                     id
                     name
