@@ -427,12 +427,32 @@ function SquadBoardPage() {
       "FR(RS)": "text-[#5C6F4E]",
       SO: "text-[#7595ba]",
       "SO(RS)": "text-[#7595ba]",
-      JR: "text-[#bf8167]",
-      "JR(RS)": "text-[#bf8167]",
+      JR: "text-[#c99b2b]",
+      "JR(RS)": "text-[#c99b2b]",
       SR: "text-[#991B1B]",
       "SR(RS)": "text-[#991B1B]",
     };
     return map[cls] || "text-textSecondary";
+  };
+
+  const classPillClass = (cls) => {
+    const map = {
+      FR: { bg: "bg-[#4C7A4F1A]", border: "border-[#4C7A4F33]" },
+      "FR(RS)": { bg: "bg-[#5C6F4E1A]", border: "border-[#5C6F4E33]" },
+      SO: { bg: "bg-[#7595ba1a]", border: "border-[#7595ba33]" },
+      "SO(RS)": { bg: "bg-[#7595ba1a]", border: "border-[#7595ba33]" },
+      JR: { bg: "bg-[#c99b2b1a]", border: "border-[#c99b2b33]" },
+      "JR(RS)": { bg: "bg-[#c99b2b1a]", border: "border-[#c99b2b33]" },
+      SR: { bg: "bg-[#991B1B1a]", border: "border-[#991B1B33]" },
+      "SR(RS)": { bg: "bg-[#991B1B1a]", border: "border-[#991B1B33]" },
+    };
+    const palette = map[cls];
+    const base =
+      "inline-flex items-center px-2 py-[2px] rounded-full text-[11px] font-semibold border";
+    if (!palette) {
+      return `${base} text-textSecondary bg-textSecondary/10 border-textSecondary/20`;
+    }
+    return `${base} ${classColor(cls)} ${palette.bg} ${palette.border}`;
   };
 
   const PlayerSummary = ({ player }) => {
@@ -461,7 +481,9 @@ function SquadBoardPage() {
         </div>
         <div className="grid grid-cols-4 gap-1 px-2 bg-textSecondary/5 py-1">
           <AttributeCell
-            value={classYear ? <span className={classColor(classYear)}>{classYear}</span> : null}
+            value={
+              classYear ? <span className={classPillClass(classYear)}>{classYear}</span> : null
+            }
           />
           <AttributeCell
             value={
