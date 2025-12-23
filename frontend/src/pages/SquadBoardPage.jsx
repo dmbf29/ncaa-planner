@@ -210,11 +210,11 @@ function SquadBoardPage() {
       try {
         const [teamData, boardsData, playersData] = await Promise.all([
           fetchTeam(id),
-          fetchSquadBoards(id, squadId),
+          fetchSquadBoards(id),
           fetchPlayers(id, { status: ["recruit", "rostered"] }),
         ]);
         setTeam(teamData);
-        setBoards(boardsData);
+        setBoards(dedupeBoards(boardsData));
         setPlayers(playersData);
       } catch (err) {
         setError(err.message);
@@ -259,6 +259,13 @@ function SquadBoardPage() {
       return { slotNum: idx + 1, occupant };
     });
     return slotsArray;
+  };
+
+  const dedupeBoards = (list) => Array.from(new Map((list || []).map((b) => [b.id, b])).values());
+
+  const loadAllBoards = async () => {
+    const boardsData = await fetchSquadBoards(id);
+    return dedupeBoards(boardsData);
   };
 
   const clearPreview = () => setPreviewOrder({ boardId: null, order: [] });
@@ -339,8 +346,8 @@ function SquadBoardPage() {
     setBusyBoardId(boardId);
     try {
       await applyRosterOrder(board, nextOrder, slots);
-      const boardsData = await fetchSquadBoards(id, squadId);
-      setBoards(boardsData);
+      const boardsData = await loadAllBoards();
+      setBoards(dedupeBoards(boardsData));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -389,8 +396,8 @@ function SquadBoardPage() {
       await applyRosterOrder(targetBoard, targetOrder, targetSlots);
       await updatePlayer(id, playerId, { status: "rostered", position_board_id: boardId });
 
-      const boardsData = await fetchSquadBoards(id, squadId);
-      setBoards(boardsData);
+      const boardsData = await loadAllBoards();
+      setBoards(dedupeBoards(boardsData));
       const playersData = await fetchPlayers(id, { status: ["recruit", "rostered"] });
       setPlayers(playersData);
     } catch (err) {
@@ -448,7 +455,7 @@ function SquadBoardPage() {
     };
     const palette = map[cls];
     const base =
-      "inline-flex items-center px-2 py-[2px] rounded-full text-[11px] font-semibold border";
+      "inline-flex items-center justify-center px-1.5 py-[2px] rounded-full text-[11px] font-semibold border max-w-[72px] w-full";
     if (!palette) {
       return `${base} text-textSecondary bg-textSecondary/10 border-textSecondary/20`;
     }
@@ -464,8 +471,8 @@ function SquadBoardPage() {
     const trait = player.devTrait ?? player.dev_trait;
 
     const AttributeCell = ({ value }) => (
-      <div className="flex flex-col items-center">
-        <span className="text-xs text-textSecondary font-medium min-h-[1.1rem] flex items-center">
+      <div className="flex flex-col items-center min-w-0 overflow-hidden">
+        <span className="text-xs text-textSecondary font-medium min-h-[1.1rem] flex items-center justify-center max-w-full w-full">
           {value ?? <span className="text-border">—</span>}
         </span>
       </div>
@@ -479,7 +486,7 @@ function SquadBoardPage() {
           </span>
           {overall ? <OverallPill value={overall} /> : null}
         </div>
-        <div className="grid grid-cols-4 gap-1 px-2 bg-textSecondary/5 py-1">
+        <div className="grid grid-cols-4 gap-1 px-1 bg-textSecondary/5 py-1 items-center">
           <AttributeCell
             value={
               classYear ? <span className={classPillClass(classYear)}>{classYear}</span> : null
@@ -547,8 +554,8 @@ function SquadBoardPage() {
       await Promise.all(
         withOrder.map((b) => updatePositionBoard(id, b.id, { sort_order: b.sortOrder || b.sort_order })),
       );
-      const boardsData = await fetchSquadBoards(id, squadId);
-      setBoards(boardsData);
+      const boardsData = await loadAllBoards();
+      setBoards(dedupeBoards(boardsData));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -611,8 +618,8 @@ function SquadBoardPage() {
         await deleteRosterSlot(existing.boardId, existing.slot.id);
       }
       await updatePlayer(id, playerId, { status: "recruit", position_board_id: boardId });
-      const boardsData = await fetchSquadBoards(id, squadId);
-      setBoards(boardsData);
+      const boardsData = await loadAllBoards();
+      setBoards(dedupeBoards(boardsData));
       const playersData = await fetchPlayers(id, { status: ["recruit", "rostered"] });
       setPlayers(playersData);
     } catch (err) {
@@ -625,6 +632,26 @@ function SquadBoardPage() {
   };
 
   const openEdit = (player, boardId, slotNum) => {
+    const boardOptions = boards
+      .map((b) => {
+        const squadName =
+          team?.squads?.find((sq) => String(sq.id) === String(b.squadId || b.squad_id))?.name || "Squad";
+        return {
+          id: b.id,
+          sort: b.sortOrder || b.sort_order || 0,
+          squadId: b.squadId || b.squad_id,
+          squadName,
+          label: `${squadName} • ${b.name}`,
+        };
+      })
+      .sort((a, b) => {
+        const squadCompare = Number(a.squadId || 0) - Number(b.squadId || 0);
+        if (squadCompare !== 0) return squadCompare;
+        const sortCompare = (a.sort || 0) - (b.sort || 0);
+        if (sortCompare !== 0) return sortCompare;
+        return (a.label || "").localeCompare(b.label || "", undefined, { sensitivity: "base" });
+      });
+
     setEditing({
       id: player.id,
       boardId,
@@ -636,6 +663,8 @@ function SquadBoardPage() {
       overall: player.overall || "",
       starRating: player.starRating || 3,
       status: player.status || "recruit",
+      boardSelection: boardId || player.positionBoardId || player.position_board_id || "",
+      boardOptions,
     });
   };
 
@@ -647,14 +676,11 @@ function SquadBoardPage() {
     setBusyBoardId("edit");
     try {
       const isAlumni = payload.status === "graduated" || payload.status === "departed";
-
-      if (isAlumni) {
-        const board = sortedBoards.find((b) => b.id === payload.boardId);
-        const slot = board?.rosterSlots?.find((rs) => (rs.playerId || rs.player_id) === payload.id);
-        if (slot) {
-          await deleteRosterSlot(payload.boardId, slot.id);
-        }
-      }
+      const targetBoardId = payload.boardSelection || payload.boardId || null;
+      const boardChanged = targetBoardId && String(targetBoardId) !== String(payload.boardId || "");
+      const sourceBoard = boards.find((b) => b.id === payload.boardId);
+      const sourceSlot = sourceBoard?.rosterSlots?.find((rs) => (rs.playerId || rs.player_id) === payload.id);
+      const shouldRemoveSlot = isAlumni || boardChanged || payload.slotNum;
 
       await updatePlayer(id, payload.id, {
         name: payload.name,
@@ -663,11 +689,14 @@ function SquadBoardPage() {
         archetype: payload.archetype,
         overall: payload.overall,
         star_rating: payload.starRating,
-        status: payload.status,
-        position_board_id: isAlumni ? null : payload.boardId || null,
+        status: isAlumni ? payload.status : payload.status === "rostered" && !boardChanged ? "rostered" : "recruit",
+        position_board_id: isAlumni ? null : targetBoardId || null,
       });
-      const boardsData = await fetchSquadBoards(id, squadId);
-      setBoards(boardsData);
+      if (shouldRemoveSlot && sourceSlot) {
+        await deleteRosterSlot(sourceBoard.id, sourceSlot.id);
+      }
+      const boardsData = await loadAllBoards();
+      setBoards(dedupeBoards(boardsData));
       const playersData = await fetchPlayers(id, { status: ["recruit", "rostered"] });
       setPlayers(playersData);
       closeEdit();
@@ -688,7 +717,7 @@ function SquadBoardPage() {
         await deleteRosterSlot(editing.boardId, slot.id);
       }
       await deletePlayer(id, editing.id);
-      const boardsData = await fetchSquadBoards(id, squadId);
+      const boardsData = await loadAllBoards();
       setBoards(boardsData);
       const playersData = await fetchPlayers(id, { status: ["recruit", "rostered"] });
       setPlayers(playersData);
@@ -701,13 +730,22 @@ function SquadBoardPage() {
   };
 
   const allNeeds = useMemo(() => {
-    return sortedBoards.flatMap((b) =>
-      (b.needs || []).map((n) => ({
-        ...n,
-        boardName: b.name,
-        boardId: b.id,
-      })),
-    );
+    const byKey = new Map();
+    sortedBoards.forEach((b) => {
+      (b.needs || []).forEach((n) => {
+        const dep = n.departingPlayerId || n.departing_player_id || "";
+        const slotNum = n.slotNumber || n.slot_number || "";
+        const rep = n.replacementPlayerId || n.replacement_player_id || "";
+        const key = n.id ? `id:${n.id}` : `combo:${b.id}:${dep}:${slotNum}:${rep}`;
+        if (byKey.has(key)) return;
+        byKey.set(key, {
+          ...n,
+          boardName: b.name,
+          boardId: b.id,
+        });
+      });
+    });
+    return Array.from(byKey.values());
   }, [sortedBoards]);
 
   const handleDeleteNeed = async (boardId, needId) => {
@@ -715,7 +753,7 @@ function SquadBoardPage() {
     setNeedMessage("");
     try {
       await deleteNeed(boardId, needId);
-      const boardsData = await fetchSquadBoards(id, squadId);
+      const boardsData = await loadAllBoards();
       setBoards(boardsData);
       closeNeedModal();
     } catch (err) {
@@ -758,7 +796,7 @@ function SquadBoardPage() {
       } else {
         await createNeed(needDraft.boardId, payload);
       }
-      const boardsData = await fetchSquadBoards(id, squadId);
+      const boardsData = await loadAllBoards();
       setBoards(boardsData);
       closeNeedModal();
     } catch (err) {
@@ -846,7 +884,7 @@ function SquadBoardPage() {
           </div>
         </div>
       )}
-      <div className="grid gap-2 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-2 sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
         {sortedBoards.map((board) => {
           const rosterSlots = board.rosterSlots || board.roster_slots || [];
           const assignedIds = new Set(
@@ -860,64 +898,85 @@ function SquadBoardPage() {
               !assignedIds.has(p.id),
           );
           return (
-          <Card
-            key={board.id}
-            ref={(el) => {
-              if (el) {
-                cardRefs.current[board.id] = el;
-              } else {
-                delete cardRefs.current[board.id];
-              }
-            }}
-            onDragOver={(e) => {
-              if (draggingCardId) e.preventDefault();
-            }}
-            onDrop={() => {
-              if (draggingCardId) reorderBoards(draggingCardId, board.id);
-            }}
-            className={`relative ${draggingCardId === board.id ? "opacity-70" : ""}`}
-          >
-            <div className="p-5 space-y-3 h-full">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.14em] text-textSecondary">Position</p>
-                  <div className="flex">
-                    <button
-                      type="button"
-                      draggable
-                      onDragStart={(e) => handleBoardDragStart(e, board.id)}
-                      onDragEnd={() => setDraggingCardId(null)}
-                      className="cursor-grab text-textSecondary hover:text-charcoal dark:text-white/60 dark:hover:text-white"
-                      title="Drag to reorder"
-                    >
-                      ⠇
-                    </button>
-                    <h3 className="font-varsity text-xl tracking-[0.07em] uppercase">{board.name}</h3>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setNeedDraft({
-                      boardId: board.id,
-                      needId: null,
-                      departingPlayerId: "",
-                      replacementPlayerId: "",
-                      slotNumber: "",
-                      resolved: false,
-                    });
-                    setNeedMessage("");
-                    setNeedBusy(false);
-                  }}
-                  className="text-left"
-                >
-                  <StatPill
-                    label="Needs"
-                    value={(board.needs || []).filter((n) => !n.resolved).length}
-                  />
-                </button>
+            <Card
+              key={board.id}
+              ref={(el) => {
+                if (el) {
+                  cardRefs.current[board.id] = el;
+                } else {
+                  delete cardRefs.current[board.id];
+                }
+              }}
+              onDragOver={(e) => {
+                if (draggingCardId) e.preventDefault();
+              }}
+              onDrop={() => {
+                if (draggingCardId) reorderBoards(draggingCardId, board.id);
+              }}
+              className={`relative overflow-hidden bg-gradient-to-br from-[#fdfdfb] via-[#f9f7f3] to-[#f9f8f5] shadow-lg dark:from-[#1a1c1d] dark:via-[#151617] dark:to-[#111213] ${
+                draggingCardId === board.id ? "opacity-70" : ""
+              }`}
+            >
+              <div
+                className="pointer-events-none absolute -top-5 left-1/2 z-0 flex -translate-x-1/2 flex-col items-center gap-1"
+                aria-hidden="true"
+              >
+                <div className="h-6 w-24 rounded-b-2xl border border-[#d5cdbf] bg-[#f6f2ea] shadow-md dark:border-darkborder dark:bg-[#26282a]" />
+                <div className="h-3 w-12 rounded-b-md border border-[#dcd5c9] bg-[#ebe6dc] shadow-sm dark:border-darkborder dark:bg-[#1d1f21]" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div
+                className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_10%,rgba(255,255,255,0.32),transparent_35%),radial-gradient(circle_at_85%_12%,rgba(255,255,255,0.18),transparent_30%)] mix-blend-screen dark:mix-blend-normal"
+                aria-hidden="true"
+              />
+              <div
+                className="pointer-events-none absolute top-3 left-5 h-3 w-3 rounded-full bg-[#e8e1d5] shadow-inner ring-1 ring-[#d8cfc1]/70 dark:bg-[#2b2d2f] dark:ring-darkborder/70"
+                aria-hidden="true"
+              />
+              <div
+                className="pointer-events-none absolute top-3 right-5 h-3 w-3 rounded-full bg-[#e8e1d5] shadow-inner ring-1 ring-[#d8cfc1]/70 dark:bg-[#2b2d2f] dark:ring-darkborder/70"
+                aria-hidden="true"
+              />
+              <div className="relative z-[1] h-full space-y-3 p-3 pt-8">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.14em] text-textSecondary">Position</p>
+                    <div className="flex">
+                      <button
+                        type="button"
+                        draggable
+                        onDragStart={(e) => handleBoardDragStart(e, board.id)}
+                        onDragEnd={() => setDraggingCardId(null)}
+                        className="cursor-grab text-textSecondary hover:text-charcoal dark:text-white/60 dark:hover:text-white"
+                        title="Drag to reorder"
+                      >
+                        ⠇
+                      </button>
+                      <h3 className="font-varsity text-xl tracking-[0.07em] uppercase">{board.name}</h3>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNeedDraft({
+                        boardId: board.id,
+                        needId: null,
+                        departingPlayerId: "",
+                        replacementPlayerId: "",
+                        slotNumber: "",
+                        resolved: false,
+                      });
+                      setNeedMessage("");
+                      setNeedBusy(false);
+                    }}
+                    className="text-left"
+                  >
+                    <StatPill
+                      label="Needs"
+                      value={(board.needs || []).filter((n) => !n.resolved).length}
+                    />
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-lg bg-surface/60 text-sm text-textSecondary dark:border-darkborder dark:bg-darksurface/60 space-y-2">
                   <ul className="space-y-1">
                     {slotsArray.map(({ slotNum, occupant }) => (
@@ -983,7 +1042,7 @@ function SquadBoardPage() {
                   </ul>
                 </div>
                 <div
-                  className={`rounded-lg border p-3 space-y-2 transition dark:bg-darksurface/60 ${
+                  className={`rounded-lg border p-2 space-y-2 transition dark:bg-darksurface/60 ${
                     dragOverRecruitBoard === board.id
                       ? "border-burnt bg-burnt/10 scale-[1.01]"
                       : "border-border bg-surface/60 dark:border-darkborder"
@@ -1109,8 +1168,8 @@ function SquadBoardPage() {
                   )}
                 </div>
               </div>
-            </div>
-          </Card>
+              </div>
+            </Card>
           );
         })}
       </div>
@@ -1379,6 +1438,24 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
               onChange={(val) => onSaveDraft({ ...editing, devTrait: val })}
             />
           </div>
+          <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+            <div className="flex items-center justify-between mt-2">
+              <span>Assign to another position</span>
+              <span className="text-xs text-textSecondary/70">Optional</span>
+            </div>
+            <select
+              value={editing.boardSelection || ""}
+              onChange={(e) => onSaveDraft({ ...editing, boardSelection: e.target.value || null })}
+              className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+            >
+              <option value="">— Keep current board —</option>
+              {editing.boardOptions?.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
         <div className="mt-4 flex justify-between items-end">
           <div className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80 w-full">
