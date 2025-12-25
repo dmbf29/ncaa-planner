@@ -8,6 +8,7 @@ export default {
         sans: ["Inter", "ui-sans-serif", "system-ui"],
         varsity: ["Graduate", "serif"],
         chalk: ["Patrick Hand", "cursive"],
+        crayon: ["ColoredCrayons", "Inter", "ui-sans-serif", "system-ui"],
       },
       colors: {
         charcoal: "#2A2A2A",

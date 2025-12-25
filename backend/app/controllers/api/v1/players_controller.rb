@@ -71,7 +71,13 @@ module Api
           attributes: {},
           attribute_values: {}
         )
-        permitted[:attribute_values] ||= permitted.delete(:attributes) if permitted[:attribute_values].blank?
+        # Only map provided attributes into attribute_values; do not inject a nil key
+        # when neither is present, to avoid wiping existing values.
+        if permitted.key?(:attribute_values)
+          permitted[:attribute_values] = permitted[:attribute_values].presence
+        elsif permitted.key?(:attributes)
+          permitted[:attribute_values] = permitted.delete(:attributes)
+        end
         permitted
       end
     end

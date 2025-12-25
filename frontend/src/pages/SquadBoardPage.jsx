@@ -112,6 +112,75 @@ const devTraitMeta = {
   elite: { icon: "fa-crown", color: "text-textSecondary/80", label: "Elite" },
 };
 
+const defaultAttributeOptions = [
+  "speed",
+  "strength",
+  "awareness",
+  "agility",
+  "acceleration",
+  "catching",
+  "route_running",
+  "release",
+  "throw_power",
+  "throw_accuracy",
+  "carrying",
+  "blocking",
+  "pass_block",
+  "run_block",
+  "tackle",
+  "pursuit",
+  "play_recognition",
+  "man_coverage",
+  "zone_coverage",
+  "press",
+  "kick_power",
+  "kick_accuracy",
+];
+
+const normalizeAttrKey = (attr = "") =>
+  attr
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/[\s-]+/g, "_")
+    .toLowerCase();
+const toCamelFromSnake = (str = "") => str.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase());
+const humanizeAttr = (attr = "") =>
+  attr
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+
+const getAttrValueFromMap = (map = {}, key = "") => {
+  const normalized = normalizeAttrKey(key);
+  const camel = toCamelFromSnake(normalized);
+  return map?.[normalized] ?? map?.[camel] ?? map?.[key];
+};
+
+const sanitizeAttributeMap = (map = {}) => {
+  const cleaned = {};
+  Object.entries(map || {}).forEach(([k, v]) => {
+    const key = normalizeAttrKey(k);
+    if (!key) return;
+    cleaned[key] = v;
+  });
+  return cleaned;
+};
+
+const buildAttributePayload = (map = {}) => {
+  const payload = {};
+  Object.entries(map || {}).forEach(([k, v]) => {
+    const key = normalizeAttrKey(k);
+    if (!key) return;
+    const value = typeof v === "string" ? v.trim() : v;
+    if (value === "" || value === null || value === undefined) return;
+    const numeric = Number(value);
+    payload[key] = Number.isNaN(numeric) ? value : numeric;
+  });
+  return payload;
+};
+
+const getBoardHighlightedAttributes = (board) =>
+  board?.highlightedAttributes || board?.highlighted_attributes || [];
+
 const statusButtonOptions = [
   { value: "graduated", label: "Graduated" },
   { value: "departed", label: "Departed" },
@@ -193,6 +262,7 @@ function SquadBoardPage() {
   const [dragOverSlot, setDragOverSlot] = useState(null); // { boardId, slotNum }
   const [dragOverRecruitBoard, setDragOverRecruitBoard] = useState(null); // boardId
   const [previewOrder, setPreviewOrder] = useState({ boardId: null, order: [] }); // local visual reorder
+  const [newPlayerAttributes, setNewPlayerAttributes] = useState({});
   const [needDraft, setNeedDraft] = useState({
     boardId: null,
     needId: null,
@@ -203,6 +273,7 @@ function SquadBoardPage() {
   });
   const [needBusy, setNeedBusy] = useState(false);
   const [needMessage, setNeedMessage] = useState("");
+  const [attributeModal, setAttributeModal] = useState({ boardId: null, selected: [], custom: "" });
   const cardRefs = useRef({});
 
   useEffect(() => {
@@ -237,6 +308,11 @@ function SquadBoardPage() {
     [filteredBoards],
   );
 
+  const attributeBoard = useMemo(
+    () => boards.find((b) => String(b.id) === String(attributeModal.boardId)),
+    [attributeModal.boardId, boards],
+  );
+
   const getRosterSlots = (board) =>
     [...((board?.rosterSlots || board?.roster_slots || []))].sort(
       (a, b) => (a.slotNumber || a.slot_number || 0) - (b.slotNumber || b.slot_number || 0),
@@ -268,7 +344,88 @@ function SquadBoardPage() {
     return dedupeBoards(boardsData);
   };
 
+  const getPlayerAttributes = (player) =>
+    sanitizeAttributeMap(player?.attributes || player?.attributeValues || {});
+
+  const handleNewPlayerAttrChange = (boardId, attr, value) => {
+    setNewPlayerAttributes((prev) => ({
+      ...prev,
+      [boardId]: { ...(prev[boardId] || {}), [attr]: value },
+    }));
+  };
+
+  const openAttributeModal = (board) => {
+    setAttributeModal({
+      boardId: board?.id || null,
+      selected: getBoardHighlightedAttributes(board),
+      custom: "",
+    });
+  };
+
+  const closeAttributeModal = () => setAttributeModal({ boardId: null, selected: [], custom: "" });
+
+  const toggleAttributeSelection = (attr) => {
+    const normalized = normalizeAttrKey(attr);
+    if (!normalized) return;
+    setAttributeModal((prev) => {
+      const selected = new Set(prev.selected || []);
+      if (selected.has(normalized)) {
+        selected.delete(normalized);
+      } else {
+        selected.add(normalized);
+      }
+      return { ...prev, selected: Array.from(selected) };
+    });
+  };
+
+  const addCustomAttribute = () => {
+    const normalized = normalizeAttrKey(attributeModal.custom || "");
+    if (!normalized) return;
+    setAttributeModal((prev) => ({
+      boardId: prev.boardId,
+      custom: "",
+      selected: Array.from(new Set([...(prev.selected || []), normalized])),
+    }));
+  };
+
+  const setAttributeModalCustom = (value) => {
+    setAttributeModal((prev) => ({ ...prev, custom: value }));
+  };
+
+  const saveHighlightedAttributes = async () => {
+    if (!attributeModal.boardId) return;
+    const uniqueAttrs = Array.from(new Set((attributeModal.selected || []).map(normalizeAttrKey))).filter(Boolean);
+    setBusyBoardId(attributeModal.boardId);
+    try {
+      await updatePositionBoard(id, attributeModal.boardId, { highlighted_attributes: uniqueAttrs });
+      const boardsData = await loadAllBoards();
+      setBoards(dedupeBoards(boardsData));
+      closeAttributeModal();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyBoardId(null);
+    }
+  };
+
   const clearPreview = () => setPreviewOrder({ boardId: null, order: [] });
+
+  const findPlayerById = (playerId) => players.find((p) => String(p.id) === String(playerId));
+
+  const setEditingDraft = (updater) => {
+    setEditing((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      if (!next) return next;
+      const nextDraft = { ...next };
+      nextDraft.attributeValues = sanitizeAttributeMap(nextDraft.attributeValues || prev?.attributeValues || {});
+
+      const targetBoardId =
+        nextDraft.boardSelection || nextDraft.boardId || nextDraft.positionBoardId || prev?.boardId || null;
+      const targetBoard = boards.find((b) => String(b.id) === String(targetBoardId));
+      nextDraft.highlightedAttributes = getBoardHighlightedAttributes(targetBoard);
+      return nextDraft;
+    });
+  };
 
   const updatePreviewOrder = (boardId, dragPlayerId, targetPlayerId) => {
     if (!dragPlayerId || !targetPlayerId || dragPlayerId === targetPlayerId) return;
@@ -462,13 +619,14 @@ function SquadBoardPage() {
     return `${base} ${classColor(cls)} ${palette.bg} ${palette.border}`;
   };
 
-  const PlayerSummary = ({ player }) => {
+  const PlayerSummary = ({ player, highlightedAttributes = [], attributes = {} }) => {
     if (!player) return null;
     const star = player.starRating ?? player.star_rating;
     const classYear = player.classYear ?? player.class_year;
     const archetype = archetypeShort(player.archetype);
     const overall = player.overall;
     const trait = player.devTrait ?? player.dev_trait;
+    const attrValues = Object.keys(attributes || {}).length > 0 ? attributes : getPlayerAttributes(player);
 
     const AttributeCell = ({ value }) => (
       <div className="flex flex-col items-center min-w-0 overflow-hidden">
@@ -484,7 +642,24 @@ function SquadBoardPage() {
           <span className="text-textPrimary dark:text-white font-semibold">
             {player.name || player.id}
           </span>
-          {overall ? <OverallPill value={overall} /> : null}
+          <div className="flex flex-wrap items-center gap-0">
+            {highlightedAttributes.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1">
+                {highlightedAttributes.map((attr) => {
+                  const val = getAttrValueFromMap(attrValues, attr);
+                  return (
+                    <span
+                      key={attr}
+                      className="flex flex-col items-center gap-0 rounded-full bg-white/70 px-2 py-[3px] text-[11px] font-semibold uppercase text-textSecondary dark:border-darkborder dark:bg-white/10"
+                    >
+                      <span className="text-textSecondary dark:text-white">{val ?? "—"}</span>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+            {overall ? <OverallPill value={overall} /> : null}
+          </div>
         </div>
         <div className="grid grid-cols-4 gap-1 px-1 bg-textSecondary/5 py-1 items-center">
           <AttributeCell
@@ -513,6 +688,7 @@ function SquadBoardPage() {
     if (!newPlayer.name.trim()) return;
     setBusyBoardId(boardId);
     try {
+      const attrPayload = buildAttributePayload(newPlayerAttributes[boardId]);
       await createPlayer(id, {
         name: newPlayer.name,
         star_rating: newPlayer.starRating || null,
@@ -522,8 +698,10 @@ function SquadBoardPage() {
         dev_trait: newPlayer.devTrait || null,
         status: "recruit",
         position_board_id: boardId,
+        attribute_values: attrPayload,
       });
       setNewPlayer({ name: "", starRating: "", archetype: "", overall: "", classYear: "", devTrait: "" });
+      setNewPlayerAttributes((prev) => ({ ...prev, [boardId]: {} }));
       setShowFormBoardId(null);
       const playersData = await fetchPlayers(id, { status: ["recruit", "rostered"] });
       setPlayers(playersData);
@@ -652,7 +830,13 @@ function SquadBoardPage() {
         return (a.label || "").localeCompare(b.label || "", undefined, { sensitivity: "base" });
       });
 
-    setEditing({
+    const boardForPlayer =
+      boards.find((b) => b.id === boardId) ||
+      boards.find((b) => String(b.id) === String(player.positionBoardId || player.position_board_id));
+    const attributeValues = getPlayerAttributes(player);
+    const highlightedAttributes = getBoardHighlightedAttributes(boardForPlayer);
+
+    setEditingDraft({
       id: player.id,
       boardId,
       slotNum,
@@ -665,6 +849,8 @@ function SquadBoardPage() {
       status: player.status || "recruit",
       boardSelection: boardId || player.positionBoardId || player.position_board_id || "",
       boardOptions,
+      attributeValues,
+      highlightedAttributes,
     });
   };
 
@@ -680,7 +866,9 @@ function SquadBoardPage() {
       const boardChanged = targetBoardId && String(targetBoardId) !== String(payload.boardId || "");
       const sourceBoard = boards.find((b) => b.id === payload.boardId);
       const sourceSlot = sourceBoard?.rosterSlots?.find((rs) => (rs.playerId || rs.player_id) === payload.id);
-      const shouldRemoveSlot = isAlumni || boardChanged || payload.slotNum;
+      const shouldRemoveSlot = isAlumni || boardChanged || payload.status === "recruit";
+
+      const attributeValuesPayload = buildAttributePayload(payload.attributeValues);
 
       await updatePlayer(id, payload.id, {
         name: payload.name,
@@ -691,6 +879,7 @@ function SquadBoardPage() {
         star_rating: payload.starRating,
         status: isAlumni ? payload.status : payload.status === "rostered" && !boardChanged ? "rostered" : "recruit",
         position_board_id: isAlumni ? null : targetBoardId || null,
+        attribute_values: attributeValuesPayload,
       });
       if (shouldRemoveSlot && sourceSlot) {
         await deleteRosterSlot(sourceBoard.id, sourceSlot.id);
@@ -818,7 +1007,7 @@ function SquadBoardPage() {
                 <Link
                   key={sq.id}
                   to={`/teams/${id}/squads/${sq.id}`}
-                  className={`rounded-md px-3 py-2 text-sm transition ${
+                  className={`rounded-md px-3 py-2 text-sm transition font-varsity uppercase ${
                     String(sq.id) === String(squadId)
                       ? "border bg-burnt/5 border-burnt font-semibold text-burnt shadow-card"
                       : "border border-border text-charcoal hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
@@ -829,7 +1018,7 @@ function SquadBoardPage() {
               ))}
               <Link
                 to={`/teams/${id}/graduates`}
-                className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+                className="font-varsity uppercase rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
               >
                 Alumni
               </Link>
@@ -842,7 +1031,7 @@ function SquadBoardPage() {
       {allNeeds.length > 0 && (
         <div className="space-y-2">
           <h3 className="text-sm font-semibold text-textSecondary uppercase tracking-[0.12em]">
-            Planned Replacements ({allNeeds.length})
+            <span className="font-crayon">Planned Replacements</span> ({allNeeds.length})
           </h3>
           <div className="flex flex-wrap gap-1">
             {allNeeds.map((need) => {
@@ -887,6 +1076,7 @@ function SquadBoardPage() {
       <div className="grid gap-2 sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
         {sortedBoards.map((board) => {
           const rosterSlots = board.rosterSlots || board.roster_slots || [];
+          const highlightAttrs = getBoardHighlightedAttributes(board);
           const assignedIds = new Set(
             rosterSlots.map((rs) => rs.playerId || rs.player_id).filter(Boolean),
           );
@@ -939,7 +1129,7 @@ function SquadBoardPage() {
               <div className="relative z-[1] h-full space-y-3 p-3 pt-8">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.14em] text-textSecondary">Position</p>
+                    <p className="font-crayon text-xs uppercase tracking-[0.14em] text-textSecondary">Position</p>
                     <div className="flex">
                       <button
                         type="button"
@@ -951,7 +1141,14 @@ function SquadBoardPage() {
                       >
                         ⠇
                       </button>
-                      <h3 className="font-varsity text-xl tracking-[0.07em] uppercase">{board.name}</h3>
+                      <button
+                        type="button"
+                        onClick={() => openAttributeModal(board)}
+                        className="font-varsity text-xl tracking-[0.07em] uppercase text-left hover:underline"
+                        title="Click to edit highlighted attributes"
+                      >
+                        {board.name}
+                      </button>
                     </div>
                   </div>
                   <button
@@ -1025,14 +1222,25 @@ function SquadBoardPage() {
                       >
                         <div className="flex items-center gap-2 w-full">
                           {occupant ? (
-                            <div
-                              className="flex flex-col cursor-pointer w-full"
-                              onClick={() => openEdit(occupant.player || {}, board.id, slotNum)}
-                            >
-                              <PlayerSummary
-                                player={occupant.player || { id: occupant.playerId || occupant.player_id }}
-                              />
-                            </div>
+                            (() => {
+                              const playerId = occupant.playerId || occupant.player_id;
+                              const resolvedPlayer =
+                                findPlayerById(playerId) || occupant.player || { id: playerId };
+                              const highlightAttrs = getBoardHighlightedAttributes(board);
+                              const attrValues = getPlayerAttributes(resolvedPlayer);
+                              return (
+                                <div
+                                  className="flex flex-col cursor-pointer w-full"
+                                  onClick={() => openEdit(resolvedPlayer, board.id, slotNum)}
+                                >
+                                  <PlayerSummary
+                                    player={resolvedPlayer}
+                                    attributes={attrValues}
+                                    highlightedAttributes={highlightAttrs}
+                                  />
+                                </div>
+                              );
+                            })()
                           ) : (
                             <span className="text-textSecondary px-2 py-2">-</span>
                           )}
@@ -1062,11 +1270,11 @@ function SquadBoardPage() {
                   }}
                 >
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-textSecondary">Board</p>
+                    <p className="text-sm font-semibold text-textSecondary font-crayon">Board</p>
                     <button
                       type="button"
                       onClick={() => setShowFormBoardId((prev) => (prev === board.id ? null : board.id))}
-                      className="text-sm font-semibold text-success hover:underline"
+                      className="font-crayon text-sm font-semibold text-success hover:underline"
                     >
                       {showFormBoardId === board.id ? "Close" : "+ Add"}
                     </button>
@@ -1138,6 +1346,30 @@ function SquadBoardPage() {
                           onChange={(val) => setNewPlayer((p) => ({ ...p, devTrait: val }))}
                         />
                       </div>
+                      {highlightAttrs.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-xs font-semibold text-textSecondary uppercase tracking-[0.12em]">
+                            Position attributes
+                          </p>
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            {highlightAttrs.map((attr) => (
+                              <label
+                                key={attr}
+                                className="space-y-1 text-xs font-medium text-textSecondary dark:text-white/80"
+                              >
+                                <span>{humanizeAttr(attr)}</span>
+                                <input
+                                  type="number"
+                                  inputMode="numeric"
+                                  value={newPlayerAttributes[board.id]?.[attr] ?? ""}
+                                  onChange={(e) => handleNewPlayerAttrChange(board.id, attr, e.target.value)}
+                                  className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+                                />
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       <button
                         type="button"
                         onClick={() => handleCreatePlayer(board.id)}
@@ -1161,7 +1393,11 @@ function SquadBoardPage() {
                           onDragEnd={onPlayerDragEnd}
                           onClick={() => openEdit(p, board.id, null)}
                         >
-                          <PlayerSummary player={p} />
+                          <PlayerSummary
+                            player={p}
+                            attributes={getPlayerAttributes(p)}
+                            highlightedAttributes={getBoardHighlightedAttributes(board)}
+                          />
                         </li>
                       ))}
                     </ul>
@@ -1173,6 +1409,16 @@ function SquadBoardPage() {
           );
         })}
       </div>
+      <AttributeModal
+        draft={attributeModal}
+        board={attributeBoard}
+        onClose={closeAttributeModal}
+        onSave={saveHighlightedAttributes}
+        onToggle={toggleAttributeSelection}
+        onCustomChange={setAttributeModalCustom}
+        onAddCustom={addCustomAttribute}
+        busy={busyBoardId === attributeModal.boardId}
+      />
       <NeedModal
         needDraft={needDraft}
         setNeedDraft={setNeedDraft}
@@ -1187,11 +1433,100 @@ function SquadBoardPage() {
       <PlayerEditModal
         editing={editing}
         onClose={closeEdit}
-        onSaveDraft={(draft) => setEditing(draft)}
+        onSaveDraft={setEditingDraft}
         onSave={() => saveEdit()}
         onDelete={deleteEditPlayer}
         busy={busyBoardId === "edit"}
       />
+    </div>
+  );
+}
+
+// Modal for selecting highlighted attributes for a position
+function AttributeModal({ draft, board, onClose, onSave, onToggle, onCustomChange, onAddCustom, busy }) {
+  if (!draft.boardId || !board) return null;
+  const options = Array.from(
+    new Set([
+      ...defaultAttributeOptions,
+      ...getBoardHighlightedAttributes(board),
+      ...(draft.selected || []),
+    ]),
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+      <div className="w-full max-w-lg rounded-xl bg-surface p-6 shadow-2xl dark:bg-darksurface">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.14em] text-textSecondary">Position</p>
+            <h3 className="font-varsity text-xl uppercase tracking-[0.06em]">{board.name}</h3>
+          </div>
+          <button onClick={onClose} className="text-textSecondary hover:text-charcoal dark:hover:text-white">
+            ✕
+          </button>
+        </div>
+        <p className="mt-2 text-sm text-textSecondary">
+          Choose the attributes to spotlight for this position. These will show on the card and in the player forms.
+        </p>
+        <div className="mt-4 space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {options.map((attr) => {
+              const selected = (draft.selected || []).includes(attr);
+              return (
+                <button
+                  key={attr}
+                  type="button"
+                  onClick={() => onToggle(attr)}
+                  className={`rounded-md px-3 py-2 text-xs font-semibold transition ${
+                    selected
+                      ? "bg-success text-white shadow-card"
+                      : "border border-border text-charcoal hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+                  }`}
+                  aria-pressed={selected}
+                >
+                  {humanizeAttr(attr)}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={draft.custom}
+              onChange={(e) => onCustomChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  onAddCustom();
+                }
+              }}
+              placeholder="Add custom attribute (e.g., release)"
+              className="flex-1 rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+            />
+            <button
+              type="button"
+              onClick={onAddCustom}
+              className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-textSecondary hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+            >
+              Add
+            </button>
+          </div>
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-textSecondary hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onSave}
+            disabled={busy}
+            className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:opacity-60"
+          >
+            {busy ? "Saving..." : "Save attributes"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1227,6 +1562,24 @@ function NeedModal({
   const emptySlots = Array.from({ length: slotCount })
     .map((_, idx) => idx + 1)
     .filter((num) => !occupiedSlotNumbers.has(num));
+
+  const boardLookup = new Map(boards.map((b) => [b.id, b]));
+  const replacementOptions = players
+    .filter((p) => p.id !== needDraft.departingPlayerId)
+    .filter((p) => !rosteredIds.has(p.id))
+    .map((p) => {
+      const b = boardLookup.get(p.positionBoardId || p.position_board_id);
+      return {
+        player: p,
+        boardName: b?.name || "Unassigned",
+        sort: b?.sortOrder || b?.sort_order || 0,
+      };
+    })
+    .sort((a, b) => {
+      const sortDiff = (a.sort || 0) - (b.sort || 0);
+      if (sortDiff !== 0) return sortDiff;
+      return (a.boardName || "").localeCompare(b.boardName || "", undefined, { sensitivity: "base" });
+    });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
@@ -1284,14 +1637,11 @@ function NeedModal({
               className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
             >
               <option value="">Select later</option>
-              {players
-                .filter((p) => p.id !== needDraft.departingPlayerId)
-                .filter((p) => !rosteredIds.has(p.id))
-                .map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.positionBoardId || p.position_board_id || "unassigned"})
-                  </option>
-                ))}
+              {replacementOptions.map((opt) => (
+                <option key={opt.player.id} value={opt.player.id}>
+                  {opt.boardName} - {opt.player.name}
+                </option>
+              ))}
             </select>
           </label>
           <label className="flex items-center gap-2 text-sm font-medium text-textSecondary dark:text-white/80">
@@ -1438,6 +1788,46 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
               onChange={(val) => onSaveDraft({ ...editing, devTrait: val })}
             />
           </div>
+          {(editing.highlightedAttributes || []).length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-textSecondary dark:text-white/80">
+                  Position attributes
+                </span>
+                <span className="text-[11px] uppercase tracking-[0.12em] text-textSecondary/70">
+                  {editing.highlightedAttributes.length} fields
+                </span>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {editing.highlightedAttributes.map((attr) => {
+                  const key = normalizeAttrKey(attr);
+                  return (
+                    <label
+                      key={attr}
+                      className="space-y-1 text-xs font-medium text-textSecondary dark:text-white/80"
+                    >
+                      <span>{humanizeAttr(attr)}</span>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        value={editing.attributeValues?.[key] ?? ""}
+                        onChange={(e) =>
+                          onSaveDraft((prev) => ({
+                            ...prev,
+                            attributeValues: {
+                              ...(prev?.attributeValues || {}),
+                              [key]: e.target.value,
+                            },
+                          }))
+                        }
+                        className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+                      />
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
             <div className="flex items-center justify-between mt-2">
               <span>Assign to another position</span>
@@ -1445,7 +1835,7 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
             </div>
             <select
               value={editing.boardSelection || ""}
-              onChange={(e) => onSaveDraft({ ...editing, boardSelection: e.target.value || null })}
+              onChange={(e) => onSaveDraft((prev) => ({ ...prev, boardSelection: e.target.value || null }))}
               className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
             >
               <option value="">— Keep current board —</option>
