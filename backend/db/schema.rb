@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_20_120000) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_29_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -49,8 +49,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_20_120000) do
     t.bigint "position_board_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "recruit_status", default: 0, null: false
+    t.boolean "flagged", default: false, null: false
     t.index ["position_board_id", "status"], name: "index_players_on_position_board_id_and_status"
     t.index ["position_board_id"], name: "index_players_on_position_board_id"
+    t.index ["recruit_status"], name: "index_players_on_recruit_status"
     t.index ["squad_id"], name: "index_players_on_squad_id"
     t.index ["team_id", "status"], name: "index_players_on_team_id_and_status"
     t.index ["team_id"], name: "index_players_on_team_id"

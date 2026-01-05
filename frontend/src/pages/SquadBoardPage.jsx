@@ -181,6 +181,13 @@ const buildAttributePayload = (map = {}) => {
 const getBoardHighlightedAttributes = (board) =>
   board?.highlightedAttributes || board?.highlighted_attributes || [];
 
+const recruitStatusOptions = [
+  { value: "gem", label: "Gem", tone: "success" },
+  { value: "bust", label: "Bust", tone: "danger" },
+];
+
+const getRecruitStatus = (player) => player?.recruitStatus ?? player?.recruit_status ?? "normal";
+
 const statusButtonOptions = [
   { value: "graduated", label: "Graduated" },
   { value: "departed", label: "Departed" },
@@ -240,6 +247,57 @@ function StatusButtons({ value, onChange }) {
   );
 }
 
+function RecruitStatusBadge({ status, showLabel = false }) {
+  if (status !== "gem" && status !== "bust") return null;
+  const isGem = status === "gem";
+  const toneClass = isGem ? "text-success" : "text-danger";
+  return (
+    <span className={`inline-flex items-center gap-1 ${toneClass}`} title={isGem ? "Gem" : "Bust"}>
+      <span className="relative inline-flex h-5 w-5 items-center justify-center">
+        <i className={`fa-solid fa-gem ${isGem ? "text-success" : "text-danger/60"}`} aria-hidden="true" />
+        {!isGem && (
+          <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[11px] font-black leading-none text-danger">
+            ✕
+          </span>
+        )}
+      </span>
+      {showLabel ? <span className="text-xs font-semibold leading-none">{isGem ? "Gem" : "Bust"}</span> : null}
+    </span>
+  );
+}
+
+function RecruitStatusToggle({ value, onChange, compact = false }) {
+  const selected = value === "gem" || value === "bust" ? value : "";
+  const containerClass = compact ? "flex items-center gap-1" : "flex items-center gap-2";
+  const paddingClass = compact ? "px-1 py-1" : "px-2 py-1";
+  return (
+    <div className={containerClass}>
+      {recruitStatusOptions.map((option) => {
+        const isSelected = selected === option.value;
+        const tone =
+          option.tone === "success"
+            ? "border-success bg-success/10 text-success"
+            : "border-danger bg-danger/10 text-danger";
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(isSelected ? "" : option.value)}
+            className={`flex items-center gap-1 rounded-md border ${paddingClass} text-xs font-semibold transition ${
+              isSelected
+                ? tone
+                : "border-border text-textSecondary hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+            }`}
+            aria-pressed={isSelected}
+          >
+            <RecruitStatusBadge status={option.value} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function SquadBoardPage() {
   const { id, squadId } = useParams();
   const [team, setTeam] = useState(null);
@@ -255,6 +313,7 @@ function SquadBoardPage() {
     overall: "",
     classYear: "",
     devTrait: "",
+    recruitStatus: "",
   });
   const [draggingCardId, setDraggingCardId] = useState(null);
   const [draggingPlayer, setDraggingPlayer] = useState(null);
@@ -417,6 +476,10 @@ function SquadBoardPage() {
       const next = typeof updater === "function" ? updater(prev) : updater;
       if (!next) return next;
       const nextDraft = { ...next };
+      if (nextDraft.flagged === undefined) {
+        nextDraft.flagged = !!prev?.flagged;
+      }
+      nextDraft.flagged = !!nextDraft.flagged;
       nextDraft.attributeValues = sanitizeAttributeMap(nextDraft.attributeValues || prev?.attributeValues || {});
 
       const targetBoardId =
@@ -619,13 +682,17 @@ function SquadBoardPage() {
     return `${base} ${classColor(cls)} ${palette.bg} ${palette.border}`;
   };
 
-  const PlayerSummary = ({ player, highlightedAttributes = [], attributes = {} }) => {
+  const PlayerSummary = ({ player, highlightedAttributes = [], attributes = {}, showRecruitStatus = true }) => {
     if (!player) return null;
     const star = player.starRating ?? player.star_rating;
     const classYear = player.classYear ?? player.class_year;
     const archetype = archetypeShort(player.archetype);
     const overall = player.overall;
     const trait = player.devTrait ?? player.dev_trait;
+    const recruitStatus = showRecruitStatus ? getRecruitStatus(player) : "normal";
+    const isGem = recruitStatus === "gem";
+    const isBust = recruitStatus === "bust";
+    const isFlagged = !!player.flagged;
     const attrValues = Object.keys(attributes || {}).length > 0 ? attributes : getPlayerAttributes(player);
 
     const AttributeCell = ({ value }) => (
@@ -639,9 +706,12 @@ function SquadBoardPage() {
     return (
       <div className="flex flex-col w-full gap-1">
         <div className="flex items-center justify-between gap-2 px-2 pt-2">
-          <span className="text-textPrimary dark:text-white font-semibold">
-            {player.name || player.id}
-          </span>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-textPrimary dark:text-white font-semibold truncate">
+              {player.name || player.id}
+            </span>
+            {isFlagged ? <i className="fa-solid fa-flag text-danger text-xs" title="Flagged"></i> : null}
+          </div>
           <div className="flex flex-wrap items-center gap-0">
             {highlightedAttributes.length > 0 && (
               <div className="flex flex-wrap items-center gap-1">
@@ -669,10 +739,46 @@ function SquadBoardPage() {
           />
           <AttributeCell
             value={
-              star ? (
-                <span className="flex items-center gap-0">
-                  <span className="text-textSecondary/80 dark:text-white">{star}</span>
-                  <span className="text-textSecondary/50">★</span>
+              star || isBust ? (
+                <span className="flex items-center">
+                  {star ? (
+                    <>
+                      <span
+                        className={
+                          isGem
+                            ? "text-success"
+                            : isBust
+                              ? "text-danger"
+                              : "text-textSecondary/80 dark:text-white"
+                        }
+                      >
+                        {star}
+                      </span>
+                      <span
+                        className={
+                          isGem
+                            ? "text-success"
+                            : isBust
+                              ? "text-danger"
+                              : "text-textSecondary/50"
+                        }
+                      >
+                        ★
+                      </span>
+                    </>
+                  ) : (
+                    <span
+                      className={
+                        isGem
+                          ? "text-success text-xs font-semibold"
+                          : isBust
+                            ? "text-danger text-xs font-semibold"
+                            : "text-textSecondary/80"
+                      }
+                    >
+                      {isGem ? "Gem" : isBust ? "Bust" : ""}
+                    </span>
+                  )}
                 </span>
               ) : null
             }
@@ -696,11 +802,12 @@ function SquadBoardPage() {
         overall: newPlayer.overall || null,
         class_year: newPlayer.classYear || null,
         dev_trait: newPlayer.devTrait || null,
+        recruit_status: newPlayer.recruitStatus || "normal",
         status: "recruit",
         position_board_id: boardId,
         attribute_values: attrPayload,
       });
-      setNewPlayer({ name: "", starRating: "", archetype: "", overall: "", classYear: "", devTrait: "" });
+      setNewPlayer({ name: "", starRating: "", archetype: "", overall: "", classYear: "", devTrait: "", recruitStatus: "" });
       setNewPlayerAttributes((prev) => ({ ...prev, [boardId]: {} }));
       setShowFormBoardId(null);
       const playersData = await fetchPlayers(id, { status: ["recruit", "rostered"] });
@@ -847,6 +954,8 @@ function SquadBoardPage() {
       overall: player.overall || "",
       starRating: player.starRating || 3,
       status: player.status || "recruit",
+      recruitStatus: getRecruitStatus(player),
+      flagged: !!player.flagged,
       boardSelection: boardId || player.positionBoardId || player.position_board_id || "",
       boardOptions,
       attributeValues,
@@ -878,8 +987,10 @@ function SquadBoardPage() {
         overall: payload.overall,
         star_rating: payload.starRating,
         status: isAlumni ? payload.status : payload.status === "rostered" && !boardChanged ? "rostered" : "recruit",
+        recruit_status: payload.recruitStatus || "normal",
         position_board_id: isAlumni ? null : targetBoardId || null,
         attribute_values: attributeValuesPayload,
+        flagged: !!payload.flagged,
       });
       if (shouldRemoveSlot && sourceSlot) {
         await deleteRosterSlot(sourceBoard.id, sourceSlot.id);
@@ -920,7 +1031,7 @@ function SquadBoardPage() {
 
   const allNeeds = useMemo(() => {
     const byKey = new Map();
-    sortedBoards.forEach((b) => {
+    boards.forEach((b) => {
       (b.needs || []).forEach((n) => {
         const dep = n.departingPlayerId || n.departing_player_id || "";
         const slotNum = n.slotNumber || n.slot_number || "";
@@ -935,7 +1046,7 @@ function SquadBoardPage() {
       });
     });
     return Array.from(byKey.values());
-  }, [sortedBoards]);
+  }, [boards]);
 
   const handleDeleteNeed = async (boardId, needId) => {
     setNeedBusy(true);
@@ -1176,77 +1287,72 @@ function SquadBoardPage() {
                 <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-lg bg-surface/60 text-sm text-textSecondary dark:border-darkborder dark:bg-darksurface/60 space-y-2">
                   <ul className="space-y-1">
-                    {slotsArray.map(({ slotNum, occupant }) => (
-                      <li
-                        key={slotNum}
-                        className={`flex items-center justify-between gap-2 rounded-md border text-sm dark:border-darkborder dark:bg-darksurface/80 transition ${
-                          !occupant && dragOverSlot?.boardId === board.id && dragOverSlot?.slotNum === slotNum
-                            ? "border-burnt bg-burnt/15 scale-[1.02] shadow-inner"
-                            : "border-border bg-white/80"
-                        } ${
-                          occupant
-                            ? `cursor-grab active:cursor-grabbing ${
-                                draggingPlayer?.playerId === (occupant.playerId || occupant.player_id)
-                                  ? "opacity-70 ring-2 ring-burnt/50"
-                                  : ""
-                              }`
-                            : ""
-                        }`}
-                        draggable={Boolean(occupant)}
-                        onDragStart={(e) =>
-                          occupant && startPlayerDrag(e, occupant.playerId || occupant.player_id, board.id)
-                        }
-                        onDragEnd={onPlayerDragEnd}
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          if (!occupant) setDragOverSlot({ boardId: board.id, slotNum });
-                        }}
-                        onDragEnter={(e) => {
-                          e.preventDefault();
-                          if (!draggingPlayer?.playerId) return;
-                          if (occupant) {
-                            if (draggingPlayer.fromBoardId === board.id) {
-                              updatePreviewOrder(board.id, draggingPlayer.playerId, occupant.playerId || occupant.player_id);
+                    {slotsArray.map(({ slotNum, occupant }) => {
+                      const playerId = occupant?.playerId || occupant?.player_id;
+                      const resolvedPlayer =
+                        playerId ? findPlayerById(playerId) || occupant?.player || { id: playerId } : null;
+                      const highlightAttrs = getBoardHighlightedAttributes(board);
+                      const attrValues = resolvedPlayer ? getPlayerAttributes(resolvedPlayer) : {};
+                      const isFlagged = !!resolvedPlayer?.flagged;
+                      const isDraggingCurrent = draggingPlayer?.playerId === playerId;
+                      const dropHoverClass =
+                        !occupant && dragOverSlot?.boardId === board.id && dragOverSlot?.slotNum === slotNum
+                          ? "border-burnt bg-burnt/15 scale-[1.02] shadow-inner"
+                          : "border-border bg-white/80";
+                      const flaggedClass = occupant && isFlagged ? "border-danger shadow-[0_0_0_1px_rgba(185,28,28,0.25)]" : "";
+                      const draggingClass = occupant && isDraggingCurrent ? "opacity-70 ring-2 ring-burnt/50" : "";
+                      return (
+                        <li
+                          key={slotNum}
+                          className={`flex items-center justify-between gap-2 rounded-md border text-sm dark:border-darkborder dark:bg-darksurface/80 transition ${
+                            occupant ? "cursor-grab active:cursor-grabbing" : ""
+                          } ${dropHoverClass} ${flaggedClass} ${draggingClass}`}
+                          draggable={Boolean(occupant)}
+                          onDragStart={(e) => occupant && startPlayerDrag(e, playerId, board.id)}
+                          onDragEnd={onPlayerDragEnd}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            if (!occupant) setDragOverSlot({ boardId: board.id, slotNum });
+                          }}
+                          onDragEnter={(e) => {
+                            e.preventDefault();
+                            if (!draggingPlayer?.playerId) return;
+                            if (occupant) {
+                              if (draggingPlayer.fromBoardId === board.id) {
+                                updatePreviewOrder(board.id, draggingPlayer.playerId, playerId);
+                              }
+                            } else {
+                              setDragOverSlot({ boardId: board.id, slotNum });
                             }
-                          } else {
-                            setDragOverSlot({ boardId: board.id, slotNum });
-                          }
-                        }}
-                        onDragLeave={() => {
-                          if (!occupant) setDragOverSlot(null);
-                        }}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          onSlotDrop(board.id, slotNum);
-                        }}
-                      >
-                        <div className="flex items-center gap-2 w-full">
-                          {occupant ? (
-                            (() => {
-                              const playerId = occupant.playerId || occupant.player_id;
-                              const resolvedPlayer =
-                                findPlayerById(playerId) || occupant.player || { id: playerId };
-                              const highlightAttrs = getBoardHighlightedAttributes(board);
-                              const attrValues = getPlayerAttributes(resolvedPlayer);
-                              return (
-                                <div
-                                  className="flex flex-col cursor-pointer w-full"
-                                  onClick={() => openEdit(resolvedPlayer, board.id, slotNum)}
-                                >
-                                  <PlayerSummary
-                                    player={resolvedPlayer}
-                                    attributes={attrValues}
-                                    highlightedAttributes={highlightAttrs}
-                                  />
-                                </div>
-                              );
-                            })()
-                          ) : (
-                            <span className="text-textSecondary px-2 py-2">-</span>
-                          )}
-                        </div>
-                      </li>
-                    ))}
+                          }}
+                          onDragLeave={() => {
+                            if (!occupant) setDragOverSlot(null);
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            onSlotDrop(board.id, slotNum);
+                          }}
+                        >
+                          <div className="flex items-center gap-2 w-full">
+                            {occupant ? (
+                              <div
+                                className="flex flex-col cursor-pointer w-full"
+                                onClick={() => resolvedPlayer && openEdit(resolvedPlayer, board.id, slotNum)}
+                              >
+                                <PlayerSummary
+                                  player={resolvedPlayer}
+                                  attributes={attrValues}
+                                  highlightedAttributes={highlightAttrs}
+                                  showRecruitStatus={false}
+                                />
+                              </div>
+                            ) : (
+                              <span className="text-textSecondary px-2 py-2">-</span>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
                 <div
@@ -1287,24 +1393,31 @@ function SquadBoardPage() {
                         onChange={(e) => setNewPlayer((p) => ({ ...p, name: e.target.value }))}
                         className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
                       />
-                      <div className="flex items-center gap-1 text-burnt">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <button
-                            key={star}
-                            type="button"
-                            aria-label={`${star} star${star > 1 ? "s" : ""}`}
-                            onClick={() => setNewPlayer((p) => ({ ...p, starRating: star }))}
-                            className="focus:outline-none"
-                          >
-                            <span
-                              className={`text-lg ${
-                                (newPlayer.starRating ?? 3) >= star ? "text-burnt" : "text-border opacity-60"
-                              }`}
+                      <div className="flex items-center items-between gap-2">
+                        <div className="flex items-center gap-1 text-burnt">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              type="button"
+                              aria-label={`${star} star${star > 1 ? "s" : ""}`}
+                              onClick={() => setNewPlayer((p) => ({ ...p, starRating: star }))}
+                              className="focus:outline-none"
                             >
-                              ★
-                            </span>
-                          </button>
-                        ))}
+                              <span
+                                className={`text-lg ${
+                                  (newPlayer.starRating ?? 3) >= star ? "text-burnt" : "text-border opacity-60"
+                                }`}
+                              >
+                                ★
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                        <RecruitStatusToggle
+                          compact
+                          value={newPlayer.recruitStatus}
+                          onChange={(val) => setNewPlayer((p) => ({ ...p, recruitStatus: val }))}
+                        />
                       </div>
                       <select
                         value={newPlayer.archetype}
@@ -1385,7 +1498,11 @@ function SquadBoardPage() {
                       {recruits.map((p) => (
                         <li
                           key={p.id}
-                          className={`flex items-center justify-between rounded-md border border-border bg-white/80 text-sm dark:border-darkborder dark:bg-darksurface/80 cursor-grab active:cursor-grabbing ${
+                          className={`flex items-center justify-between rounded-md border text-sm dark:border-darkborder dark:bg-darksurface/80 cursor-grab active:cursor-grabbing ${
+                            p.flagged
+                              ? "border-danger shadow-[0_0_0_1px_rgba(185,28,28,0.25)]"
+                              : "border-border bg-white/80"
+                          } ${
                             draggingPlayer?.playerId === p.id ? "opacity-70 ring-2 ring-burnt/50" : ""
                           }`}
                           draggable
@@ -1697,9 +1814,9 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
       <div className="w-full max-w-lg rounded-xl bg-surface p-6 shadow-2xl dark:bg-darksurface">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
             <h3 className="font-varsity text-xl uppercase tracking-[0.06em]">Edit Player</h3>
-            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-1 text-burnt">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <button
@@ -1719,7 +1836,12 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
                   </button>
                 ))}
               </div>
-            </label>
+              <RecruitStatusToggle
+                compact
+                value={editing.recruitStatus}
+                onChange={(val) => onSaveDraft({ ...editing, recruitStatus: val })}
+              />
+            </div>
           </div>
           <button onClick={onClose} className="text-textSecondary hover:text-charcoal dark:hover:text-white">
             ✕
@@ -1858,6 +1980,20 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
         </div>
         <div className="mt-4 flex justify-end items-end">
           <div className="flex gap-1">
+            <button
+              type="button"
+              onClick={() => onSaveDraft((prev) => ({ ...prev, flagged: !prev.flagged }))}
+              disabled={busy}
+              aria-pressed={editing.flagged}
+              title={editing.flagged ? "Unflag player" : "Flag player"}
+              className={`rounded-md border px-4 py-2 text-sm font-semibold transition ${
+                editing.flagged
+                  ? "border-danger text-danger bg-danger/10 shadow-card"
+                  : "border-border text-textSecondary hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+              }`}
+            >
+              <i className="fa-solid fa-flag"></i>
+            </button>
             <button
               onClick={() => {
                 if (busy) return;

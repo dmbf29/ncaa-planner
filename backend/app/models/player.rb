@@ -8,6 +8,7 @@ class Player < ApplicationRecord
   has_many :departing_needs, class_name: "Need", foreign_key: :departing_player_id, dependent: :nullify
 
   enum :status, { recruit: 0, rostered: 1, graduated: 2, departed: 3 }
+  enum :recruit_status, { normal: 0, gem: 1, bust: 2 }, default: :normal
 
   validates :name, presence: true
   before_validation :sync_squad_from_position_board
@@ -32,6 +33,8 @@ class Player < ApplicationRecord
     self.attribute_values ||= {}
     self.abilities ||= []
     self.tags ||= []
+    self.recruit_status ||= "normal"
+    self.flagged = false if flagged.nil?
   end
 
   def sync_squad_from_position_board

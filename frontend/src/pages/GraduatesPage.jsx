@@ -155,6 +155,7 @@ const PlayerSummary = ({ player }) => {
   const archetype = archetypeShort(player.archetype);
   const overall = player.overall;
   const trait = player.devTrait ?? player.dev_trait;
+  const isFlagged = !!player.flagged;
 
   const AttributeCell = ({ value }) => (
     <div className="flex flex-col">
@@ -167,7 +168,10 @@ const PlayerSummary = ({ player }) => {
   return (
     <div className="flex flex-col w-full gap-1">
       <div className="flex items-center justify-between gap-2 px-2 pt-2">
-        <span className="text-textPrimary dark:text-white font-semibold">{player.name || player.id}</span>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-textPrimary dark:text-white font-semibold truncate">{player.name || player.id}</span>
+          {isFlagged ? <i className="fa-solid fa-flag text-danger text-xs" title="Flagged"></i> : null}
+        </div>
         {overall ? <OverallPill value={overall} /> : null}
       </div>
       <div className="grid grid-cols-4 gap-1 px-2 bg-textSecondary/5 py-1">
@@ -306,6 +310,20 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
         <div className="mt-4 flex justify-end items-end">
           <div className="flex gap-1">
             <button
+              type="button"
+              onClick={() => onSaveDraft((prev) => ({ ...prev, flagged: !prev.flagged }))}
+              disabled={busy}
+              aria-pressed={editing.flagged}
+              title={editing.flagged ? "Unflag player" : "Flag player"}
+              className={`rounded-md border px-4 py-2 text-sm font-semibold transition ${
+                editing.flagged
+                  ? "border-danger text-danger bg-danger/10 shadow-card"
+                  : "border-border text-textSecondary hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+              }`}
+            >
+              <i className="fa-solid fa-flag"></i>
+            </button>
+            <button
               onClick={() => {
                 if (busy) return;
                 const message =
@@ -393,6 +411,7 @@ function GraduatesPage() {
       overall: player.overall || "",
       starRating: player.starRating || player.star_rating || 3,
       status: player.status || "graduated",
+      flagged: !!player.flagged,
       boardId: player.positionBoardId || player.position_board_id || "",
       boardOptions: boards,
     });
@@ -414,6 +433,7 @@ function GraduatesPage() {
         star_rating: editing.starRating || null,
         status: wantsReturn ? "recruit" : editing.status || "graduated",
         position_board_id: editing.boardId || null,
+        flagged: !!editing.flagged,
       });
       const playerData = await fetchPlayers(id, { status: ["graduated", "departed"] });
       setPlayers(playerData);
