@@ -1048,6 +1048,17 @@ function SquadBoardPage() {
     return Array.from(byKey.values());
   }, [boards]);
 
+  const handleClearAllNeeds = async () => {
+    if (!window.confirm(`Delete all ${allNeeds.length} planned replacement${allNeeds.length !== 1 ? "s" : ""}? This cannot be undone.`)) return;
+    try {
+      await Promise.all(allNeeds.map((n) => deleteNeed(n.boardId, n.id)));
+      const boardsData = await loadAllBoards();
+      setBoards(boardsData);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   const handleDeleteNeed = async (boardId, needId) => {
     setNeedBusy(true);
     setNeedMessage("");
@@ -1141,8 +1152,16 @@ function SquadBoardPage() {
       {!team && !error && <p className="text-sm text-textSecondary">Loading squad...</p>}
       {allNeeds.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-textSecondary uppercase tracking-[0.12em]">
-            <span className="font-crayon">Planned Replacements</span> ({allNeeds.length})
+          <h3 className="text-sm font-semibold text-textSecondary uppercase tracking-[0.12em] flex items-center gap-2">
+            <span><span className="font-crayon">Planned Replacements</span> ({allNeeds.length})</span>
+            <button
+              type="button"
+              onClick={handleClearAllNeeds}
+              title="Clear all planned replacements"
+              className="text-textSecondary/50 hover:text-error transition-colors"
+            >
+              <i className="fa-solid fa-trash-can" aria-hidden="true" />
+            </button>
           </h3>
           <div className="flex flex-wrap gap-1">
             {allNeeds.map((need) => {
