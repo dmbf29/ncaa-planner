@@ -1042,6 +1042,8 @@ function SquadBoardPage() {
           ...n,
           boardName: b.name,
           boardId: b.id,
+          squadId: b.squadId || b.squad_id,
+          boardSortOrder: b.sortOrder || b.sort_order || 0,
         });
       });
     });
@@ -1164,43 +1166,59 @@ function SquadBoardPage() {
             </button>
           </h3>
           <div className="flex flex-wrap gap-1">
-            {allNeeds.map((need) => {
-              const departing =
-                need.departingPlayer?.name ||
-                (need.departing_player?.name) ||
-                (need.slotNumber || need.slot_number ? `Empty Slot` : "Departing?");
-              const replacement =
-                need.replacementPlayer?.name ||
-                (need.replacement_player?.name) ||
-                "TBD";
-              return (
-                <button
-                  key={need.id}
-                  type="button"
-                  onClick={() => {
-                    setNeedDraft({
-                      boardId: need.boardId,
-                      needId: need.id,
-                      departingPlayerId: need.departingPlayerId || need.departing_player_id || "",
-                      replacementPlayerId: need.replacementPlayerId || need.replacement_player_id || "",
-                      slotNumber: need.slotNumber || need.slot_number || "",
-                      resolved: !!need.resolved,
-                    });
-                    setNeedMessage("");
-                    setNeedBusy(false);
-                  }}
-                  className={`inline-flex items-center gap-1 rounded-full border px-2 bg-white py-1 text-xs font-semibold text-textSecondary shadow-sm ${
-                    need.resolved ? "border-success/70" : "border-border dark:border-darkborder dark:bg-darksurface"
-                  }`}
-                >
-                  <span className="text-burnt">{need.boardName}</span>
-                  <span className="text-textPrimary">{departing}</span>
-                  <span className="text-textSecondary/50">→</span>
-                  <span className="text-textPrimary">{replacement}</span>
-                </button>
-              );
-            })}
+            {(() => {
+              // Group by boardId
+              const seen = new Map();
+              allNeeds.forEach((need) => {
+                if (!seen.has(need.boardId)) seen.set(need.boardId, { need, count: 0 });
+                seen.get(need.boardId).count += 1;
+              });
+              // Sort by squad order (squadList index) then board sortOrder
+              const squadOrder = (squadId) => {
+                const idx = squadList.findIndex((sq) => String(sq.id) === String(squadId));
+                return idx === -1 ? 999 : idx;
+              };
+              const sorted = Array.from(seen.values()).sort((a, b) => {
+                const sqDiff = squadOrder(a.need.squadId) - squadOrder(b.need.squadId);
+                if (sqDiff !== 0) return sqDiff;
+                return a.need.boardSortOrder - b.need.boardSortOrder;
+              });
+              const offenseSquadId = squadList[0]?.id;
+              return sorted.map(({ need, count }) => {
+                const isOffense = String(need.squadId) === String(offenseSquadId);
+                return (
+                  <button
+                    key={need.boardId}
+                    type="button"
+                    onClick={() => {
+                      setNeedDraft({
+                        boardId: need.boardId,
+                        needId: need.id,
+                        departingPlayerId: need.departingPlayerId || need.departing_player_id || "",
+                        replacementPlayerId: need.replacementPlayerId || need.replacement_player_id || "",
+                        slotNumber: need.slotNumber || need.slot_number || "",
+                        resolved: !!need.resolved,
+                      });
+                      setNeedMessage("");
+                      setNeedBusy(false);
+                    }}
+                    className={`inline-flex items-center rounded-full border px-2 bg-white py-1 text-xs font-semibold shadow-sm ${
+                      need.resolved
+                        ? "border-success/70 text-success"
+                        : isOffense
+                        ? "border-border text-burnt dark:border-darkborder dark:bg-darksurface"
+                        : "border-border text-charcoal dark:border-darkborder dark:bg-darksurface dark:text-white"
+                    }`}
+                  >
+                    {need.boardName}{count > 1 ? ` (${count})` : ""}
+                  </button>
+                );
+              });
+            })()}
           </div>
+          <h3 className="text-sm font-semibold text-textSecondary uppercase tracking-[0.12em] flex items-center gap-2">
+            <span><span className="font-crayon">Recruits on the Board</span> ({players.filter(p => { const cy = p.classYear ?? p.class_year; return cy === "Rec" || cy === "✍️"; }).length})</span>
+          </h3>
         </div>
       )}
       <div className="grid gap-2 sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
@@ -1281,27 +1299,68 @@ function SquadBoardPage() {
                       </button>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setNeedDraft({
-                        boardId: board.id,
-                        needId: null,
-                        departingPlayerId: "",
-                        replacementPlayerId: "",
-                        slotNumber: "",
-                        resolved: false,
-                      });
-                      setNeedMessage("");
-                      setNeedBusy(false);
-                    }}
-                    className="text-left"
-                  >
-                    <StatPill
-                      label="Needs"
-                      value={(board.needs || []).filter((n) => !n.resolved).length}
-                    />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    {(board.needs || []).map((need) => {
+                      const departing =
+                        need.departingPlayer?.name ||
+                        need.departing_player?.name ||
+                        (need.slotNumber || need.slot_number ? "Empty" : "Departing?");
+                      const replacement =
+                        need.replacementPlayer?.name ||
+                        need.replacement_player?.name ||
+                        "TBD";
+                      return (
+                        <button
+                          key={need.id}
+                          type="button"
+                          onClick={() => {
+                            setNeedDraft({
+                              boardId: board.id,
+                              needId: need.id,
+                              departingPlayerId: need.departingPlayerId || need.departing_player_id || "",
+                              replacementPlayerId: need.replacementPlayerId || need.replacement_player_id || "",
+                              slotNumber: need.slotNumber || need.slot_number || "",
+                              resolved: !!need.resolved,
+                            });
+                            setNeedMessage("");
+                            setNeedBusy(false);
+                          }}
+                          className={`inline-flex items-center gap-1 rounded-full border px-2 bg-white py-1 text-xs font-semibold text-textSecondary shadow-sm ${
+                            need.resolved ? "border-success/70" : "border-border dark:border-darkborder dark:bg-darksurface"
+                          }`}
+                        >
+                          <span className="text-textPrimary">{departing}</span>
+                          {replacement !== "TBD" && (
+                            <>
+                              <span className="text-textSecondary/50">→</span>
+                              <span className="text-textPrimary">{replacement}</span>
+                            </>
+                          )}
+                        </button>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNeedDraft({
+                          boardId: board.id,
+                          needId: null,
+                          departingPlayerId: "",
+                          replacementPlayerId: "",
+                          slotNumber: "",
+                          resolved: false,
+                        });
+                        setNeedMessage("");
+                        setNeedBusy(false);
+                      }}
+                      className="text-left"
+                    >
+                      <StatPill
+                        label="Needs"
+                        value={(board.needs || []).filter((n) => !n.resolved).length}
+                      />
+                    </button>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-lg bg-surface/60 text-sm text-textSecondary dark:border-darkborder dark:bg-darksurface/60 space-y-2">
