@@ -4,10 +4,13 @@ import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import StatPill from "../components/StatPill";
 import OverallPill from "../components/OverallPill";
+import PlayerFlagIcons from "../components/PlayerFlagIcons";
+import FlagPicker from "../components/FlagPicker";
 import {
   fetchTeam,
   fetchSquadBoards,
   fetchPlayers,
+  fetchFlags,
   createRosterSlot,
   updateRosterSlot,
   updatePositionBoard,
@@ -96,7 +99,13 @@ const archetypeShort = (longLabel) => {
   return longLabel || "";
 };
 
-const classYears = ["FR", "FR(RS)", "SO", "SO(RS)", "JR", "JR(RS)", "SR", "SR(RS)", "Rec", "✍️"];
+const classYears = ["FR", "FR(RS)", "SO", "SO(RS)", "JR", "JR(RS)", "SR", "SR(RS)"];
+
+const STATUS_FLAG_OPTIONS = [
+  { name: "recruit", label: "Recruit" },
+  { name: "commited", label: "Commited" },
+];
+const STATUS_FLAG_NAMES = STATUS_FLAG_OPTIONS.map((o) => o.name);
 
 const devTraitOptions = [
   { value: "normal", label: "Normal" },
@@ -311,7 +320,7 @@ function SquadBoardPage() {
     starRating: 3,
     archetype: "",
     overall: "",
-    classYear: "",
+    classYear: "recruit",
     devTrait: "",
     recruitStatus: "",
   });
@@ -333,19 +342,22 @@ function SquadBoardPage() {
   const [needBusy, setNeedBusy] = useState(false);
   const [needMessage, setNeedMessage] = useState("");
   const [attributeModal, setAttributeModal] = useState({ boardId: null, selected: [], custom: "" });
+  const [flags, setFlags] = useState([]);
   const cardRefs = useRef({});
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [teamData, boardsData, playersData] = await Promise.all([
+        const [teamData, boardsData, playersData, flagData] = await Promise.all([
           fetchTeam(id),
           fetchSquadBoards(id),
           fetchPlayers(id, { status: ["recruit", "rostered"] }),
+          fetchFlags(),
         ]);
         setTeam(teamData);
         setBoards(dedupeBoards(boardsData));
         setPlayers(playersData);
+        setFlags(flagData);
       } catch (err) {
         setError(err.message);
       }
@@ -476,10 +488,9 @@ function SquadBoardPage() {
       const next = typeof updater === "function" ? updater(prev) : updater;
       if (!next) return next;
       const nextDraft = { ...next };
-      if (nextDraft.flagged === undefined) {
-        nextDraft.flagged = !!prev?.flagged;
+      if (nextDraft.flagIds === undefined) {
+        nextDraft.flagIds = prev?.flagIds || [];
       }
-      nextDraft.flagged = !!nextDraft.flagged;
       nextDraft.attributeValues = sanitizeAttributeMap(nextDraft.attributeValues || prev?.attributeValues || {});
 
       const targetBoardId =
@@ -692,7 +703,6 @@ function SquadBoardPage() {
     const recruitStatus = showRecruitStatus ? getRecruitStatus(player) : "normal";
     const isGem = recruitStatus === "gem";
     const isBust = recruitStatus === "bust";
-    const isFlagged = !!player.flagged;
     const attrValues = Object.keys(attributes || {}).length > 0 ? attributes : getPlayerAttributes(player);
 
     const AttributeCell = ({ value }) => (
@@ -710,7 +720,7 @@ function SquadBoardPage() {
             <span className="text-textPrimary dark:text-white font-semibold truncate">
               {player.name || player.id}
             </span>
-            {isFlagged ? <i className="fa-solid fa-flag text-danger text-xs" title="Flagged"></i> : null}
+            <PlayerFlagIcons flags={player.flags} />
           </div>
           <div className="flex flex-wrap items-center gap-0">
             {highlightedAttributes.length > 0 && (
@@ -795,19 +805,29 @@ function SquadBoardPage() {
     setBusyBoardId(boardId);
     try {
       const attrPayload = buildAttributePayload(newPlayerAttributes[boardId]);
+      const statusFlag = flags.find((f) => STATUS_FLAG_NAMES.includes(f.name) && f.name === newPlayer.classYear);
       await createPlayer(id, {
         name: newPlayer.name,
         star_rating: newPlayer.starRating || null,
         archetype: newPlayer.archetype || null,
         overall: newPlayer.overall || null,
-        class_year: newPlayer.classYear || null,
+        class_year: statusFlag ? null : newPlayer.classYear || null,
         dev_trait: newPlayer.devTrait || null,
         recruit_status: newPlayer.recruitStatus || "normal",
         status: "recruit",
         position_board_id: boardId,
         attribute_values: attrPayload,
+        flag_ids: statusFlag ? [statusFlag.id] : [],
       });
-      setNewPlayer({ name: "", starRating: "", archetype: "", overall: "", classYear: "", devTrait: "", recruitStatus: "" });
+      setNewPlayer({
+        name: "",
+        starRating: "",
+        archetype: "",
+        overall: "",
+        classYear: "recruit",
+        devTrait: "",
+        recruitStatus: "",
+      });
       setNewPlayerAttributes((prev) => ({ ...prev, [boardId]: {} }));
       setShowFormBoardId(null);
       const playersData = await fetchPlayers(id, { status: ["recruit", "rostered"] });
@@ -955,7 +975,7 @@ function SquadBoardPage() {
       starRating: player.starRating || 3,
       status: player.status || "recruit",
       recruitStatus: getRecruitStatus(player),
-      flagged: !!player.flagged,
+      flagIds: (player.flags || []).map((f) => f.id),
       boardSelection: boardId || player.positionBoardId || player.position_board_id || "",
       boardOptions,
       attributeValues,
@@ -990,7 +1010,7 @@ function SquadBoardPage() {
         recruit_status: payload.recruitStatus || "normal",
         position_board_id: isAlumni ? null : targetBoardId || null,
         attribute_values: attributeValuesPayload,
-        flagged: !!payload.flagged,
+        flag_ids: payload.flagIds || [],
       });
       if (shouldRemoveSlot && sourceSlot) {
         await deleteRosterSlot(sourceBoard.id, sourceSlot.id);
@@ -1217,7 +1237,7 @@ function SquadBoardPage() {
             })()}
           </div>
           <h3 className="text-sm font-semibold text-textSecondary uppercase tracking-[0.12em] flex items-center gap-2">
-            <span><span className="font-crayon">Recruits on the Board</span> ({players.filter(p => { const cy = p.classYear ?? p.class_year; return cy === "Rec" || cy === "✍️"; }).length})</span>
+            <span><span className="font-crayon">Recruits on the Board</span> ({players.filter(p => (p.flags || []).some(f => STATUS_FLAG_NAMES.includes(f.name))).length})</span>
           </h3>
         </div>
       )}
@@ -1371,20 +1391,23 @@ function SquadBoardPage() {
                         playerId ? findPlayerById(playerId) || occupant?.player || { id: playerId } : null;
                       const highlightAttrs = getBoardHighlightedAttributes(board);
                       const attrValues = resolvedPlayer ? getPlayerAttributes(resolvedPlayer) : {};
-                      const isFlagged = !!resolvedPlayer?.flagged;
+                      const primaryFlag = occupant ? resolvedPlayer?.flags?.[0] : null;
                       const isDraggingCurrent = draggingPlayer?.playerId === playerId;
                       const dropHoverClass =
                         !occupant && dragOverSlot?.boardId === board.id && dragOverSlot?.slotNum === slotNum
                           ? "border-burnt bg-burnt/15 scale-[1.02] shadow-inner"
                           : "border-border bg-white/80";
-                      const flaggedClass = occupant && isFlagged ? "border-danger shadow-[0_0_0_1px_rgba(185,28,28,0.25)]" : "";
                       const draggingClass = occupant && isDraggingCurrent ? "opacity-70 ring-2 ring-burnt/50" : "";
+                      const flaggedStyle = primaryFlag
+                        ? { borderColor: primaryFlag.color, boxShadow: `0 0 0 1px ${primaryFlag.color}40` }
+                        : undefined;
                       return (
                         <li
                           key={slotNum}
                           className={`flex items-center justify-between gap-2 rounded-md border text-sm dark:border-darkborder dark:bg-darksurface/80 transition ${
                             occupant ? "cursor-grab active:cursor-grabbing" : ""
-                          } ${dropHoverClass} ${flaggedClass} ${draggingClass}`}
+                          } ${dropHoverClass} ${draggingClass}`}
+                          style={flaggedStyle}
                           draggable={Boolean(occupant)}
                           onDragStart={(e) => occupant && startPlayerDrag(e, playerId, board.id)}
                           onDragEnd={onPlayerDragEnd}
@@ -1511,37 +1534,25 @@ function SquadBoardPage() {
                           </optgroup>
                         ))}
                       </select>
-                      <input
-                        type="number"
-                        placeholder="Overall"
-                        value={newPlayer.overall}
-                        onChange={(e) => setNewPlayer((p) => ({ ...p, overall: e.target.value }))}
-                        className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
-                      />
                       <select
                         value={newPlayer.classYear}
                         onChange={(e) => setNewPlayer((p) => ({ ...p, classYear: e.target.value }))}
                         className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
                       >
                         <option value="">Class</option>
+                        {STATUS_FLAG_OPTIONS.map((o) => (
+                          <option key={o.name} value={o.name}>
+                            {o.label}
+                          </option>
+                        ))}
                         {classYears.map((c) => (
                           <option key={c || "blank"} value={c}>
                             {c || "—"}
                           </option>
                         ))}
                       </select>
-                      <div className="space-y-1">
-                        <span className="text-sm font-medium text-textSecondary dark:text-white/80">Dev Trait</span>
-                        <DevTraitButtons
-                          value={newPlayer.devTrait}
-                          onChange={(val) => setNewPlayer((p) => ({ ...p, devTrait: val }))}
-                        />
-                      </div>
                       {highlightAttrs.length > 0 && (
                         <div className="space-y-2">
-                          <p className="text-xs font-semibold text-textSecondary uppercase tracking-[0.12em]">
-                            Position attributes
-                          </p>
                           <div className="grid gap-2 sm:grid-cols-2">
                             {highlightAttrs.map((attr) => (
                               <label
@@ -1561,6 +1572,20 @@ function SquadBoardPage() {
                           </div>
                         </div>
                       )}
+                      <div className="space-y-1">
+                        <span className="text-sm font-medium text-textSecondary dark:text-white/80">Dev Trait</span>
+                        <DevTraitButtons
+                          value={newPlayer.devTrait}
+                          onChange={(val) => setNewPlayer((p) => ({ ...p, devTrait: val }))}
+                        />
+                      </div>
+                      <input
+                        type="number"
+                        placeholder="Overall"
+                        value={newPlayer.overall}
+                        onChange={(e) => setNewPlayer((p) => ({ ...p, overall: e.target.value }))}
+                        className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+                      />
                       <button
                         type="button"
                         onClick={() => handleCreatePlayer(board.id)}
@@ -1573,16 +1598,21 @@ function SquadBoardPage() {
                   )}
                   {recruits.length > 0 && (
                     <ul className="space-y-2">
-                      {recruits.map((p) => (
+                      {recruits.map((p) => {
+                        const primaryFlag = p.flags?.[0];
+                        return (
                         <li
                           key={p.id}
                           className={`flex items-center justify-between rounded-md border text-sm dark:border-darkborder dark:bg-darksurface/80 cursor-grab active:cursor-grabbing ${
-                            p.flagged
-                              ? "border-danger shadow-[0_0_0_1px_rgba(185,28,28,0.25)]"
-                              : "border-border bg-white/80"
+                            primaryFlag ? "" : "border-border bg-white/80"
                           } ${
                             draggingPlayer?.playerId === p.id ? "opacity-70 ring-2 ring-burnt/50" : ""
                           }`}
+                          style={
+                            primaryFlag
+                              ? { borderColor: primaryFlag.color, boxShadow: `0 0 0 1px ${primaryFlag.color}40` }
+                              : undefined
+                          }
                           draggable
                           onDragStart={(e) => startPlayerDrag(e, p.id, board.id)}
                           onDragEnd={onPlayerDragEnd}
@@ -1594,7 +1624,8 @@ function SquadBoardPage() {
                             highlightedAttributes={getBoardHighlightedAttributes(board)}
                           />
                         </li>
-                      ))}
+                        );
+                      })}
                     </ul>
                   )}
                 </div>
@@ -1627,6 +1658,7 @@ function SquadBoardPage() {
       />
       <PlayerEditModal
         editing={editing}
+        flags={flags}
         onClose={closeEdit}
         onSaveDraft={setEditingDraft}
         onSave={() => saveEdit()}
@@ -1885,7 +1917,7 @@ function NeedModal({
 }
 
 // Modal for editing a player
-function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy }) {
+function PlayerEditModal({ editing, flags, onClose, onSaveDraft, onSave, onDelete, busy }) {
   if (!editing) return null;
 
   return (
@@ -1939,14 +1971,38 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
             <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
               <span>Class</span>
               <select
-                value={editing.classYear}
-                onChange={(e) => onSaveDraft({ ...editing, classYear: e.target.value })}
+                value={
+                  editing.classYear ||
+                  flags.find((f) => STATUS_FLAG_NAMES.includes(f.name) && (editing.flagIds || []).includes(f.id))
+                    ?.name ||
+                  ""
+                }
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const statusFlag = flags.find((f) => STATUS_FLAG_NAMES.includes(f.name) && f.name === val);
+                  onSaveDraft((prev) => {
+                    const statusFlagIds = flags
+                      .filter((f) => STATUS_FLAG_NAMES.includes(f.name))
+                      .map((f) => f.id);
+                    const flagIds = (prev.flagIds || []).filter((fid) => !statusFlagIds.includes(fid));
+                    return {
+                      ...prev,
+                      classYear: statusFlag ? "" : val,
+                      flagIds: statusFlag ? [...flagIds, statusFlag.id] : flagIds,
+                    };
+                  });
+                }}
                 className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
               >
                 <option value="">-</option>
                 {classYears.map((c) => (
                   <option key={c || "blank"} value={c}>
                     {c || "—"}
+                  </option>
+                ))}
+                {STATUS_FLAG_OPTIONS.map((o) => (
+                  <option key={o.name} value={o.name}>
+                    {o.label}
                   </option>
                 ))}
               </select>
@@ -2046,6 +2102,19 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
               ))}
             </select>
           </label>
+          <FlagPicker
+            flags={flags.filter((f) => !STATUS_FLAG_NAMES.includes(f.name))}
+            selectedIds={editing.flagIds || []}
+            disabled={busy}
+            onToggle={(flagId) =>
+              onSaveDraft((prev) => ({
+                ...prev,
+                flagIds: (prev.flagIds || []).includes(flagId)
+                  ? prev.flagIds.filter((id) => id !== flagId)
+                  : [...(prev.flagIds || []), flagId],
+              }))
+            }
+          />
         </div>
         <div className="mt-4 flex justify-between items-end">
           <div className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80 w-full">
@@ -2058,20 +2127,6 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
         </div>
         <div className="mt-4 flex justify-end items-end">
           <div className="flex gap-1">
-            <button
-              type="button"
-              onClick={() => onSaveDraft((prev) => ({ ...prev, flagged: !prev.flagged }))}
-              disabled={busy}
-              aria-pressed={editing.flagged}
-              title={editing.flagged ? "Unflag player" : "Flag player"}
-              className={`rounded-md border px-4 py-2 text-sm font-semibold transition ${
-                editing.flagged
-                  ? "border-danger text-danger bg-danger/10 shadow-card"
-                  : "border-border text-textSecondary hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
-              }`}
-            >
-              <i className="fa-solid fa-flag"></i>
-            </button>
             <button
               onClick={() => {
                 if (busy) return;

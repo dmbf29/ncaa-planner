@@ -10,9 +10,18 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_29_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_07_21_000007) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+
+  create_table "flags", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "icon", null: false
+    t.string "color", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_flags_on_name", unique: true
+  end
 
   create_table "needs", force: :cascade do |t|
     t.bigint "position_board_id", null: false
@@ -26,6 +35,16 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_29_120000) do
     t.index ["position_board_id", "slot_number"], name: "index_needs_on_position_board_id_and_slot_number", unique: true, where: "(slot_number IS NOT NULL)"
     t.index ["position_board_id"], name: "index_needs_on_position_board_id"
     t.index ["replacement_player_id"], name: "index_needs_on_replacement_player_id"
+  end
+
+  create_table "player_flags", force: :cascade do |t|
+    t.bigint "player_id", null: false
+    t.bigint "flag_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["flag_id"], name: "index_player_flags_on_flag_id"
+    t.index ["player_id", "flag_id"], name: "index_player_flags_on_player_id_and_flag_id", unique: true
+    t.index ["player_id"], name: "index_player_flags_on_player_id"
   end
 
   create_table "players", force: :cascade do |t|
@@ -50,7 +69,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_29_120000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "recruit_status", default: 0, null: false
-    t.boolean "flagged", default: false, null: false
     t.index ["position_board_id", "status"], name: "index_players_on_position_board_id_and_status"
     t.index ["position_board_id"], name: "index_players_on_position_board_id"
     t.index ["recruit_status"], name: "index_players_on_recruit_status"
@@ -123,6 +141,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_29_120000) do
   add_foreign_key "needs", "players", column: "departing_player_id"
   add_foreign_key "needs", "players", column: "replacement_player_id"
   add_foreign_key "needs", "position_boards"
+  add_foreign_key "player_flags", "flags"
+  add_foreign_key "player_flags", "players"
   add_foreign_key "players", "position_boards"
   add_foreign_key "players", "squads"
   add_foreign_key "players", "teams"

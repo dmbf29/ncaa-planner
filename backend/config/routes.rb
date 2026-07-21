@@ -18,6 +18,8 @@ Rails.application.routes.draw do
         resources :roster_slots, only: %i[create update destroy]
       resources :needs, only: %i[create update destroy]
       end
+
+      resources :flags, only: %i[index]
     end
   end
 

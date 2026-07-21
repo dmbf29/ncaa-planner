@@ -6,6 +6,8 @@ class Player < ApplicationRecord
   has_one :roster_slot, dependent: :destroy
   has_many :replacement_needs, class_name: "Need", foreign_key: :replacement_player_id, dependent: :nullify
   has_many :departing_needs, class_name: "Need", foreign_key: :departing_player_id, dependent: :nullify
+  has_many :player_flags, dependent: :destroy
+  has_many :flags, through: :player_flags
 
   enum :status, { recruit: 0, rostered: 1, graduated: 2, departed: 3 }
   enum :recruit_status, { normal: 0, gem: 1, bust: 2 }, default: :normal
@@ -24,6 +26,7 @@ class Player < ApplicationRecord
     super(options).tap do |hash|
       hash["attributes"] = attribute_values
       hash.delete("attribute_values")
+      hash["flags"] = flags.map { |flag| flag.as_json(only: %i[id name icon color]) }
     end
   end
 
@@ -34,7 +37,6 @@ class Player < ApplicationRecord
     self.abilities ||= []
     self.tags ||= []
     self.recruit_status ||= "normal"
-    self.flagged = false if flagged.nil?
   end
 
   def sync_squad_from_position_board

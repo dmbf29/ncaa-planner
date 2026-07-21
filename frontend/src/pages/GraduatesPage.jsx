@@ -3,7 +3,9 @@ import { Link, useParams } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import OverallPill from "../components/OverallPill";
-import { deletePlayer, fetchPlayers, fetchTeam, fetchSquadBoards, updatePlayer } from "../lib/apiClient";
+import PlayerFlagIcons from "../components/PlayerFlagIcons";
+import FlagPicker from "../components/FlagPicker";
+import { deletePlayer, fetchFlags, fetchPlayers, fetchTeam, fetchSquadBoards, updatePlayer } from "../lib/apiClient";
 
 const archetypeGroups = {
   Quarterback: {
@@ -81,7 +83,13 @@ const archetypeShort = (longLabel) => {
   return longLabel || "";
 };
 
-const classYears = ["FR", "FR(RS)", "SO", "SO(RS)", "JR", "JR(RS)", "SR", "SR(RS)", "Rec", "✍️"];
+const classYears = ["FR", "FR(RS)", "SO", "SO(RS)", "JR", "JR(RS)", "SR", "SR(RS)"];
+
+const STATUS_FLAG_OPTIONS = [
+  { name: "recruit", label: "Recruit" },
+  { name: "commited", label: "Commited" },
+];
+const STATUS_FLAG_NAMES = STATUS_FLAG_OPTIONS.map((o) => o.name);
 
 const devTraitOptions = [
   { value: "normal", label: "Normal" },
@@ -155,7 +163,6 @@ const PlayerSummary = ({ player }) => {
   const archetype = archetypeShort(player.archetype);
   const overall = player.overall;
   const trait = player.devTrait ?? player.dev_trait;
-  const isFlagged = !!player.flagged;
 
   const AttributeCell = ({ value }) => (
     <div className="flex flex-col">
@@ -170,7 +177,7 @@ const PlayerSummary = ({ player }) => {
       <div className="flex items-center justify-between gap-2 px-2 pt-2">
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-textPrimary dark:text-white font-semibold truncate">{player.name || player.id}</span>
-          {isFlagged ? <i className="fa-solid fa-flag text-danger text-xs" title="Flagged"></i> : null}
+          <PlayerFlagIcons flags={player.flags} />
         </div>
         {overall ? <OverallPill value={overall} /> : null}
       </div>
@@ -193,7 +200,7 @@ const PlayerSummary = ({ player }) => {
   );
 };
 
-function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy }) {
+function PlayerEditModal({ editing, flags, onClose, onSaveDraft, onSave, onDelete, busy }) {
   if (!editing) return null;
 
   return (
@@ -242,14 +249,38 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
             <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
               <span>Class</span>
               <select
-                value={editing.classYear}
-                onChange={(e) => onSaveDraft({ ...editing, classYear: e.target.value })}
+                value={
+                  editing.classYear ||
+                  flags.find((f) => STATUS_FLAG_NAMES.includes(f.name) && (editing.flagIds || []).includes(f.id))
+                    ?.name ||
+                  ""
+                }
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const statusFlag = flags.find((f) => STATUS_FLAG_NAMES.includes(f.name) && f.name === val);
+                  onSaveDraft((prev) => {
+                    const statusFlagIds = flags
+                      .filter((f) => STATUS_FLAG_NAMES.includes(f.name))
+                      .map((f) => f.id);
+                    const flagIds = (prev.flagIds || []).filter((fid) => !statusFlagIds.includes(fid));
+                    return {
+                      ...prev,
+                      classYear: statusFlag ? "" : val,
+                      flagIds: statusFlag ? [...flagIds, statusFlag.id] : flagIds,
+                    };
+                  });
+                }}
                 className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
               >
                 <option value="">-</option>
                 {classYears.map((c) => (
                   <option key={c || "blank"} value={c}>
                     {c || "—"}
+                  </option>
+                ))}
+                {STATUS_FLAG_OPTIONS.map((o) => (
+                  <option key={o.name} value={o.name}>
+                    {o.label}
                   </option>
                 ))}
               </select>
@@ -306,23 +337,22 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
               ))}
             </select>
           </label>
+          <FlagPicker
+            flags={flags.filter((f) => !STATUS_FLAG_NAMES.includes(f.name))}
+            selectedIds={editing.flagIds || []}
+            disabled={busy}
+            onToggle={(flagId) =>
+              onSaveDraft((prev) => ({
+                ...prev,
+                flagIds: prev.flagIds.includes(flagId)
+                  ? prev.flagIds.filter((id) => id !== flagId)
+                  : [...prev.flagIds, flagId],
+              }))
+            }
+          />
         </div>
         <div className="mt-4 flex justify-end items-end">
           <div className="flex gap-1">
-            <button
-              type="button"
-              onClick={() => onSaveDraft((prev) => ({ ...prev, flagged: !prev.flagged }))}
-              disabled={busy}
-              aria-pressed={editing.flagged}
-              title={editing.flagged ? "Unflag player" : "Flag player"}
-              className={`rounded-md border px-4 py-2 text-sm font-semibold transition ${
-                editing.flagged
-                  ? "border-danger text-danger bg-danger/10 shadow-card"
-                  : "border-border text-textSecondary hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
-              }`}
-            >
-              <i className="fa-solid fa-flag"></i>
-            </button>
             <button
               onClick={() => {
                 if (busy) return;
@@ -361,6 +391,7 @@ function GraduatesPage() {
   const [team, setTeam] = useState(null);
   const [players, setPlayers] = useState([]);
   const [boards, setBoards] = useState([]);
+  const [flags, setFlags] = useState([]);
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -368,12 +399,14 @@ function GraduatesPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [teamData, playerData] = await Promise.all([
+        const [teamData, playerData, flagData] = await Promise.all([
           fetchTeam(id),
           fetchPlayers(id, { status: ["graduated", "departed"] }),
+          fetchFlags(),
         ]);
         setTeam(teamData);
         setPlayers(playerData);
+        setFlags(flagData);
         if (teamData?.squads?.length) {
           const boardGroups = await Promise.all(
             teamData.squads.map((sq) => fetchSquadBoards(id, sq.id)),
@@ -411,7 +444,7 @@ function GraduatesPage() {
       overall: player.overall || "",
       starRating: player.starRating || player.star_rating || 3,
       status: player.status || "graduated",
-      flagged: !!player.flagged,
+      flagIds: (player.flags || []).map((f) => f.id),
       boardId: player.positionBoardId || player.position_board_id || "",
       boardOptions: boards,
     });
@@ -433,7 +466,7 @@ function GraduatesPage() {
         star_rating: editing.starRating || null,
         status: wantsReturn ? "recruit" : editing.status || "graduated",
         position_board_id: editing.boardId || null,
-        flagged: !!editing.flagged,
+        flag_ids: editing.flagIds || [],
       });
       const playerData = await fetchPlayers(id, { status: ["graduated", "departed"] });
       setPlayers(playerData);
@@ -511,6 +544,7 @@ function GraduatesPage() {
       </div>
       <PlayerEditModal
         editing={editing}
+        flags={flags}
         onClose={closeEdit}
         onSaveDraft={(draft) => setEditing(draft)}
         onSave={() => saveEdit()}
