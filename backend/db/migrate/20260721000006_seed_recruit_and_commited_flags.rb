@@ -4,7 +4,7 @@ class SeedRecruitAndCommitedFlags < ActiveRecord::Migration[8.0]
   end
 
   FLAGS = [
-    { name: "recruit", icon: "fa-solid fa-magnifying-glass", color: "#DB2777" },
+    { name: "recruit", icon: "fa-solid fa-magnifying-glass", color: "#059669" },
     { name: "commited", icon: "fa-solid fa-file-signature", color: "#65A30D" },
   ].freeze
 

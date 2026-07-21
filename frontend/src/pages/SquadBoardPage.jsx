@@ -686,7 +686,7 @@ function SquadBoardPage() {
     };
     const palette = map[cls];
     const base =
-      "inline-flex items-center justify-center px-1.5 py-[2px] rounded-full text-[11px] font-semibold border max-w-[72px] w-full";
+      "inline-flex items-center justify-center px-1.5 py-[2px] rounded-full text-[10px] font-semibold border max-w-[72px] w-full";
     if (!palette) {
       return `${base} text-textSecondary bg-textSecondary/10 border-textSecondary/20`;
     }
@@ -714,10 +714,10 @@ function SquadBoardPage() {
     );
 
     return (
-      <div className="flex flex-col w-full gap-1">
-        <div className="flex items-center justify-between gap-2 px-2 pt-2">
+      <div className="flex flex-col w-full gap-0">
+        <div className="flex items-center justify-between gap-1 px-2 pt-1">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="text-textPrimary dark:text-white font-semibold truncate">
+            <span className="text-textPrimary dark:text-white text-xs font-semibold truncate">
               {player.name || player.id}
             </span>
             <PlayerFlagIcons flags={player.flags} />
@@ -1391,23 +1391,18 @@ function SquadBoardPage() {
                         playerId ? findPlayerById(playerId) || occupant?.player || { id: playerId } : null;
                       const highlightAttrs = getBoardHighlightedAttributes(board);
                       const attrValues = resolvedPlayer ? getPlayerAttributes(resolvedPlayer) : {};
-                      const primaryFlag = occupant ? resolvedPlayer?.flags?.[0] : null;
                       const isDraggingCurrent = draggingPlayer?.playerId === playerId;
                       const dropHoverClass =
                         !occupant && dragOverSlot?.boardId === board.id && dragOverSlot?.slotNum === slotNum
                           ? "border-burnt bg-burnt/15 scale-[1.02] shadow-inner"
                           : "border-border bg-white/80";
                       const draggingClass = occupant && isDraggingCurrent ? "opacity-70 ring-2 ring-burnt/50" : "";
-                      const flaggedStyle = primaryFlag
-                        ? { borderColor: primaryFlag.color, boxShadow: `0 0 0 1px ${primaryFlag.color}40` }
-                        : undefined;
                       return (
                         <li
                           key={slotNum}
                           className={`flex items-center justify-between gap-2 rounded-md border text-sm dark:border-darkborder dark:bg-darksurface/80 transition ${
                             occupant ? "cursor-grab active:cursor-grabbing" : ""
                           } ${dropHoverClass} ${draggingClass}`}
-                          style={flaggedStyle}
                           draggable={Boolean(occupant)}
                           onDragStart={(e) => occupant && startPlayerDrag(e, playerId, board.id)}
                           onDragEnd={onPlayerDragEnd}
@@ -1608,11 +1603,6 @@ function SquadBoardPage() {
                           } ${
                             draggingPlayer?.playerId === p.id ? "opacity-70 ring-2 ring-burnt/50" : ""
                           }`}
-                          style={
-                            primaryFlag
-                              ? { borderColor: primaryFlag.color, boxShadow: `0 0 0 1px ${primaryFlag.color}40` }
-                              : undefined
-                          }
                           draggable
                           onDragStart={(e) => startPlayerDrag(e, p.id, board.id)}
                           onDragEnd={onPlayerDragEnd}

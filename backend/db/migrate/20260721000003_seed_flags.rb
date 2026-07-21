@@ -8,7 +8,7 @@ class SeedFlags < ActiveRecord::Migration[8.0]
     { name: "dealbreaker", icon: "fa-solid fa-heart-crack", color: "#991B1B" },
     { name: "position", icon: "fa-solid fa-arrows-up-down-left-right", color: "#7C3AED" },
     { name: "redshirt", icon: "fa-solid fa-shirt", color: "#D97706" },
-    { name: "draft", icon: "fa-solid fa-door-open", color: "#059669" },
+    { name: "draft", icon: "fa-solid fa-door-open", color: "#DB2777" },
     { name: "watch", icon: "fa-solid fa-eye", color: "#0891B2" },
   ].freeze
 
