@@ -61,6 +61,7 @@ module Api
           :star_rating,
           :eval_status,
           :overall,
+          :nil_amount,
           :notes,
           :pursued,
           :signed,

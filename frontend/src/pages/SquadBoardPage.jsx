@@ -320,6 +320,7 @@ function SquadBoardPage() {
     starRating: 3,
     archetype: "",
     overall: "",
+    nilAmount: "",
     classYear: "recruit",
     devTrait: "",
     recruitStatus: "",
@@ -699,14 +700,15 @@ function SquadBoardPage() {
     const classYear = player.classYear ?? player.class_year;
     const archetype = archetypeShort(player.archetype);
     const overall = player.overall;
+    const nilAmount = player.nilAmount ?? player.nil_amount;
     const trait = player.devTrait ?? player.dev_trait;
     const recruitStatus = showRecruitStatus ? getRecruitStatus(player) : "normal";
     const isGem = recruitStatus === "gem";
     const isBust = recruitStatus === "bust";
     const attrValues = Object.keys(attributes || {}).length > 0 ? attributes : getPlayerAttributes(player);
 
-    const AttributeCell = ({ value }) => (
-      <div className="flex flex-col items-center min-w-0 overflow-hidden">
+    const AttributeCell = ({ value, className = "" }) => (
+      <div className={`flex flex-col items-center min-w-0 overflow-hidden ${className}`}>
         <span className="text-xs text-textSecondary font-medium min-h-[1.1rem] flex items-center justify-center max-w-full w-full">
           {value ?? <span className="text-border">—</span>}
         </span>
@@ -741,12 +743,19 @@ function SquadBoardPage() {
             {overall ? <OverallPill value={overall} /> : null}
           </div>
         </div>
-        <div className="grid grid-cols-4 gap-1 px-1 bg-textSecondary/5 py-1 items-center">
+        <div className="grid grid-cols-6 gap-1 px-1 bg-textSecondary/5 py-1 items-center">
           <AttributeCell
             value={
-              classYear ? <span className={classPillClass(classYear)}>{classYear}</span> : null
+              nilAmount != null ? (
+                <span className="flex items-center gap-1">
+                  <i className="fa-solid fa-diamond text-[10px]" aria-hidden="true" />
+                  <span>{nilAmount}</span>
+                </span>
+              ) : null
             }
           />
+          <AttributeCell value={trait ? renderTrait(trait) : null} />
+          <AttributeCell value={archetype ? archetype : null} />
           <AttributeCell
             value={
               star || isBust ? (
@@ -793,8 +802,12 @@ function SquadBoardPage() {
               ) : null
             }
           />
-          <AttributeCell value={trait ? renderTrait(trait) : null} />
-          <AttributeCell value={archetype ? archetype : null} />
+          <AttributeCell
+            className="col-span-2"
+            value={
+              classYear ? <span className={classPillClass(classYear)}>{classYear}</span> : null
+            }
+          />
         </div>
       </div>
     );
@@ -811,6 +824,7 @@ function SquadBoardPage() {
         star_rating: newPlayer.starRating || null,
         archetype: newPlayer.archetype || null,
         overall: newPlayer.overall || null,
+        nil_amount: newPlayer.nilAmount === "" ? null : newPlayer.nilAmount,
         class_year: statusFlag ? null : newPlayer.classYear || null,
         dev_trait: newPlayer.devTrait || null,
         recruit_status: newPlayer.recruitStatus || "normal",
@@ -824,6 +838,7 @@ function SquadBoardPage() {
         starRating: "",
         archetype: "",
         overall: "",
+        nilAmount: "",
         classYear: "recruit",
         devTrait: "",
         recruitStatus: "",
@@ -972,6 +987,7 @@ function SquadBoardPage() {
       devTrait: player.devTrait || "",
       archetype: player.archetype || "",
       overall: player.overall || "",
+      nilAmount: player.nilAmount ?? "",
       starRating: player.starRating || 3,
       status: player.status || "recruit",
       recruitStatus: getRecruitStatus(player),
@@ -1005,6 +1021,7 @@ function SquadBoardPage() {
         dev_trait: payload.devTrait,
         archetype: payload.archetype,
         overall: payload.overall,
+        nil_amount: payload.nilAmount === "" ? null : payload.nilAmount,
         star_rating: payload.starRating,
         status: isAlumni ? payload.status : payload.status === "rostered" && !boardChanged ? "rostered" : "recruit",
         recruit_status: payload.recruitStatus || "normal",
@@ -1574,13 +1591,23 @@ function SquadBoardPage() {
                           onChange={(val) => setNewPlayer((p) => ({ ...p, devTrait: val }))}
                         />
                       </div>
-                      <input
-                        type="number"
-                        placeholder="Overall"
-                        value={newPlayer.overall}
-                        onChange={(e) => setNewPlayer((p) => ({ ...p, overall: e.target.value }))}
-                        className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
-                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          placeholder="Overall"
+                          value={newPlayer.overall}
+                          onChange={(e) => setNewPlayer((p) => ({ ...p, overall: e.target.value }))}
+                          className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="NIL Amount"
+                          value={newPlayer.nilAmount}
+                          onChange={(e) => setNewPlayer((p) => ({ ...p, nilAmount: e.target.value }))}
+                          className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+                        />
+                      </div>
                       <button
                         type="button"
                         onClick={() => handleCreatePlayer(board.id)}
@@ -1959,6 +1986,46 @@ function PlayerEditModal({ editing, flags, onClose, onSaveDraft, onSave, onDelet
               />
             </label>
             <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+              <span>Archetype</span>
+              <select
+                value={editing.archetype}
+                onChange={(e) => onSaveDraft({ ...editing, archetype: e.target.value })}
+                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+              >
+                <option value="">—</option>
+                {Object.entries(archetypeGroups).map(([group, items]) => (
+                  <optgroup key={group} label={group}>
+                    {Object.entries(items).map(([label, code]) => (
+                      <option key={label} value={label}>{`${label} - ${code}`}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+              <span>Overall</span>
+              <input
+                type="number"
+                value={editing.overall}
+                onChange={(e) => onSaveDraft({ ...editing, overall: e.target.value })}
+                placeholder="OVR"
+                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+              />
+            </label>
+            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+              <span>NIL Amount</span>
+              <input
+                type="number"
+                min="0"
+                value={editing.nilAmount}
+                onChange={(e) => onSaveDraft({ ...editing, nilAmount: e.target.value })}
+                placeholder="NIL"
+                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+              />
+            </label>
+            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
               <span>Class</span>
               <select
                 value={
@@ -1994,35 +2061,6 @@ function PlayerEditModal({ editing, flags, onClose, onSaveDraft, onSave, onDelet
                   <option key={o.name} value={o.name}>
                     {o.label}
                   </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
-              <span>Overall</span>
-              <input
-                type="number"
-                value={editing.overall}
-                onChange={(e) => onSaveDraft({ ...editing, overall: e.target.value })}
-                placeholder="OVR"
-                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
-              />
-            </label>
-            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
-              <span>Archetype</span>
-              <select
-                value={editing.archetype}
-                onChange={(e) => onSaveDraft({ ...editing, archetype: e.target.value })}
-                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
-              >
-                <option value="">—</option>
-                {Object.entries(archetypeGroups).map(([group, items]) => (
-                  <optgroup key={group} label={group}>
-                    {Object.entries(items).map(([label, code]) => (
-                      <option key={label} value={label}>{`${label} - ${code}`}</option>
-                    ))}
-                  </optgroup>
                 ))}
               </select>
             </label>

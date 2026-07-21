@@ -13,6 +13,7 @@ class Player < ApplicationRecord
   enum :recruit_status, { normal: 0, gem: 1, bust: 2 }, default: :normal
 
   validates :name, presence: true
+  validates :nil_amount, numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
   before_validation :sync_squad_from_position_board
   validate :squad_belongs_to_team
   validate :position_board_belongs_to_team
