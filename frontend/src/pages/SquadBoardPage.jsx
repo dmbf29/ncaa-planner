@@ -671,6 +671,8 @@ function SquadBoardPage() {
       "JR(RS)": "text-[#c99b2b]",
       SR: "text-[#991B1B]",
       "SR(RS)": "text-[#991B1B]",
+      Recruit: "text-[#6b6b6b]",
+      Commit: "text-[#6b6b6b]",
     };
     return map[cls] || "text-textSecondary";
   };
@@ -685,6 +687,8 @@ function SquadBoardPage() {
       "JR(RS)": { bg: "bg-[#c99b2b1a]", border: "border-[#c99b2b33]" },
       SR: { bg: "bg-[#991B1B1a]", border: "border-[#991B1B33]" },
       "SR(RS)": { bg: "bg-[#991B1B1a]", border: "border-[#991B1B33]" },
+      Recruit: { bg: "bg-[#dcdcdc]", border: "border-[#6b6b6b]" },
+      Commit: { bg: "bg-[#dcdcdc]", border: "border-[#6b6b6b]" },
     };
     const palette = map[cls];
     const base =
@@ -695,10 +699,14 @@ function SquadBoardPage() {
     return `${base} ${classColor(cls)} ${palette.bg} ${palette.border}`;
   };
 
+
+
   const PlayerSummary = ({ player, highlightedAttributes = [], attributes = {}, showRecruitStatus = true }) => {
     if (!player) return null;
     const star = player.starRating ?? player.star_rating;
-    const classYear = player.classYear ?? player.class_year;
+    const statusFlag = (player.flags || []).find((f) => STATUS_FLAG_NAMES.includes(f.name));
+    const classYear =
+      player.classYear || player.class_year || (statusFlag?.name === "commited" ? "Commit" : statusFlag ? "Recruit" : null);
     const archetype = archetypeShort(player.archetype);
     const overall = player.overall;
     const nilAmount = player.nilAmount ?? player.nil_amount;
