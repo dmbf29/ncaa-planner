@@ -1170,7 +1170,17 @@ function SquadBoardPage() {
       <div className="mb-6 flex flex-col gap-1 border-b border-border pb-4 dark:border-darkborder">
         <div className="grid gap-2 sm:grid-cols-1 md:grid-cols-2 rounded-xl border border-border bg-surface/40 shadow-card dark:border-darkborder dark:bg-darksurface/50 px-3 py-4">
           <div className="flex flex-col">
-            <h1 className="font-varsity text-3xl tracking-[0.06em] uppercase">{team ? `${team.name}` : "Loading..."}</h1>
+            <h1 className="font-varsity text-3xl tracking-[0.06em] uppercase flex items-center">
+              {team ? `${team.name}` : "Loading..."}
+              <small className="flex items-center">
+                <Link
+                  to={`/teams/${id}/setup`}
+                  className="rounded-md px-3 text-charcoal text-sm font-semibold shadow-card transition hover:-translate-y-0.5"
+                >
+                  <i className="fa-solid fa-gear"></i>
+                </Link>
+              </small>
+            </h1>
             <div className="flex flex-wrap gap-2 mt-2">
               {squadList.map((sq) => (
                 <Link
