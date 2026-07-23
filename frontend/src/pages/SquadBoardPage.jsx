@@ -6,6 +6,8 @@ import StatPill from "../components/StatPill";
 import OverallPill from "../components/OverallPill";
 import PlayerFlagIcons from "../components/PlayerFlagIcons";
 import FlagPicker from "../components/FlagPicker";
+import ClassBreakdown from "../components/ClassBreakdown";
+import PriorityPositions from "../components/PriorityPositions";
 import {
   fetchTeam,
   fetchSquadBoards,
@@ -743,7 +745,7 @@ function SquadBoardPage() {
             {overall ? <OverallPill value={overall} /> : null}
           </div>
         </div>
-        <div className="grid grid-cols-6 gap-1 px-1 bg-textSecondary/5 py-1 items-center">
+        <div className="grid grid-cols-6 gap-0 px-1 bg-textSecondary/5 py-1 items-center">
           <AttributeCell
             value={
               nilAmount != null ? (
@@ -754,8 +756,8 @@ function SquadBoardPage() {
               ) : null
             }
           />
-          <AttributeCell value={trait ? renderTrait(trait) : null} />
           <AttributeCell value={archetype ? archetype : null} />
+          <AttributeCell value={trait ? renderTrait(trait) : null} />
           <AttributeCell
             value={
               star || isBust ? (
@@ -1158,12 +1160,11 @@ function SquadBoardPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        title={team ? `${team.name}` : "Loading..."}
-        eyebrow="Roster Planner"
-        actions={
-          squadList.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-2 sm:mt-0">
+      <div className="mb-6 flex flex-col gap-1 border-b border-border pb-4 dark:border-darkborder">
+        <div className="grid gap-2 sm:grid-cols-1 md:grid-cols-2 rounded-xl border border-border bg-surface/40 shadow-card dark:border-darkborder dark:bg-darksurface/50 px-3 py-4">
+          <div className="flex flex-col">
+            <h1 className="font-varsity text-3xl tracking-[0.06em] uppercase">{team ? `${team.name}` : "Loading..."}</h1>
+            <div className="flex flex-wrap gap-2 mt-2">
               {squadList.map((sq) => (
                 <Link
                   key={sq.id}
@@ -1184,80 +1185,31 @@ function SquadBoardPage() {
                 Alumni
               </Link>
             </div>
-          )
-        }
-      />
+            <div className="mt-3">
+              <PriorityPositions
+                needs={allNeeds}
+                squadList={squadList}
+                onClearAll={handleClearAllNeeds}
+                onSelectNeed={(need) => {
+                  setNeedDraft({
+                    boardId: need.boardId,
+                    needId: need.id,
+                    departingPlayerId: need.departingPlayerId || need.departing_player_id || "",
+                    replacementPlayerId: need.replacementPlayerId || need.replacement_player_id || "",
+                    slotNumber: need.slotNumber || need.slot_number || "",
+                    resolved: !!need.resolved,
+                  });
+                  setNeedMessage("");
+                  setNeedBusy(false);
+                }}
+              />
+            </div>
+          </div>
+          <ClassBreakdown players={players} flags={flags} />
+        </div>
+      </div>
       {error && <p className="text-sm text-danger">{error}</p>}
       {!team && !error && <p className="text-sm text-textSecondary">Loading squad...</p>}
-      {allNeeds.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-textSecondary uppercase tracking-[0.12em] flex items-center gap-2">
-            <span><span className="font-crayon">Planned Replacements</span> ({allNeeds.length})</span>
-            <button
-              type="button"
-              onClick={handleClearAllNeeds}
-              title="Clear all planned replacements"
-              className="text-textSecondary/50 hover:text-error transition-colors"
-            >
-              <i className="fa-solid fa-trash-can" aria-hidden="true" />
-            </button>
-          </h3>
-          <div className="flex flex-wrap gap-1">
-            {(() => {
-              // Group by boardId
-              const seen = new Map();
-              allNeeds.forEach((need) => {
-                if (!seen.has(need.boardId)) seen.set(need.boardId, { need, count: 0 });
-                seen.get(need.boardId).count += 1;
-              });
-              // Sort by squad order (squadList index) then board sortOrder
-              const squadOrder = (squadId) => {
-                const idx = squadList.findIndex((sq) => String(sq.id) === String(squadId));
-                return idx === -1 ? 999 : idx;
-              };
-              const sorted = Array.from(seen.values()).sort((a, b) => {
-                const sqDiff = squadOrder(a.need.squadId) - squadOrder(b.need.squadId);
-                if (sqDiff !== 0) return sqDiff;
-                return a.need.boardSortOrder - b.need.boardSortOrder;
-              });
-              const offenseSquadId = squadList[0]?.id;
-              return sorted.map(({ need, count }) => {
-                const isOffense = String(need.squadId) === String(offenseSquadId);
-                return (
-                  <button
-                    key={need.boardId}
-                    type="button"
-                    onClick={() => {
-                      setNeedDraft({
-                        boardId: need.boardId,
-                        needId: need.id,
-                        departingPlayerId: need.departingPlayerId || need.departing_player_id || "",
-                        replacementPlayerId: need.replacementPlayerId || need.replacement_player_id || "",
-                        slotNumber: need.slotNumber || need.slot_number || "",
-                        resolved: !!need.resolved,
-                      });
-                      setNeedMessage("");
-                      setNeedBusy(false);
-                    }}
-                    className={`inline-flex items-center rounded-full border px-2 bg-white py-1 text-xs font-semibold shadow-sm ${
-                      need.resolved
-                        ? "border-success/70 text-success"
-                        : isOffense
-                        ? "border-border text-burnt dark:border-darkborder dark:bg-darksurface"
-                        : "border-border text-charcoal dark:border-darkborder dark:bg-darksurface dark:text-white"
-                    }`}
-                  >
-                    {need.boardName}{count > 1 ? ` (${count})` : ""}
-                  </button>
-                );
-              });
-            })()}
-          </div>
-          <h3 className="text-sm font-semibold text-textSecondary uppercase tracking-[0.12em] flex items-center gap-2">
-            <span><span className="font-crayon">Recruits on the Board</span> ({players.filter(p => (p.flags || []).some(f => STATUS_FLAG_NAMES.includes(f.name))).length})</span>
-          </h3>
-        </div>
-      )}
       <div className="grid gap-2 sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
         {sortedBoards.map((board) => {
           const rosterSlots = board.rosterSlots || board.roster_slots || [];
@@ -1393,7 +1345,7 @@ function SquadBoardPage() {
                       className="text-left"
                     >
                       <StatPill
-                        label="Needs"
+                        label="Priorities"
                         value={(board.needs || []).filter((n) => !n.resolved).length}
                       />
                     </button>
