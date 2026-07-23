@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import StatPill from "../components/StatPill";
 import OverallPill from "../components/OverallPill";
@@ -2004,14 +2003,14 @@ function PlayerEditModal({ editing, flags, onClose, onSaveDraft, onSave, onDelet
                 className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
               >
                 <option value="">-</option>
-                {classYears.map((c) => (
-                  <option key={c || "blank"} value={c}>
-                    {c || "—"}
-                  </option>
-                ))}
                 {STATUS_FLAG_OPTIONS.map((o) => (
                   <option key={o.name} value={o.name}>
                     {o.label}
+                  </option>
+                ))}
+                {classYears.map((c) => (
+                  <option key={c || "blank"} value={c}>
+                    {c || "—"}
                   </option>
                 ))}
               </select>
