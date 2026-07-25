@@ -1224,7 +1224,6 @@ function SquadBoardPage() {
               <div className="relative z-[1] h-full space-y-3 p-3 pt-8">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-crayon text-xs uppercase tracking-[0.14em] text-textSecondary">Position</p>
                     <div className="flex">
                       <button
                         type="button"
@@ -1239,7 +1238,7 @@ function SquadBoardPage() {
                       <button
                         type="button"
                         onClick={() => openAttributeModal(board)}
-                        className="font-varsity text-xl tracking-[0.07em] uppercase text-left hover:underline"
+                        className="font-varsity text-2xl tracking-[0.07em] uppercase text-left hover:underline"
                         title="Click to edit highlighted attributes"
                       >
                         {board.name}
@@ -1248,7 +1247,7 @@ function SquadBoardPage() {
                   </div>
                   <div>
                     <div className="flex justify-center items-center font-crayon text-xs uppercase text-textSecondary">
-                      {board.priorities ? 'Priority Spots' : 'Set Priority' }
+                      {board.priorities ? 'Priority Spots' : 'Set as Priority' }
                     </div>
                     <div className="flex justify-between items-center gap-1 rounded-full px-1 py-1 text-xs font-medium bg-textSecondary/5 text-textSecondary dark:bg-white/10 dark:text-white/80">
                       <button
