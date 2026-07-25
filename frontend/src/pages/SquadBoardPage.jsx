@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import Card from "../components/Card";
 import StatPill from "../components/StatPill";
 import OverallPill from "../components/OverallPill";
@@ -19,9 +19,6 @@ import {
   updatePlayer,
   deletePlayer,
   deleteRosterSlot,
-  createNeed,
-  updateNeed,
-  deleteNeed,
 } from "../lib/apiClient";
 
 const archetypeGroups = {
@@ -333,19 +330,11 @@ function SquadBoardPage() {
   const [dragOverRecruitBoard, setDragOverRecruitBoard] = useState(null); // boardId
   const [previewOrder, setPreviewOrder] = useState({ boardId: null, order: [] }); // local visual reorder
   const [newPlayerAttributes, setNewPlayerAttributes] = useState({});
-  const [needDraft, setNeedDraft] = useState({
-    boardId: null,
-    needId: null,
-    departingPlayerId: "",
-    replacementPlayerId: "",
-    slotNumber: "",
-    resolved: false,
-  });
-  const [needBusy, setNeedBusy] = useState(false);
-  const [needMessage, setNeedMessage] = useState("");
+  const [priorityBusyId, setPriorityBusyId] = useState(null);
   const [attributeModal, setAttributeModal] = useState({ boardId: null, selected: [], custom: "" });
   const [flags, setFlags] = useState([]);
   const cardRefs = useRef({});
+  const navigate = useNavigate();
 
   useEffect(() => {
     const load = async () => {
@@ -1075,93 +1064,56 @@ function SquadBoardPage() {
     }
   };
 
-  const allNeeds = useMemo(() => {
-    const byKey = new Map();
-    boards.forEach((b) => {
-      (b.needs || []).forEach((n) => {
-        const dep = n.departingPlayerId || n.departing_player_id || "";
-        const slotNum = n.slotNumber || n.slot_number || "";
-        const rep = n.replacementPlayerId || n.replacement_player_id || "";
-        const key = n.id ? `id:${n.id}` : `combo:${b.id}:${dep}:${slotNum}:${rep}`;
-        if (byKey.has(key)) return;
-        byKey.set(key, {
-          ...n,
-          boardName: b.name,
-          boardId: b.id,
-          squadId: b.squadId || b.squad_id,
-          boardSortOrder: b.sortOrder || b.sort_order || 0,
-        });
-      });
-    });
-    return Array.from(byKey.values());
-  }, [boards]);
+  const priorityBoards = useMemo(
+    () =>
+      boards.map((b) => ({
+        ...b,
+        squadId: b.squadId || b.squad_id,
+        sortOrder: b.sortOrder || b.sort_order || 0,
+      })),
+    [boards],
+  );
 
-  const handleClearAllNeeds = async () => {
-    if (!window.confirm(`Delete all ${allNeeds.length} planned replacement${allNeeds.length !== 1 ? "s" : ""}? This cannot be undone.`)) return;
+  const handlePriorityChange = async (board, delta) => {
+    const next = Math.max(0, (board.priorities || 0) + delta);
+    if (next === (board.priorities || 0)) return;
+    setPriorityBusyId(board.id);
+    setBoards((prev) => prev.map((b) => (b.id === board.id ? { ...b, priorities: next } : b)));
     try {
-      await Promise.all(allNeeds.map((n) => deleteNeed(n.boardId, n.id)));
-      const boardsData = await loadAllBoards();
-      setBoards(boardsData);
+      await updatePositionBoard(id, board.id, { priorities: next });
     } catch (err) {
       setError(err.message);
-    }
-  };
-
-  const handleDeleteNeed = async (boardId, needId) => {
-    setNeedBusy(true);
-    setNeedMessage("");
-    try {
-      await deleteNeed(boardId, needId);
       const boardsData = await loadAllBoards();
       setBoards(boardsData);
-      closeNeedModal();
-    } catch (err) {
-      setError(err.message);
     } finally {
-      setNeedBusy(false);
+      setPriorityBusyId(null);
     }
   };
 
-  const closeNeedModal = () => {
-    setNeedDraft({
-      boardId: null,
-      needId: null,
-      departingPlayerId: "",
-      replacementPlayerId: "",
-      slotNumber: "",
-      resolved: false,
-    });
-    setNeedMessage("");
-    setNeedBusy(false);
-  };
-
-  const handleSaveNeed = async () => {
-    if (!needDraft.boardId) return;
-    if (!needDraft.departingPlayerId && !needDraft.slotNumber) {
-      setNeedMessage("Pick a departing player or an empty slot.");
+  const handleClearAllPriorities = async () => {
+    const toClear = priorityBoards.filter((b) => (b.priorities || 0) > 0);
+    if (toClear.length === 0) return;
+    if (
+      !window.confirm(
+        `Clear priorities for all ${toClear.length} position${toClear.length !== 1 ? "s" : ""}? This cannot be undone.`,
+      )
+    )
       return;
-    }
-    setNeedBusy(true);
-    setNeedMessage("");
     try {
-      const payload = {
-        departing_player_id: needDraft.departingPlayerId || null,
-        slot_number: needDraft.slotNumber ? Number(needDraft.slotNumber) : null,
-        replacement_player_id: needDraft.replacementPlayerId || null,
-        resolved: !!needDraft.resolved,
-      };
-      if (needDraft.needId) {
-        await updateNeed(needDraft.boardId, needDraft.needId, payload);
-      } else {
-        await createNeed(needDraft.boardId, payload);
-      }
+      await Promise.all(toClear.map((b) => updatePositionBoard(id, b.id, { priorities: 0 })));
       const boardsData = await loadAllBoards();
       setBoards(boardsData);
-      closeNeedModal();
     } catch (err) {
       setError(err.message);
-    } finally {
-      setNeedBusy(false);
+    }
+  };
+
+  const handleSelectPriorityBoard = (board) => {
+    const boardSquadId = board.squadId || board.squad_id;
+    if (String(boardSquadId) === String(squadId)) {
+      cardRefs.current[board.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
+    } else {
+      navigate(`/teams/${id}/squads/${boardSquadId}`);
     }
   };
 
@@ -1204,21 +1156,10 @@ function SquadBoardPage() {
             </div>
             <div className="mt-3">
               <PriorityPositions
-                needs={allNeeds}
+                boards={priorityBoards}
                 squadList={squadList}
-                onClearAll={handleClearAllNeeds}
-                onSelectNeed={(need) => {
-                  setNeedDraft({
-                    boardId: need.boardId,
-                    needId: need.id,
-                    departingPlayerId: need.departingPlayerId || need.departing_player_id || "",
-                    replacementPlayerId: need.replacementPlayerId || need.replacement_player_id || "",
-                    slotNumber: need.slotNumber || need.slot_number || "",
-                    resolved: !!need.resolved,
-                  });
-                  setNeedMessage("");
-                  setNeedBusy(false);
-                }}
+                onClearAll={handleClearAllPriorities}
+                onSelectBoard={handleSelectPriorityBoard}
               />
             </div>
           </div>
@@ -1305,67 +1246,31 @@ function SquadBoardPage() {
                       </button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    {(board.needs || []).map((need) => {
-                      const departing =
-                        need.departingPlayer?.name ||
-                        need.departing_player?.name ||
-                        (need.slotNumber || need.slot_number ? "Empty" : "Departing?");
-                      const replacement =
-                        need.replacementPlayer?.name ||
-                        need.replacement_player?.name ||
-                        "TBD";
-                      return (
-                        <button
-                          key={need.id}
-                          type="button"
-                          onClick={() => {
-                            setNeedDraft({
-                              boardId: board.id,
-                              needId: need.id,
-                              departingPlayerId: need.departingPlayerId || need.departing_player_id || "",
-                              replacementPlayerId: need.replacementPlayerId || need.replacement_player_id || "",
-                              slotNumber: need.slotNumber || need.slot_number || "",
-                              resolved: !!need.resolved,
-                            });
-                            setNeedMessage("");
-                            setNeedBusy(false);
-                          }}
-                          className={`inline-flex items-center gap-1 rounded-full border px-2 bg-white py-1 text-xs font-semibold text-textSecondary shadow-sm ${
-                            need.resolved ? "border-success/70" : "border-border dark:border-darkborder dark:bg-darksurface"
-                          }`}
-                        >
-                          <span className="text-textPrimary">{departing}</span>
-                          {replacement !== "TBD" && (
-                            <>
-                              <span className="text-textSecondary/50">→</span>
-                              <span className="text-textPrimary">{replacement}</span>
-                            </>
-                          )}
-                        </button>
-                      );
-                    })}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setNeedDraft({
-                          boardId: board.id,
-                          needId: null,
-                          departingPlayerId: "",
-                          replacementPlayerId: "",
-                          slotNumber: "",
-                          resolved: false,
-                        });
-                        setNeedMessage("");
-                        setNeedBusy(false);
-                      }}
-                      className="text-left"
-                    >
-                      <StatPill
-                        label="Priorities"
-                        value={(board.needs || []).filter((n) => !n.resolved).length}
-                      />
-                    </button>
+                  <div>
+                    <div className="flex justify-center items-center font-crayon text-xs uppercase text-textSecondary">
+                      {board.priorities ? 'Priority Spots' : 'Set Priority' }
+                    </div>
+                    <div className="flex justify-between items-center gap-1 rounded-full px-1 py-1 text-xs font-medium bg-textSecondary/5 text-textSecondary dark:bg-white/10 dark:text-white/80">
+                      <button
+                        type="button"
+                        onClick={() => handlePriorityChange(board, -1)}
+                        disabled={priorityBusyId === board.id || (board.priorities || 0) <= 0}
+                        className="flex h-6 w-6 items-center justify-center rounded-full border border-border text-textSecondary hover:bg-border/40 disabled:opacity-40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+                        title="Decrease priorities"
+                      >
+                        <i className="fa-solid fa-minus text-[10px]" aria-hidden="true" />
+                      </button>
+                      <span className='px-1'>{board.priorities || 0}</span>
+                      <button
+                        type="button"
+                        onClick={() => handlePriorityChange(board, 1)}
+                        disabled={priorityBusyId === board.id}
+                        className="flex h-6 w-6 items-center justify-center rounded-full border border-border text-textSecondary hover:bg-border/40 disabled:opacity-40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+                        title="Increase priorities"
+                      >
+                        <i className="fa-solid fa-plus text-[10px]" aria-hidden="true" />
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -1631,17 +1536,6 @@ function SquadBoardPage() {
         onAddCustom={addCustomAttribute}
         busy={busyBoardId === attributeModal.boardId}
       />
-      <NeedModal
-        needDraft={needDraft}
-        setNeedDraft={setNeedDraft}
-        needBusy={needBusy}
-        needMessage={needMessage}
-        onClose={closeNeedModal}
-        onSave={handleSaveNeed}
-        onDelete={handleDeleteNeed}
-        boards={sortedBoards}
-        players={players}
-      />
       <PlayerEditModal
         editing={editing}
         flags={flags}
@@ -1738,164 +1632,6 @@ function AttributeModal({ draft, board, onClose, onSave, onToggle, onCustomChang
           >
             {busy ? "Saving..." : "Save attributes"}
           </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Modal for creating a need from a board
-function NeedModal({
-  needDraft,
-  setNeedDraft,
-  needBusy,
-  needMessage,
-  onClose,
-  onSave,
-  onDelete,
-  boards,
-  players,
-}) {
-  if (!needDraft.boardId) return null;
-  const board = boards.find((b) => b.id === needDraft.boardId);
-  const rosterSlots = board?.rosterSlots || board?.roster_slots || [];
-  const occupants = rosterSlots
-    .map((rs) => rs.player || players.find((p) => p.id === (rs.playerId || rs.player_id)))
-    .filter(Boolean);
-  const rosteredIds = new Set(
-    boards
-      .flatMap((b) => b.rosterSlots || b.roster_slots || [])
-      .map((rs) => rs.playerId || rs.player_id)
-      .filter(Boolean),
-  );
-  const slotCount = board?.slotsCount || board?.slots_count || 0;
-  const occupiedSlotNumbers = new Set(
-    (rosterSlots || []).map((rs) => rs.slotNumber || rs.slot_number).filter(Boolean),
-  );
-  const emptySlots = Array.from({ length: slotCount })
-    .map((_, idx) => idx + 1)
-    .filter((num) => !occupiedSlotNumbers.has(num));
-
-  const boardLookup = new Map(boards.map((b) => [b.id, b]));
-  const replacementOptions = players
-    .filter((p) => p.id !== needDraft.departingPlayerId)
-    .filter((p) => !rosteredIds.has(p.id))
-    .map((p) => {
-      const b = boardLookup.get(p.positionBoardId || p.position_board_id);
-      return {
-        player: p,
-        boardName: b?.name || "Unassigned",
-        sort: b?.sortOrder || b?.sort_order || 0,
-      };
-    })
-    .sort((a, b) => {
-      const sortDiff = (a.sort || 0) - (b.sort || 0);
-      if (sortDiff !== 0) return sortDiff;
-      return (a.boardName || "").localeCompare(b.boardName || "", undefined, { sensitivity: "base" });
-    });
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-      <div className="w-full max-w-lg rounded-xl bg-surface p-6 shadow-2xl dark:bg-darksurface">
-        <div className="flex items-center justify-between">
-          <h3 className="font-varsity text-xl uppercase tracking-[0.06em]">
-            {needDraft.needId ? "Edit planned replacement" : "Plan a replacement"}
-          </h3>
-          <button onClick={onClose} className="text-textSecondary hover:text-charcoal dark:hover:text-white">
-            ✕
-          </button>
-        </div>
-        <div className="mt-4 space-y-3">
-          <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
-            <span>Departing player or empty slot</span>
-            <select
-              value={
-                needDraft.slotNumber
-                  ? `slot:${needDraft.slotNumber}`
-                  : needDraft.departingPlayerId || ""
-              }
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val.startsWith("slot:")) {
-                  const num = val.replace("slot:", "");
-                  setNeedDraft((prev) => ({ ...prev, departingPlayerId: "", slotNumber: num }));
-                } else {
-                  setNeedDraft((prev) => ({ ...prev, departingPlayerId: val, slotNumber: "" }));
-                }
-              }}
-              className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
-            >
-              <option value="">— Pick a player or empty slot —</option>
-              {occupants.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-              {emptySlots.length > 0 && (
-                <optgroup label="Empty slots">
-                  {emptySlots.map((num) => (
-                    <option key={num} value={`slot:${num}`}>
-                      Empty Slot (#{num})
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-            </select>
-          </label>
-          <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
-            <span>Optional replacement player</span>
-            <select
-              value={needDraft.replacementPlayerId}
-              onChange={(e) => setNeedDraft((prev) => ({ ...prev, replacementPlayerId: e.target.value }))}
-              className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
-            >
-              <option value="">Select later</option>
-              {replacementOptions.map((opt) => (
-                <option key={opt.player.id} value={opt.player.id}>
-                  {opt.boardName} - {opt.player.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex items-center gap-2 text-sm font-medium text-textSecondary dark:text-white/80">
-            <input
-              type="checkbox"
-              checked={!!needDraft.resolved}
-              onChange={(e) => setNeedDraft((prev) => ({ ...prev, resolved: e.target.checked }))}
-              className="h-4 w-4 rounded border-border text-burnt focus:ring-burnt"
-            />
-            <span>Mark as resolved</span>
-          </label>
-          {needMessage && <p className="text-xs text-success">{needMessage}</p>}
-        </div>
-        <div className="mt-4 flex justify-between items-end gap-2">
-          {needDraft.needId ? (
-            <button
-              onClick={() => onDelete(needDraft.boardId, needDraft.needId)}
-              disabled={needBusy}
-              data-confirm="Delete this planned replacement?"
-              className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-danger hover:bg-danger/10 disabled:opacity-60"
-            >
-              Delete
-            </button>
-          ) : (
-            <div />
-          )}
-          <div className="flex gap-2">
-            <button
-              onClick={onClose}
-              className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-textSecondary hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={onSave}
-              disabled={needBusy}
-              className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:opacity-60"
-            >
-              {needBusy ? "Saving..." : needDraft.needId ? "Save" : "Plan"}
-            </button>
-          </div>
         </div>
       </div>
     </div>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_07_21_000008) do
+ActiveRecord::Schema[8.0].define(version: 2026_07_25_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -21,20 +21,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_07_21_000008) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["name"], name: "index_flags_on_name", unique: true
-  end
-
-  create_table "needs", force: :cascade do |t|
-    t.bigint "position_board_id", null: false
-    t.bigint "replacement_player_id"
-    t.bigint "departing_player_id"
-    t.integer "slot_number"
-    t.boolean "resolved", default: false, null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["departing_player_id"], name: "index_needs_on_departing_player_id"
-    t.index ["position_board_id", "slot_number"], name: "index_needs_on_position_board_id_and_slot_number", unique: true, where: "(slot_number IS NOT NULL)"
-    t.index ["position_board_id"], name: "index_needs_on_position_board_id"
-    t.index ["replacement_player_id"], name: "index_needs_on_replacement_player_id"
   end
 
   create_table "player_flags", force: :cascade do |t|
@@ -89,6 +75,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_07_21_000008) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "sort_order", default: 0, null: false
+    t.integer "priorities", default: 0, null: false
     t.index ["squad_id", "sort_order"], name: "index_position_boards_on_squad_id_and_sort_order"
     t.index ["squad_id"], name: "index_position_boards_on_squad_id"
     t.index ["team_id"], name: "index_position_boards_on_team_id"
@@ -139,9 +126,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_07_21_000008) do
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
   end
 
-  add_foreign_key "needs", "players", column: "departing_player_id"
-  add_foreign_key "needs", "players", column: "replacement_player_id"
-  add_foreign_key "needs", "position_boards"
   add_foreign_key "player_flags", "flags"
   add_foreign_key "player_flags", "players"
   add_foreign_key "players", "position_boards"
