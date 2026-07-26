@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import Card from "../components/Card";
-import StatPill from "../components/StatPill";
+// import StatPill from "../components/StatPill";
 import OverallPill from "../components/OverallPill";
 import PlayerFlagIcons from "../components/PlayerFlagIcons";
 import FlagPicker from "../components/FlagPicker";
 import ClassBreakdown from "../components/ClassBreakdown";
+import BoardCardStats from "../components/BoardCardStats";
 import PriorityPositions from "../components/PriorityPositions";
 import {
   fetchTeam,
@@ -1182,6 +1183,12 @@ function SquadBoardPage() {
               String(p.positionBoardId || p.position_board_id || "") === String(board.id) &&
               !assignedIds.has(p.id),
           );
+          const boardPlayers = players.filter(
+            (p) =>
+              p.status !== "recruit" &&
+              String(p.positionBoardId || p.position_board_id || "") === String(board.id),
+          );
+          const emptySlotCount = slotsArray.filter((s) => !s.occupant).length;
           return (
             <Card
               key={board.id}
@@ -1244,6 +1251,7 @@ function SquadBoardPage() {
                         {board.name}
                       </button>
                     </div>
+                    <BoardCardStats players={boardPlayers} emptySlots={emptySlotCount} />
                   </div>
                   <div>
                     <div className="flex justify-center items-center font-crayon text-xs uppercase text-textSecondary">
