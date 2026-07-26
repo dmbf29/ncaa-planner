@@ -1023,7 +1023,7 @@ function SquadBoardPage() {
         star_rating: payload.starRating,
         status: isAlumni ? payload.status : payload.status === "rostered" && !boardChanged ? "rostered" : "recruit",
         recruit_status: payload.recruitStatus || "normal",
-        position_board_id: isAlumni ? null : targetBoardId || null,
+        position_board_id: targetBoardId || null,
         attribute_values: attributeValuesPayload,
         flag_ids: payload.flagIds || [],
       });

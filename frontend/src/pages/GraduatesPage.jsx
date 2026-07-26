@@ -321,15 +321,33 @@ function PlayerEditModal({ editing, flags, onClose, onSaveDraft, onSave, onDelet
           </div>
           <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
             <div className="flex items-center justify-between">
-              <span>Assign to position board (returns as recruit)</span>
+              <span>Position group</span>
+              <span className="text-xs text-textSecondary/70">Stays as alumni</span>
+            </div>
+            <select
+              value={editing.positionGroupId || ""}
+              onChange={(e) => onSaveDraft({ ...editing, positionGroupId: e.target.value || null })}
+              className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+            >
+              <option value="">— Unassigned —</option>
+              {editing.boardOptions?.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+            <div className="flex items-center justify-between">
+              <span>Return to active roster</span>
               <span className="text-xs text-textSecondary/70">Optional</span>
             </div>
             <select
-              value={editing.boardId || ""}
-              onChange={(e) => onSaveDraft({ ...editing, boardId: e.target.value || null })}
+              value={editing.returnBoardId || ""}
+              onChange={(e) => onSaveDraft({ ...editing, returnBoardId: e.target.value || null })}
               className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
             >
-              <option value="">— Keep as alumni —</option>
+              <option value="">— Stay as alumni —</option>
               {editing.boardOptions?.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.label}
@@ -386,6 +404,28 @@ function PlayerEditModal({ editing, flags, onClose, onSaveDraft, onSave, onDelet
   );
 }
 
+function PlayerCard({ player, onEdit }) {
+  return (
+    <Card className="h-full">
+      <div className="p-4 space-y-2 h-full flex flex-col">
+        <div className="flex items-start justify-between gap-2">
+          <span className="rounded-full bg-textSecondary/10 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-textSecondary">
+            {player.status}
+          </span>
+          <button
+            type="button"
+            onClick={() => onEdit(player)}
+            className="text-sm font-semibold text-burnt hover:underline"
+          >
+            Edit
+          </button>
+        </div>
+        <PlayerSummary player={player} />
+      </div>
+    </Card>
+  );
+}
+
 function GraduatesPage() {
   const { id } = useParams();
   const [team, setTeam] = useState(null);
@@ -395,6 +435,7 @@ function GraduatesPage() {
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     const load = async () => {
@@ -434,6 +475,43 @@ function GraduatesPage() {
     [players],
   );
 
+  const filteredPlayers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return sortedPlayers;
+    return sortedPlayers.filter((p) => (p.name || "").toLowerCase().includes(q));
+  }, [sortedPlayers, search]);
+
+  const groupedSquads = useMemo(() => {
+    const boardsById = new Map(boards.map((b) => [String(b.id), b]));
+    const squads = team?.squads || [];
+    const sections = new Map(
+      squads.map((sq) => [String(sq.id), { squad: sq, boardGroups: new Map(), unassigned: [] }]),
+    );
+    const otherSection = { squad: null, boardGroups: new Map(), unassigned: [] };
+
+    for (const p of filteredPlayers) {
+      const board = boardsById.get(String(p.positionBoardId || p.position_board_id || ""));
+      const squadId = board ? String(board.squadId || board.squad_id) : String(p.squadId || p.squad_id || "");
+      const section = sections.get(squadId) || otherSection;
+      if (board) {
+        const key = String(board.id);
+        if (!section.boardGroups.has(key)) section.boardGroups.set(key, { board, players: [] });
+        section.boardGroups.get(key).players.push(p);
+      } else {
+        section.unassigned.push(p);
+      }
+    }
+
+    return [...squads.map((sq) => sections.get(String(sq.id))), otherSection]
+      .map((section) => ({
+        ...section,
+        boardGroups: [...section.boardGroups.values()].sort(
+          (a, b) => (a.board.sortOrder || a.board.sort_order || 0) - (b.board.sortOrder || b.board.sort_order || 0),
+        ),
+      }))
+      .filter((section) => section.boardGroups.length || section.unassigned.length);
+  }, [filteredPlayers, boards, team]);
+
   const openEdit = (player) => {
     setEditing({
       id: player.id,
@@ -445,7 +523,8 @@ function GraduatesPage() {
       starRating: player.starRating || player.star_rating || 3,
       status: player.status || "graduated",
       flagIds: (player.flags || []).map((f) => f.id),
-      boardId: player.positionBoardId || player.position_board_id || "",
+      positionGroupId: player.positionBoardId || player.position_board_id || "",
+      returnBoardId: "",
       boardOptions: boards,
     });
   };
@@ -456,7 +535,7 @@ function GraduatesPage() {
     if (!editing) return;
     setSaving(true);
     try {
-      const wantsReturn = !!editing.boardId;
+      const wantsReturn = !!editing.returnBoardId;
       await updatePlayer(id, editing.id, {
         name: editing.name,
         class_year: editing.classYear || null,
@@ -465,7 +544,7 @@ function GraduatesPage() {
         overall: editing.overall || null,
         star_rating: editing.starRating || null,
         status: wantsReturn ? "recruit" : editing.status || "graduated",
-        position_board_id: editing.boardId || null,
+        position_board_id: wantsReturn ? editing.returnBoardId : editing.positionGroupId || null,
         flag_ids: editing.flagIds || [],
       });
       const playerData = await fetchPlayers(id, { status: ["graduated", "departed"] });
@@ -518,28 +597,46 @@ function GraduatesPage() {
     <div className="space-y-4">
       <PageHeader title="Alumni" eyebrow={team ? team.name : "Loading"} actions={headerActions} />
       {error && <p className="text-sm text-danger">{error}</p>}
+      <input
+        type="text"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search alumni by name…"
+        className="w-full max-w-xs rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+      />
       {!sortedPlayers.length && !error && (
         <p className="text-sm text-textSecondary">No alumni (graduated or departed) yet.</p>
       )}
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-        {sortedPlayers.map((p) => (
-          <Card key={p.id} className="h-full">
-            <div className="p-4 space-y-2 h-full flex flex-col">
-              <div className="flex items-start justify-between gap-2">
-                <span className="rounded-full bg-textSecondary/10 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-textSecondary">
-                  {p.status}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => openEdit(p)}
-                  className="text-sm font-semibold text-burnt hover:underline"
-                >
-                  Edit
-                </button>
+      {!!sortedPlayers.length && !filteredPlayers.length && !error && (
+        <p className="text-sm text-textSecondary">No alumni match that search.</p>
+      )}
+      <div className="space-y-6">
+        {groupedSquads.map((section) => (
+          <div key={section.squad?.id || "other"} className="space-y-4">
+            <h2 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">
+              {section.squad?.name || "Other"}
+            </h2>
+            {section.boardGroups.map(({ board, players: boardPlayers }) => (
+              <div key={board.id} className="space-y-2">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-textSecondary">{board.name}</h3>
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  {boardPlayers.map((p) => (
+                    <PlayerCard key={p.id} player={p} onEdit={openEdit} />
+                  ))}
+                </div>
               </div>
-              <PlayerSummary player={p} />
-            </div>
-          </Card>
+            ))}
+            {section.unassigned.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-textSecondary">Unassigned</h3>
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  {section.unassigned.map((p) => (
+                    <PlayerCard key={p.id} player={p} onEdit={openEdit} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         ))}
       </div>
       <PlayerEditModal
