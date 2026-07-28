@@ -36,7 +36,7 @@ function BoardCardStats({ players, emptySlots = 0 }) {
         title="Total NIL"
       >
         <i className="fa-solid fa-diamond text-[9px]" aria-hidden="true" />
-        {stats.nilTotal.toLocaleString()}
+        {stats.nilTotal.toLocaleString()} tot
       </span>
       <span
         className="flex items-center gap-1 text-textSecondary dark:text-white/70"
