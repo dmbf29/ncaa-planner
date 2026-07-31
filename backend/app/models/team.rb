@@ -1,5 +1,6 @@
 class Team < ApplicationRecord
   belongs_to :user
+  belongs_to :college, optional: true
 
   has_many :squads, dependent: :destroy
   has_many :position_boards, dependent: :destroy

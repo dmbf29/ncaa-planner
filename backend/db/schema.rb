@@ -10,9 +10,24 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_07_25_000002) do
+ActiveRecord::Schema[8.0].define(version: 2026_07_28_070557) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+
+  create_table "colleges", force: :cascade do |t|
+    t.string "name"
+    t.integer "api_id"
+    t.float "prestige"
+    t.integer "overall"
+    t.integer "offense"
+    t.integer "defense"
+    t.string "conference"
+    t.integer "nil_total"
+    t.integer "capacity"
+    t.integer "pipeline_ranking"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
 
   create_table "flags", force: :cascade do |t|
     t.string "name", null: false
@@ -107,6 +122,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_07_25_000002) do
     t.bigint "user_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "college_id"
+    t.index ["college_id"], name: "index_teams_on_college_id"
     t.index ["user_id", "name"], name: "index_teams_on_user_id_and_name", unique: true
     t.index ["user_id"], name: "index_teams_on_user_id"
   end
@@ -136,5 +153,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_07_25_000002) do
   add_foreign_key "roster_slots", "players"
   add_foreign_key "roster_slots", "position_boards"
   add_foreign_key "squads", "teams"
+  add_foreign_key "teams", "colleges"
   add_foreign_key "teams", "users"
 end
