@@ -4,8 +4,6 @@ require "nokogiri"
 class ScrapePlayersJob < ApplicationJob
   queue_as :default
 
-  DEFAULT_SCRAPE_URL = "https://www.teamcrafters.net/rosters/CFB27/launch-6-30-26/670"
-
   # Header text (from the "All Players" table) -> attribute_values key.
   # These are the keys the front-end already knows how to render.
   ATTRIBUTE_KEY_MAP = {
@@ -48,7 +46,8 @@ class ScrapePlayersJob < ApplicationJob
 
   def perform(college_id: nil, team_name: nil, team_id: nil, user_id: nil)
     team = find_or_create_team(team_id: team_id, team_name: team_name, user_id: user_id)
-    url = college_id.present? ? College.find(college_id).scraping_url : DEFAULT_SCRAPE_URL
+    url = College.find_by(id: college_id)&.scraping_url
+    return unless url
 
     doc = Nokogiri::HTML.parse(URI.parse(url).open)
 
