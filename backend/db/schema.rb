@@ -10,9 +10,93 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_07_28_070557) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_02_120517) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+
+  create_table "coaches", force: :cascade do |t|
+    t.string "name", null: false
+    t.bigint "dynasty_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["dynasty_id"], name: "index_coaches_on_dynasty_id"
+  end
+
+  create_table "college_game_stats", force: :cascade do |t|
+    t.bigint "game_id", null: false
+    t.bigint "college_id", null: false
+    t.integer "first_downs"
+    t.integer "total_offense"
+    t.integer "total_plays"
+    t.float "yards_per_play"
+    t.integer "rushes"
+    t.integer "rushing_yards"
+    t.integer "rushing_tds"
+    t.float "yards_per_rush"
+    t.integer "passing_completions"
+    t.integer "passing_attempts"
+    t.integer "passing_yards"
+    t.integer "passing_tds"
+    t.float "yards_per_pass"
+    t.integer "third_down_conversions"
+    t.integer "third_down_attempts"
+    t.integer "fourth_down_conversions"
+    t.integer "fourth_down_attempts"
+    t.integer "two_point_attempts"
+    t.integer "two_point_conversions"
+    t.integer "red_zone_tds"
+    t.integer "red_zone_field_goals"
+    t.float "red_zone_success_percentage"
+    t.integer "turnovers"
+    t.integer "fumbles_lost"
+    t.integer "interceptions_thrown"
+    t.integer "punt_return_yards"
+    t.integer "kick_return_yards"
+    t.integer "total_yards"
+    t.integer "punts"
+    t.integer "penalties"
+    t.integer "penalty_yards"
+    t.integer "time_of_possession"
+    t.integer "points_in_quarter_1"
+    t.integer "points_in_quarter_2"
+    t.integer "points_in_quarter_3"
+    t.integer "points_in_quarter_4"
+    t.integer "final_score"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["college_id"], name: "index_college_game_stats_on_college_id"
+    t.index ["game_id", "college_id"], name: "index_college_game_stats_on_game_and_college", unique: true
+    t.index ["game_id"], name: "index_college_game_stats_on_game_id"
+  end
+
+  create_table "college_seasons", force: :cascade do |t|
+    t.integer "wins", default: 0, null: false
+    t.integer "losses", default: 0, null: false
+    t.integer "offense"
+    t.integer "defense"
+    t.float "prestige"
+    t.integer "final_ranking"
+    t.integer "recruiting_rank"
+    t.bigint "college_id", null: false
+    t.bigint "coach_id"
+    t.bigint "season_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["coach_id"], name: "index_college_seasons_on_coach_id"
+    t.index ["college_id"], name: "index_college_seasons_on_college_id"
+    t.index ["season_id"], name: "index_college_seasons_on_season_id"
+  end
+
+  create_table "college_week_rankings", force: :cascade do |t|
+    t.bigint "college_id", null: false
+    t.bigint "week_id", null: false
+    t.integer "ranking", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["college_id"], name: "index_college_week_rankings_on_college_id"
+    t.index ["week_id", "college_id"], name: "index_college_week_rankings_on_week_and_college", unique: true
+    t.index ["week_id"], name: "index_college_week_rankings_on_week_id"
+  end
 
   create_table "colleges", force: :cascade do |t|
     t.string "name"
@@ -29,6 +113,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_07_28_070557) do
     t.datetime "updated_at", null: false
   end
 
+  create_table "dynasties", force: :cascade do |t|
+    t.string "name", null: false
+    t.bigint "user_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id"], name: "index_dynasties_on_user_id"
+  end
+
   create_table "flags", force: :cascade do |t|
     t.string "name", null: false
     t.string "icon", null: false
@@ -36,6 +128,19 @@ ActiveRecord::Schema[8.0].define(version: 2026_07_28_070557) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["name"], name: "index_flags_on_name", unique: true
+  end
+
+  create_table "games", force: :cascade do |t|
+    t.bigint "week_id", null: false
+    t.datetime "time"
+    t.bigint "home_college_id", null: false
+    t.bigint "away_college_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["away_college_id"], name: "index_games_on_away_college_id"
+    t.index ["home_college_id"], name: "index_games_on_home_college_id"
+    t.index ["week_id"], name: "index_games_on_week_id"
+    t.check_constraint "home_college_id <> away_college_id", name: "games_home_away_college_different"
   end
 
   create_table "player_flags", force: :cascade do |t|
@@ -108,6 +213,16 @@ ActiveRecord::Schema[8.0].define(version: 2026_07_28_070557) do
     t.index ["position_board_id"], name: "index_roster_slots_on_position_board_id"
   end
 
+  create_table "seasons", force: :cascade do |t|
+    t.integer "year", null: false
+    t.bigint "dynasty_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "heisman_id"
+    t.index ["dynasty_id"], name: "index_seasons_on_dynasty_id"
+    t.index ["heisman_id"], name: "index_seasons_on_heisman_id"
+  end
+
   create_table "squads", force: :cascade do |t|
     t.string "name", null: false
     t.bigint "team_id", null: false
@@ -115,6 +230,68 @@ ActiveRecord::Schema[8.0].define(version: 2026_07_28_070557) do
     t.datetime "updated_at", null: false
     t.index ["team_id", "name"], name: "index_squads_on_team_id_and_name", unique: true
     t.index ["team_id"], name: "index_squads_on_team_id"
+  end
+
+  create_table "student_game_stats", force: :cascade do |t|
+    t.bigint "game_id", null: false
+    t.bigint "student_season_id", null: false
+    t.float "passing_rating"
+    t.integer "passing_yards"
+    t.integer "passing_tds"
+    t.integer "passing_interceptions"
+    t.integer "passing_longest"
+    t.integer "passing_sacks_taken"
+    t.integer "passing_completions"
+    t.integer "passing_attempts"
+    t.float "passing_avg"
+    t.integer "rushing_carries"
+    t.integer "rushing_yards"
+    t.float "rushing_avg"
+    t.integer "rushing_tds"
+    t.integer "rushing_fumbles"
+    t.integer "rushing_yac"
+    t.integer "rushing_longest"
+    t.integer "receiving_receptions"
+    t.integer "receiving_yards"
+    t.float "receiving_avg"
+    t.integer "receiving_tds"
+    t.integer "receiving_rac"
+    t.integer "receiving_longest"
+    t.integer "receiving_drop"
+    t.integer "defense_solo_tackles"
+    t.integer "defense_assist_tackles"
+    t.integer "defense_tackles"
+    t.integer "defense_tfl"
+    t.float "defense_sacks"
+    t.integer "defense_interceptions"
+    t.integer "defense_interceptions_longest"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["game_id", "student_season_id"], name: "index_student_game_stats_on_game_and_student_season", unique: true
+    t.index ["game_id"], name: "index_student_game_stats_on_game_id"
+    t.index ["student_season_id"], name: "index_student_game_stats_on_student_season_id"
+  end
+
+  create_table "student_seasons", force: :cascade do |t|
+    t.string "class_year", null: false
+    t.string "position", null: false
+    t.integer "overall"
+    t.integer "nil_amount"
+    t.string "dev_trait"
+    t.integer "speed"
+    t.bigint "student_id", null: false
+    t.bigint "college_season_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["college_season_id"], name: "index_student_seasons_on_college_season_id"
+    t.index ["student_id"], name: "index_student_seasons_on_student_id"
+  end
+
+  create_table "students", force: :cascade do |t|
+    t.string "first_name"
+    t.string "last_name"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
   end
 
   create_table "teams", force: :cascade do |t|
@@ -143,6 +320,29 @@ ActiveRecord::Schema[8.0].define(version: 2026_07_28_070557) do
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
   end
 
+  create_table "weeks", force: :cascade do |t|
+    t.integer "number", null: false
+    t.string "name"
+    t.bigint "season_id", null: false
+    t.boolean "conference_championship", default: false, null: false
+    t.boolean "post_season", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["season_id"], name: "index_weeks_on_season_id"
+  end
+
+  add_foreign_key "coaches", "dynasties"
+  add_foreign_key "college_game_stats", "colleges"
+  add_foreign_key "college_game_stats", "games"
+  add_foreign_key "college_seasons", "coaches"
+  add_foreign_key "college_seasons", "colleges"
+  add_foreign_key "college_seasons", "seasons"
+  add_foreign_key "college_week_rankings", "colleges"
+  add_foreign_key "college_week_rankings", "weeks"
+  add_foreign_key "dynasties", "users"
+  add_foreign_key "games", "colleges", column: "away_college_id"
+  add_foreign_key "games", "colleges", column: "home_college_id"
+  add_foreign_key "games", "weeks"
   add_foreign_key "player_flags", "flags"
   add_foreign_key "player_flags", "players"
   add_foreign_key "players", "position_boards"
@@ -152,7 +352,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_07_28_070557) do
   add_foreign_key "position_boards", "teams"
   add_foreign_key "roster_slots", "players"
   add_foreign_key "roster_slots", "position_boards"
+  add_foreign_key "seasons", "dynasties"
+  add_foreign_key "seasons", "student_seasons", column: "heisman_id"
   add_foreign_key "squads", "teams"
+  add_foreign_key "student_game_stats", "games"
+  add_foreign_key "student_game_stats", "student_seasons"
+  add_foreign_key "student_seasons", "college_seasons"
+  add_foreign_key "student_seasons", "students"
   add_foreign_key "teams", "colleges"
   add_foreign_key "teams", "users"
+  add_foreign_key "weeks", "seasons"
 end
