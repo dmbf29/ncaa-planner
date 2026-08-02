@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_02_120517) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_02_123855) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -70,18 +70,18 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_02_120517) do
   end
 
   create_table "college_seasons", force: :cascade do |t|
-    t.integer "wins", default: 0, null: false
-    t.integer "losses", default: 0, null: false
+    t.integer "overall"
     t.integer "offense"
     t.integer "defense"
     t.float "prestige"
-    t.integer "final_ranking"
     t.integer "recruiting_rank"
     t.bigint "college_id", null: false
     t.bigint "coach_id"
     t.bigint "season_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "wins"
+    t.integer "losses"
     t.index ["coach_id"], name: "index_college_seasons_on_coach_id"
     t.index ["college_id"], name: "index_college_seasons_on_college_id"
     t.index ["season_id"], name: "index_college_seasons_on_season_id"

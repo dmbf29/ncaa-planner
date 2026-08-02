@@ -3,5 +3,6 @@ class CollegeWeekRanking < ApplicationRecord
   belongs_to :week
 
   validates :ranking, presence: true
-  validates :college_id, uniqueness: { scope: :week_id }
+  validates :college, uniqueness: { scope: :week }
+  validates :ranking, uniqueness: { scope: :week }
 end
