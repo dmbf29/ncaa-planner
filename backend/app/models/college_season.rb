@@ -1,6 +1,8 @@
 class CollegeSeason < ApplicationRecord
   OFFENSE_POSITIONS = %w[QB HB FB WR TE LT LG C RG RT].freeze
   DEFENSE_POSITIONS = %w[CB DT FS LE RE LOLB MLB ROLB SS].freeze
+  UNDERCLASS_YEARS = %w[FR FR(RS) SO SO(RS)].freeze
+  BREAKOUT_DEV_TRAITS = %w[star elite].freeze
 
   POSITION_GROUPS = {
     "Quarterbacks" => %w[QB],
@@ -37,5 +39,15 @@ class CollegeSeason < ApplicationRecord
       average = student_seasons.where(position: positions).average(:overall)
       average&.round
     end
+  end
+
+  def most_valuable_player
+    student_seasons.order(overall: :desc).first
+  end
+
+  def breakout_candidate
+    student_seasons.where(dev_trait: BREAKOUT_DEV_TRAITS, class_year: UNDERCLASS_YEARS)
+                    .order(overall: :desc)
+                    .first
   end
 end

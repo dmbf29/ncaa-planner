@@ -11,7 +11,21 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
 
     resource "*",
              headers: :any,
-             expose: ["Authorization"],
+             expose: [ "Authorization" ],
              methods: %i[get post put patch delete options head]
+  end
+
+  # Public broadcast endpoints (season preview / weekly recaps) are meant for
+  # third-party tools, so allow them to be fetched from any origin.
+  allow do
+    origins "*"
+
+    resource "/api/v1/dynasties/*/seasons/*/preview",
+             headers: :any,
+             methods: %i[get options]
+
+    resource "/api/v1/dynasties/*/seasons/*/weeks",
+             headers: :any,
+             methods: %i[get options]
   end
 end

@@ -9,6 +9,7 @@ import SignupPage from "./pages/SignupPage";
 import TeamCreatePage from "./pages/TeamCreatePage";
 import GraduatesPage from "./pages/GraduatesPage";
 import DynastyDashboardPage from "./pages/DynastyDashboardPage";
+import ExportPage from "./pages/ExportPage";
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
         <Route path="/teams/:id/graduates" element={<GraduatesPage />} />
         <Route path="/teams/:id/squads/:squadId" element={<SquadBoardPage />} />
         <Route path="/dynasty" element={<DynastyDashboardPage />} />
+        <Route path="/dynasty/export" element={<ExportPage />} />
       </Routes>
     </Layout>
   );

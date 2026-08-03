@@ -10,9 +10,37 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_02_123855) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_03_100842) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+
+  create_table "active_storage_attachments", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "record_type", null: false
+    t.bigint "record_id", null: false
+    t.bigint "blob_id", null: false
+    t.datetime "created_at", null: false
+    t.index ["blob_id"], name: "index_active_storage_attachments_on_blob_id"
+    t.index ["record_type", "record_id", "name", "blob_id"], name: "index_active_storage_attachments_uniqueness", unique: true
+  end
+
+  create_table "active_storage_blobs", force: :cascade do |t|
+    t.string "key", null: false
+    t.string "filename", null: false
+    t.string "content_type"
+    t.text "metadata"
+    t.string "service_name", null: false
+    t.bigint "byte_size", null: false
+    t.string "checksum"
+    t.datetime "created_at", null: false
+    t.index ["key"], name: "index_active_storage_blobs_on_key", unique: true
+  end
+
+  create_table "active_storage_variant_records", force: :cascade do |t|
+    t.bigint "blob_id", null: false
+    t.string "variation_digest", null: false
+    t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
 
   create_table "coaches", force: :cascade do |t|
     t.string "name", null: false
@@ -70,7 +98,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_02_123855) do
   end
 
   create_table "college_seasons", force: :cascade do |t|
-    t.integer "overall"
     t.integer "offense"
     t.integer "defense"
     t.float "prestige"
@@ -80,6 +107,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_02_123855) do
     t.bigint "season_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "overall"
     t.integer "wins"
     t.integer "losses"
     t.index ["coach_id"], name: "index_college_seasons_on_coach_id"
@@ -137,8 +165,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_02_123855) do
     t.bigint "away_college_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "narrative_summary"
+    t.bigint "offensive_player_of_game_id"
+    t.string "offensive_player_stat_line"
+    t.bigint "defensive_player_of_game_id"
+    t.string "defensive_player_stat_line"
     t.index ["away_college_id"], name: "index_games_on_away_college_id"
+    t.index ["defensive_player_of_game_id"], name: "index_games_on_defensive_player_of_game_id"
     t.index ["home_college_id"], name: "index_games_on_home_college_id"
+    t.index ["offensive_player_of_game_id"], name: "index_games_on_offensive_player_of_game_id"
     t.index ["week_id"], name: "index_games_on_week_id"
     t.check_constraint "home_college_id <> away_college_id", name: "games_home_away_college_different"
   end
@@ -331,6 +366,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_02_123855) do
     t.index ["season_id"], name: "index_weeks_on_season_id"
   end
 
+  add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "coaches", "dynasties"
   add_foreign_key "college_game_stats", "colleges"
   add_foreign_key "college_game_stats", "games"
@@ -342,6 +379,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_02_123855) do
   add_foreign_key "dynasties", "users"
   add_foreign_key "games", "colleges", column: "away_college_id"
   add_foreign_key "games", "colleges", column: "home_college_id"
+  add_foreign_key "games", "student_seasons", column: "defensive_player_of_game_id"
+  add_foreign_key "games", "student_seasons", column: "offensive_player_of_game_id"
   add_foreign_key "games", "weeks"
   add_foreign_key "player_flags", "flags"
   add_foreign_key "player_flags", "players"
