@@ -93,6 +93,11 @@ export const updateRosterSlot = (positionBoardId, id, payload) =>
 export const deleteRosterSlot = (positionBoardId, id) =>
   api.delete(`/api/v1/position_boards/${positionBoardId}/roster_slots/${id}`).then((r) => r.data);
 
+export const fetchDynasties = () => api.get("/api/v1/dynasties").then((r) => r.data);
+
+export const fetchSeason = (dynastyId, seasonId) =>
+  api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}`).then((r) => r.data);
+
 export const login = ({ email, password }) =>
   api.post("/users/sign_in", { user: { email, password } }).then((r) => r.data);
 

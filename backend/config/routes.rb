@@ -19,6 +19,10 @@ Rails.application.routes.draw do
       end
 
       resources :flags, only: %i[index]
+
+      resources :dynasties, only: %i[index] do
+        resources :seasons, only: %i[show]
+      end
     end
   end
 

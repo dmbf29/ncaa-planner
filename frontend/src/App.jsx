@@ -8,6 +8,7 @@ import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import TeamCreatePage from "./pages/TeamCreatePage";
 import GraduatesPage from "./pages/GraduatesPage";
+import DynastyDashboardPage from "./pages/DynastyDashboardPage";
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
         <Route path="/teams/:id/setup" element={<TeamSetupPage />} />
         <Route path="/teams/:id/graduates" element={<GraduatesPage />} />
         <Route path="/teams/:id/squads/:squadId" element={<SquadBoardPage />} />
+        <Route path="/dynasty" element={<DynastyDashboardPage />} />
       </Routes>
     </Layout>
   );
