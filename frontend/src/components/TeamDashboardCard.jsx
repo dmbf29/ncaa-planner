@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { clsx } from "clsx";
 import Card from "./Card";
 import StatPill from "./StatPill";
@@ -114,8 +115,8 @@ function ScheduleRow({ week }) {
       ? week.name || "Bowl"
       : `Wk ${week.number}`;
 
-  return (
-    <div className="flex items-center justify-between gap-2 border-b border-border/60 py-1 text-xs last:border-0 dark:border-darkborder/60">
+  const content = (
+    <>
       <span className="w-20 shrink-0 text-textSecondary">{label}</span>
       {week.opponent ? (
         <span className="flex min-w-0 flex-1 items-center gap-1 truncate">
@@ -140,8 +141,20 @@ function ScheduleRow({ week }) {
       ) : week.opponent ? (
         <span className="shrink-0 text-textSecondary/50">—</span>
       ) : null}
-    </div>
+    </>
   );
+
+  const rowClass = "flex items-center gap-2 border-b border-border/60 py-1 text-xs last:border-0 dark:border-darkborder/60";
+
+  if (week.gameId) {
+    return (
+      <Link to={`/dynasty/games/${week.gameId}`} className={clsx(rowClass, "hover:bg-charcoal/5 dark:hover:bg-white/5")}>
+        {content}
+      </Link>
+    );
+  }
+
+  return <div className={rowClass}>{content}</div>;
 }
 
 function TeamDashboardCard({ team }) {

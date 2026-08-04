@@ -27,7 +27,7 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  if (config.data) {
+  if (config.data && !(config.data instanceof FormData)) {
     config.data = keysToSnake(config.data);
   }
   return config;
@@ -99,6 +99,19 @@ export const fetchDynasties = () => api.get("/api/v1/dynasties").then((r) => r.d
 
 export const fetchSeason = (dynastyId, seasonId) =>
   api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}`).then((r) => r.data);
+
+export const fetchGame = (id) => api.get(`/api/v1/games/${id}`).then((r) => r.data);
+
+export const analyzeGameStats = (id, files) => {
+  const formData = new FormData();
+  files.forEach((file) => formData.append("images[]", file));
+  return api
+    .post(`/api/v1/games/${id}/analyze`, formData, { headers: { "Content-Type": "multipart/form-data" } })
+    .then((r) => r.data);
+};
+
+export const commitGameStats = (id, analysis) =>
+  api.post(`/api/v1/games/${id}/commit`, { analysis }).then((r) => r.data);
 
 export const login = ({ email, password }) =>
   api.post("/users/sign_in", { user: { email, password } }).then((r) => r.data);
