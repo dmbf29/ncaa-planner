@@ -47,7 +47,7 @@ module GameStats
         next unless college
 
         stat = CollegeGameStat.find_or_initialize_by(game: @game, college: college)
-        stat.assign_attributes(row[:fields].slice(*VisionExtractor::COLLEGE_FIELDS))
+        stat.assign_attributes(row[:fields].slice(*StatFields::COLLEGE_FIELDS))
         stat.save!
       end
     end
@@ -57,7 +57,7 @@ module GameStats
         next if row[:student_season_id].blank?
 
         stat = StudentGameStat.find_or_initialize_by(game: @game, student_season_id: row[:student_season_id])
-        stat.assign_attributes(row[:fields].slice(*VisionExtractor::PLAYER_FIELDS))
+        stat.assign_attributes(row[:fields].slice(*StatFields::PLAYER_FIELDS))
         stat.save!
       end
     end

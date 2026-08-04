@@ -1,7 +1,8 @@
 module GameStats
   # Text-only pass over already-extracted stats to synthesize the game's
   # narrative summary and offense/defense player-of-the-game picks. Runs
-  # after VisionExtractor, not against the images themselves.
+  # after BoxScoreExtractor / PlayerCategoryExtractor, not against the
+  # images themselves.
   class NarrativeSynthesizer
     SYSTEM_PROMPT = <<~PROMPT.freeze
       You are a college football beat writer producing short, punchy game-recap notes for a podcast

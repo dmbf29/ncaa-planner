@@ -66,7 +66,7 @@ module Api
       end
 
       def existing_college_stat_json(stat)
-        { team: stat.college.name }.merge(stat.attributes.slice(*GameStats::VisionExtractor::COLLEGE_FIELDS.map(&:to_s)))
+        { team: stat.college.name }.merge(stat.attributes.slice(*GameStats::StatFields::COLLEGE_FIELDS.map(&:to_s)))
       end
 
       def existing_player_stat_json(stat)
@@ -74,7 +74,7 @@ module Api
           student_season_id: stat.student_season_id,
           name: stat.student_season.student.name,
           position: stat.student_season.position
-        }.merge(stat.attributes.slice(*GameStats::VisionExtractor::PLAYER_FIELDS.map(&:to_s)))
+        }.merge(stat.attributes.slice(*GameStats::StatFields::PLAYER_FIELDS.map(&:to_s)))
       end
 
       def analysis_json(result)

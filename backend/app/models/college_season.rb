@@ -20,6 +20,7 @@ class CollegeSeason < ApplicationRecord
   belongs_to :coach, optional: true
   belongs_to :season
   has_many :student_seasons, dependent: :destroy
+  validates :season, uniqueness: { scope: :college }
 
   def games
     Game.where(week_id: season.week_ids)
