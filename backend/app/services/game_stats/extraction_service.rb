@@ -1,42 +1,36 @@
 module GameStats
   # Orchestrates a single "analyze these screenshots" request: uploads the
   # images as ActiveStorage blobs (so they can be reused at commit time
-  # without re-uploading), classifies them by type/team, runs the box score
-  # and per-category player extractors against the relevant subsets, then
-  # narrative synthesis. Persists nothing on the Game/CollegeGameStat/
-  # StudentGameStat tables — that only happens if/when the user confirms via
-  # CommitService.
+  # without re-uploading), then runs box score extraction on the box-score
+  # bucket and per-category player extraction on each team's bucket (each
+  # bucket's images are classified by category first, since a team's
+  # screenshots may cover multiple categories). Persists nothing on the
+  # Game/CollegeGameStat/StudentGameStat tables — that only happens if/when
+  # the user confirms via CommitService.
   class ExtractionService
     def initialize(game)
       @game = game
     end
 
-    def call(uploaded_files)
-      blobs = attach_transient_blobs(uploaded_files)
+    def call(box_score_files:, home_files:, away_files:)
+      box_score_blobs = attach_transient_blobs(box_score_files)
+      home_blobs = attach_transient_blobs(home_files)
+      away_blobs = attach_transient_blobs(away_files)
 
       home_roster = Roster.for(@game.home_college, season)
       away_roster = Roster.for(@game.away_college, season)
 
-      grouped = group_images(blobs, classify(blobs))
-
       college_stats = BoxScoreExtractor.new(home_college: @game.home_college, away_college: @game.away_college)
-                                        .call(grouped["box_score"])
+                                        .call(box_score_blobs)
 
-      player_stats = StatFields::CATEGORIES.flat_map do |category|
-        PlayerCategoryExtractor.new(
-          category: category,
-          home_college: @game.home_college,
-          away_college: @game.away_college,
-          home_roster: home_roster,
-          away_roster: away_roster
-        ).call(grouped[category])
-      end
+      player_stats = player_stats_for(@game.home_college, home_roster, home_blobs) +
+                     player_stats_for(@game.away_college, away_roster, away_blobs)
 
       narrative = NarrativeSynthesizer.new(home_college: @game.home_college, away_college: @game.away_college)
                                        .call(college_stats: college_stats, player_stats: player_stats)
 
       {
-        screenshot_signed_ids: blobs.map(&:signed_id),
+        screenshot_signed_ids: (box_score_blobs + home_blobs + away_blobs).map(&:signed_id),
         college_stats: college_stats,
         player_stats: player_stats,
         narrative: narrative,
@@ -57,11 +51,17 @@ module GameStats
       end
     end
 
-    def classify(blobs)
-      ImageClassifier.new(home_college: @game.home_college, away_college: @game.away_college).call(blobs)
+    def player_stats_for(college, roster, blobs)
+      return [] if blobs.blank?
+
+      grouped = group_by_category(blobs, ImageClassifier.new(team_name: college.name).call(blobs))
+
+      StatFields::CATEGORIES.flat_map do |category|
+        PlayerCategoryExtractor.new(category: category, college: college, roster: roster).call(grouped[category])
+      end
     end
 
-    def group_images(blobs, classification)
+    def group_by_category(blobs, classification)
       by_index = classification.index_by { |entry| entry[:index] }
       groups = Hash.new { |hash, key| hash[key] = [] }
 

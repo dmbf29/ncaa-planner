@@ -12,7 +12,11 @@ module Api
 
       def analyze
         authorize @game
-        result = GameStats::ExtractionService.new(@game).call(Array(params[:images]))
+        result = GameStats::ExtractionService.new(@game).call(
+          box_score_files: Array(params[:box_score_images]),
+          home_files: Array(params[:home_images]),
+          away_files: Array(params[:away_images])
+        )
         render json: analysis_json(result)
       rescue RubyLLM::Error => e
         render json: { error: "AI extraction failed: #{e.message}", code: "extraction_failed" }, status: :unprocessable_entity

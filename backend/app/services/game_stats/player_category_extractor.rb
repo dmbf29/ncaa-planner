@@ -1,15 +1,19 @@
 module GameStats
-  # Extracts StudentGameStat fields for one stat category (passing/rushing/
-  # receiving/defense) from that category's screenshot(s). Each category is
-  # split into two small calls (4-5 optional fields each) and merged by
-  # player identity — empirically, a single call asking for ~9 optional
-  # fields on a variable-length array of players was unreliable (it would
-  # randomly omit several fields even when they were clearly visible),
-  # while the same fields split into ~5-field groups came back complete and
-  # accurate every time. Fixed-length arrays (like BoxScoreExtractor's
-  # always-2-teams array) didn't show this problem even at ~10 fields, so
-  # the culprit seems to be the combination of an uncertain array length
-  # with a large per-item optional field count, not raw field count alone.
+  # Extracts StudentGameStat fields for one team's stat category (passing/
+  # rushing/receiving/defense) from that category's screenshot(s). The team
+  # is known from the caller (images are uploaded per-team), so the model
+  # only has to identify the player and category fields, not guess team.
+  #
+  # Each category is split into two small calls (4-5 optional fields each)
+  # and merged by player identity — empirically, a single call asking for
+  # ~9 optional fields on a variable-length array of players was
+  # unreliable (it would randomly omit several fields even when they were
+  # clearly visible), while the same fields split into ~5-field groups
+  # came back complete and accurate every time. Fixed-length arrays (like
+  # BoxScoreExtractor's always-2-teams array) didn't show this problem
+  # even at ~10 fields, so the culprit seems to be the combination of an
+  # uncertain array length with a large per-item optional field count, not
+  # raw field count alone.
   class PlayerCategoryExtractor
     FIELD_SETS = {
       "passing" => %i[
@@ -55,12 +59,10 @@ module GameStats
       unset if it is not visible.
     PROMPT
 
-    def initialize(category:, home_college:, away_college:, home_roster:, away_roster:)
+    def initialize(category:, college:, roster:)
       @category = category
-      @home_college = home_college
-      @away_college = away_college
-      @home_roster = home_roster
-      @away_roster = away_roster
+      @college = college
+      @roster = roster
     end
 
     def call(image_blobs)
@@ -73,10 +75,6 @@ module GameStats
     end
 
     private
-
-    def team_names
-      [ @home_college.name, @away_college.name ]
-    end
 
     # Empirically, a sub-call occasionally comes back with an empty players
     # array even when the screenshot clearly has players on it. A single
@@ -96,7 +94,6 @@ module GameStats
     end
 
     def group_schema(fields)
-      names = team_names
       float_fields = FLOAT_FIELDS
       descriptions = FIELD_DESCRIPTIONS
 
@@ -104,7 +101,6 @@ module GameStats
         array :players, description: "One entry per player shown in this stat table." do
           object do
             string :player_display_name, description: "Exactly as shown on screen, e.g. 'H.Crandall'"
-            string :team, enum: names
             integer :student_season_id, required: false,
                     description: "id of the matching player from the roster given in the prompt, " \
                                  "only if confidently matched. Leave unset otherwise."
@@ -122,43 +118,39 @@ module GameStats
 
     def prompt
       <<~PROMPT
-        This is the #{@category} stat table for one or both of these teams: #{@home_college.name} (home) and
-        #{@away_college.name} (away). Team names may appear differently on screen — map back to exactly one
-        of those two names.
+        This is the #{@category} stat table for #{@college.name}.
 
         Player names are shown as first-initial + last name (e.g. "H.Crandall"). Match each one against the
-        roster below for their team and, only if confident, set student_season_id to that player's id. If no
-        roster is given for a team, or you can't confidently match, leave student_season_id unset but still
-        report player_display_name and their stats.
+        roster below and, only if confident, set student_season_id to that player's id. If no roster is
+        given, or you can't confidently match, leave student_season_id unset but still report
+        player_display_name and their stats.
 
-        #{roster_section(@home_college, @home_roster)}
-
-        #{roster_section(@away_college, @away_roster)}
+        #{roster_section}
       PROMPT
     end
 
-    def roster_section(college, roster)
-      return "#{college.name} roster: none available — report player_display_name only, leave student_season_id unset." if roster.empty?
+    def roster_section
+      return "Roster: none available — report player_display_name only, leave student_season_id unset." if @roster.empty?
 
-      lines = roster.map { |player| "- id #{player[:id]}: #{player[:name]} (#{player[:position]})" }
-      "#{college.name} roster:\n#{lines.join("\n")}"
+      lines = @roster.map { |player| "- id #{player[:id]}: #{player[:name]} (#{player[:position]})" }
+      "Roster:\n#{lines.join("\n")}"
     end
 
-    # Merges rows from the group sub-calls by (team, display name) so a
-    # player who appears in both calls ends up as one row with all fields.
+    # Merges rows from the group sub-calls by display name so a player who
+    # appears in both calls ends up as one row with all fields.
     def merge(results)
       merged = {}
       order = []
 
       results.each do |rows|
         rows.each do |row|
-          key = [ row["team"], row["player_display_name"].to_s.strip.downcase ]
+          key = row["player_display_name"].to_s.strip.downcase
           unless merged.key?(key)
-            merged[key] = { "player_display_name" => row["player_display_name"], "team" => row["team"] }
+            merged[key] = { "player_display_name" => row["player_display_name"] }
             order << key
           end
           merged[key]["student_season_id"] ||= row["student_season_id"]
-          merged[key].merge!(row.except("player_display_name", "team", "student_season_id"))
+          merged[key].merge!(row.except("player_display_name", "student_season_id"))
         end
       end
 
@@ -167,7 +159,7 @@ module GameStats
 
     def build_entry(row)
       {
-        team: row["team"],
+        team: @college.name,
         category: @category,
         display_name: row["player_display_name"],
         student_season_id: row["student_season_id"],
