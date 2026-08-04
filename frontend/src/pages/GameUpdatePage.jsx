@@ -76,13 +76,53 @@ function NumberField({ label, value, onChange }) {
   );
 }
 
-function UploadStep({ files, onFilesChange, onAnalyze, analyzing, error }) {
+function FileDropZone({ label, hint, files, onFilesChange }) {
   const handleFileInput = (e) => {
     onFilesChange([...files, ...Array.from(e.target.files || [])]);
     e.target.value = "";
   };
 
   const removeFile = (index) => onFilesChange(files.filter((_, i) => i !== index));
+
+  return (
+    <div className="space-y-2 rounded-md border border-border p-3 dark:border-darkborder">
+      <div>
+        <p className="text-sm font-semibold text-textPrimary dark:text-white">{label}</p>
+        {hint && <p className="text-xs text-textSecondary">{hint}</p>}
+      </div>
+      <input
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handleFileInput}
+        className="block w-full text-xs text-textSecondary file:mr-3 file:rounded-md file:border-0 file:bg-burnt file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white"
+      />
+      {files.length > 0 && (
+        <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+          {files.map((file, index) => (
+            <div key={`${file.name}-${index}`} className="relative">
+              <img
+                src={URL.createObjectURL(file)}
+                alt={file.name}
+                className="h-16 w-full rounded-md border border-border object-cover dark:border-darkborder"
+              />
+              <button
+                type="button"
+                onClick={() => removeFile(index)}
+                className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-danger text-xs text-white"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UploadStep({ buckets, onBucketsChange, onAnalyze, analyzing, error, homeCollege, awayCollege }) {
+  const totalFiles = buckets.boxScore.length + buckets.home.length + buckets.away.length;
 
   return (
     <Card>
@@ -92,51 +132,77 @@ function UploadStep({ files, onFilesChange, onAnalyze, analyzing, error }) {
             Upload Screenshots
           </h3>
           <p className="mt-1 text-sm text-textSecondary">
-            Upload the box score (1-2 shots) and each team&rsquo;s passing/rushing/receiving/defense stat screens
-            (up to 4 per team, 10 total). The AI reads them and proposes stats below for you to review before
-            anything is saved.
+            Upload the box score separately from each team&rsquo;s player stat screens (passing/rushing/receiving/
+            defense). The AI reads them and proposes stats below for you to review before anything is saved.
           </p>
         </div>
 
-        <input
-          type="file"
-          accept="image/*"
-          multiple
-          onChange={handleFileInput}
-          className="block w-full text-sm text-textSecondary file:mr-3 file:rounded-md file:border-0 file:bg-burnt file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
+        <FileDropZone
+          label="Box Score"
+          hint="1-2 shots covering both teams"
+          files={buckets.boxScore}
+          onFilesChange={(files) => onBucketsChange({ ...buckets, boxScore: files })}
         />
-
-        {files.length > 0 && (
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
-            {files.map((file, index) => (
-              <div key={`${file.name}-${index}`} className="relative">
-                <img
-                  src={URL.createObjectURL(file)}
-                  alt={file.name}
-                  className="h-20 w-full rounded-md border border-border object-cover dark:border-darkborder"
-                />
-                <button
-                  type="button"
-                  onClick={() => removeFile(index)}
-                  className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-danger text-xs text-white"
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+        <FileDropZone
+          label={`${homeCollege.name} (Home) Player Stats`}
+          hint="Passing/rushing/receiving/defense, up to 4 shots"
+          files={buckets.home}
+          onFilesChange={(files) => onBucketsChange({ ...buckets, home: files })}
+        />
+        <FileDropZone
+          label={`${awayCollege.name} (Away) Player Stats`}
+          hint="Passing/rushing/receiving/defense, up to 4 shots"
+          files={buckets.away}
+          onFilesChange={(files) => onBucketsChange({ ...buckets, away: files })}
+        />
 
         {error && <p className="text-sm text-danger">{error}</p>}
 
         <button
           type="button"
           onClick={onAnalyze}
-          disabled={files.length === 0 || analyzing}
+          disabled={totalFiles === 0 || analyzing}
           className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {analyzing ? "Analyzing... this can take a minute" : `Analyze ${files.length || ""} Photo${files.length === 1 ? "" : "s"}`}
+          {analyzing ? "Analyzing... this can take a minute" : `Analyze ${totalFiles || ""} Photo${totalFiles === 1 ? "" : "s"}`}
         </button>
+      </div>
+    </Card>
+  );
+}
+
+function ReferencePhotos({ buckets, homeCollege, awayCollege }) {
+  const sections = [
+    { label: "Box Score", files: buckets.boxScore },
+    { label: `${homeCollege.name} (Home)`, files: buckets.home },
+    { label: `${awayCollege.name} (Away)`, files: buckets.away },
+  ].filter((section) => section.files.length > 0);
+
+  if (sections.length === 0) return null;
+
+  return (
+    <Card>
+      <div className="p-5 space-y-4">
+        <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">
+          Uploaded Screenshots
+        </h3>
+        <p className="text-sm text-textSecondary">Reference these while reviewing the fields below. Click one to open it full-size.</p>
+        {sections.map((section) => (
+          <div key={section.label} className="space-y-2">
+            <p className="text-xs uppercase tracking-wide text-textSecondary">{section.label}</p>
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+              {section.files.map((file, index) => (
+                <a key={`${file.name}-${index}`} href={URL.createObjectURL(file)} target="_blank" rel="noreferrer">
+                  <img
+                    src={URL.createObjectURL(file)}
+                    alt={file.name}
+                    className="h-24 w-full rounded-md border border-border object-cover transition hover:opacity-80 dark:border-darkborder"
+                  />
+                </a>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     </Card>
   );
@@ -327,7 +393,7 @@ function GameUpdatePage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
-  const [files, setFiles] = useState([]);
+  const [buckets, setBuckets] = useState({ boxScore: [], home: [], away: [] });
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState(null);
 
@@ -358,7 +424,7 @@ function GameUpdatePage() {
     setAnalyzing(true);
     setAnalyzeError(null);
     try {
-      const result = await analyzeGameStats(gameId, files);
+      const result = await analyzeGameStats(gameId, buckets);
       setAnalysis({
         ...result,
         collegeStats: normalizeCollegeStats(result.collegeStats, game.awayCollege, game.homeCollege),
@@ -426,9 +492,18 @@ function GameUpdatePage() {
           </div>
         </Card>
       ) : !analysis ? (
-        <UploadStep files={files} onFilesChange={setFiles} onAnalyze={handleAnalyze} analyzing={analyzing} error={analyzeError} />
+        <UploadStep
+          buckets={buckets}
+          onBucketsChange={setBuckets}
+          onAnalyze={handleAnalyze}
+          analyzing={analyzing}
+          error={analyzeError}
+          homeCollege={game.homeCollege}
+          awayCollege={game.awayCollege}
+        />
       ) : (
         <>
+          <ReferencePhotos buckets={buckets} homeCollege={game.homeCollege} awayCollege={game.awayCollege} />
           <NarrativeSection
             narrative={analysis.narrative}
             onChange={(narrative) => setAnalysis({ ...analysis, narrative })}

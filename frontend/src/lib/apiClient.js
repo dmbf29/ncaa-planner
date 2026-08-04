@@ -102,9 +102,11 @@ export const fetchSeason = (dynastyId, seasonId) =>
 
 export const fetchGame = (id) => api.get(`/api/v1/games/${id}`).then((r) => r.data);
 
-export const analyzeGameStats = (id, files) => {
+export const analyzeGameStats = (id, buckets) => {
   const formData = new FormData();
-  files.forEach((file) => formData.append("images[]", file));
+  buckets.boxScore.forEach((file) => formData.append("box_score_images[]", file));
+  buckets.home.forEach((file) => formData.append("home_images[]", file));
+  buckets.away.forEach((file) => formData.append("away_images[]", file));
   return api
     .post(`/api/v1/games/${id}/analyze`, formData, { headers: { "Content-Type": "multipart/form-data" } })
     .then((r) => r.data);
