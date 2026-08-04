@@ -73,6 +73,7 @@ class SeasonDashboardSerializer
         name: week.name,
         conference_championship: week.conference_championship,
         post_season: week.post_season,
+        game_id: game&.id,
         opponent: opponent_json(game, college_season.college_id),
         result: result_json(game, college_season.college_id)
       }

@@ -24,6 +24,13 @@ Rails.application.routes.draw do
         resources :seasons, only: %i[show]
       end
 
+      resources :games, only: %i[show] do
+        member do
+          post :analyze
+          post :commit
+        end
+      end
+
       # Public, unauthenticated broadcast data for third-party consumption (e.g. podcast generation).
       get "dynasties/:dynasty_id/seasons/:season_id/preview", to: "season_broadcasts#preview"
       get "dynasties/:dynasty_id/seasons/:season_id/weeks", to: "season_broadcasts#weeks"
