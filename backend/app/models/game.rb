@@ -9,6 +9,7 @@ class Game < ApplicationRecord
   has_many_attached :stat_screenshots
 
   validate :home_and_away_colleges_differ
+  validate :colleges_not_already_scheduled_this_week
 
   def played?
     college_game_stats.count == 2
@@ -21,5 +22,22 @@ class Game < ApplicationRecord
     return if home_college_id != away_college_id
 
     errors.add(:away_college_id, "must be different from home college")
+  end
+
+  # A real team plays at most one game per week. Generic placeholder
+  # opponents (conference "FCS", see colleges.rake) are exempt since one
+  # college row there stands in for a different real team each time.
+  def colleges_not_already_scheduled_this_week
+    return if week_id.blank?
+
+    [ [ :home_college_id, home_college ], [ :away_college_id, away_college ] ].each do |attribute, college|
+      next if college.blank? || college.conference == "FCS"
+
+      conflict = Game.where(week_id: week_id)
+                      .where("home_college_id = :id OR away_college_id = :id", id: college.id)
+                      .where.not(id: id)
+                      .exists?
+      errors.add(attribute, "#{college.name} already has a game scheduled for this week") if conflict
+    end
   end
 end

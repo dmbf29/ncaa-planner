@@ -15,8 +15,8 @@ module Api
 
       def commit_top_25_rankings
         authorize @week
-        RankingStats::CommitService.new(@week).call(commit_rows)
-        render json: { week_id: @week.id }
+        warnings = RankingStats::CommitService.new(@week).call(commit_rows)
+        render json: { week_id: @week.id, warnings: warnings }
       rescue ActiveRecord::RecordInvalid => e
         render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
       end

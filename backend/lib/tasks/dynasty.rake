@@ -2,7 +2,7 @@ namespace :dynasty do
   desc "Setup the first dynasty"
   task create: :environment do
     user = User.find_by(email: "douglasmberkley@gmail.com")
-    dynasty = Dynasty.find_or_create_by!(name: "Sun Belt Challenge", user:)
+    dynasty = Dynasty.find_or_create_by!(name: "Rising in the Sun Belt", user:)
     eric = Coach.find_or_create_by!(name: "Poindexter Pecan-Praline", dynasty:)
     alex = Coach.find_or_create_by!(name: "Randy Moss", dynasty:)
     doug = Coach.find_or_create_by!(name: "Bubba Boudreaux", dynasty:)

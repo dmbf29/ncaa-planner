@@ -4,7 +4,7 @@ class Season < ApplicationRecord
   has_many :weeks, dependent: :destroy
   has_many :college_seasons, dependent: :destroy
 
-  validates :year, presence: true
+  validates :year, presence: true, uniqueness: { scope: :dynasty }
   after_create_commit :create_weeks
 
   def create_weeks

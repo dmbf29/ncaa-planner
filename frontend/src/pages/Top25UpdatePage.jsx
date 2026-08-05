@@ -229,6 +229,7 @@ function Top25UpdatePage() {
   const [committing, setCommitting] = useState(false);
   const [commitError, setCommitError] = useState(null);
   const [saved, setSaved] = useState(false);
+  const [warnings, setWarnings] = useState([]);
 
   useEffect(() => {
     const load = async () => {
@@ -279,7 +280,8 @@ function Top25UpdatePage() {
     setCommitting(true);
     setCommitError(null);
     try {
-      await commitTop25Rankings(selectedWeekId, rows);
+      const result = await commitTop25Rankings(selectedWeekId, rows);
+      setWarnings(result.warnings || []);
       setSaved(true);
     } catch (err) {
       setCommitError(err.message);
@@ -323,6 +325,18 @@ function Top25UpdatePage() {
         <Card>
           <div className="p-5 space-y-2">
             <p className="text-sm font-semibold text-success">Saved! Rankings, records, and games have been updated.</p>
+            {warnings.length > 0 && (
+              <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-textPrimary dark:text-white">
+                <p className="font-semibold">{warnings.length} row{warnings.length === 1 ? "" : "s"} couldn&rsquo;t be saved:</p>
+                <ul className="mt-1 list-disc pl-5">
+                  {warnings.map((warning) => (
+                    <li key={warning.rank}>
+                      Rank {warning.rank}: {warning.error}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <Link to="/dynasty/updates" className="text-sm text-burnt hover:underline">
               Back to Dynasty Updates
             </Link>

@@ -21,7 +21,7 @@ Rails.application.routes.draw do
       resources :flags, only: %i[index]
 
       resources :dynasties, only: %i[index] do
-        resources :seasons, only: %i[show]
+        resources :seasons, only: %i[show create]
       end
 
       resources :games, only: %i[show] do

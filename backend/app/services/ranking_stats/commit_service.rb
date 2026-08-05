@@ -12,8 +12,17 @@ module RankingStats
       @season = week.season
     end
 
+    # Returns a list of { rank:, error: } for any row that failed to commit
+    # (e.g. a Game validation conflict) — every other row still gets its
+    # own attempt rather than the whole batch aborting on one bad row.
     def call(rows)
-      Array(rows).each { |row| commit_row(row.deep_symbolize_keys) }
+      Array(rows).filter_map do |row|
+        symbolized = row.deep_symbolize_keys
+        commit_row(symbolized)
+        nil
+      rescue ActiveRecord::RecordInvalid => e
+        { rank: symbolized[:rank], error: e.message }
+      end
     end
 
     private

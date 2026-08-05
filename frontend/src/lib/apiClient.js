@@ -100,6 +100,9 @@ export const fetchDynasties = () => api.get("/api/v1/dynasties").then((r) => r.d
 export const fetchSeason = (dynastyId, seasonId) =>
   api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}`).then((r) => r.data);
 
+export const createSeason = (dynastyId, payload) =>
+  api.post(`/api/v1/dynasties/${dynastyId}/seasons`, { season: payload }).then((r) => r.data);
+
 export const fetchGame = (id) => api.get(`/api/v1/games/${id}`).then((r) => r.data);
 
 export const analyzeGameStats = (id, buckets) => {
