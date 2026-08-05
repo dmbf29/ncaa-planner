@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_03_100842) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_05_065408) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -40,6 +40,18 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_03_100842) do
     t.bigint "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
+
+  create_table "all_americans", force: :cascade do |t|
+    t.bigint "student_season_id", null: false
+    t.boolean "national", default: false, null: false
+    t.string "conference"
+    t.integer "tier", null: false
+    t.boolean "preseason", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["student_season_id", "national", "conference", "preseason"], name: "index_all_americans_on_student_season_and_category", unique: true
+    t.index ["student_season_id"], name: "index_all_americans_on_student_season_id"
   end
 
   create_table "coaches", force: :cascade do |t|
@@ -368,6 +380,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_03_100842) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "all_americans", "student_seasons"
   add_foreign_key "coaches", "dynasties"
   add_foreign_key "college_game_stats", "colleges"
   add_foreign_key "college_game_stats", "games"

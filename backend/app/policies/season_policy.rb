@@ -1,9 +1,29 @@
 class SeasonPolicy < ApplicationPolicy
   def show?
-    record.dynasty.user == user
+    owner?
   end
 
   def create?
+    owner?
+  end
+
+  def analyze_schedule?
+    owner?
+  end
+
+  def commit_schedule?
+    owner?
+  end
+
+  def analyze_all_americans?
+    owner?
+  end
+
+  def commit_all_americans?
+    owner?
+  end
+
+  def owner?
     record.dynasty.user == user
   end
 end

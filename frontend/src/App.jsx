@@ -13,6 +13,8 @@ import ExportPage from "./pages/ExportPage";
 import GameUpdatePage from "./pages/GameUpdatePage";
 import DynastyUpdatesPage from "./pages/DynastyUpdatesPage";
 import Top25UpdatePage from "./pages/Top25UpdatePage";
+import ScheduleUpdatePage from "./pages/ScheduleUpdatePage";
+import AllAmericansUpdatePage from "./pages/AllAmericansUpdatePage";
 
 function App() {
   return (
@@ -31,6 +33,8 @@ function App() {
         <Route path="/dynasty/games/:gameId" element={<GameUpdatePage />} />
         <Route path="/dynasty/updates" element={<DynastyUpdatesPage />} />
         <Route path="/dynasty/updates/top25" element={<Top25UpdatePage />} />
+        <Route path="/dynasty/updates/schedule" element={<ScheduleUpdatePage />} />
+        <Route path="/dynasty/updates/all-americans" element={<AllAmericansUpdatePage />} />
       </Routes>
     </Layout>
   );

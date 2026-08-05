@@ -21,7 +21,14 @@ Rails.application.routes.draw do
       resources :flags, only: %i[index]
 
       resources :dynasties, only: %i[index] do
-        resources :seasons, only: %i[show create]
+        resources :seasons, only: %i[show create] do
+          member do
+            post :analyze_schedule
+            post :commit_schedule
+            post :analyze_all_americans
+            post :commit_all_americans
+          end
+        end
       end
 
       resources :games, only: %i[show] do

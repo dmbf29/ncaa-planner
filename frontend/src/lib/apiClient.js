@@ -103,6 +103,36 @@ export const fetchSeason = (dynastyId, seasonId) =>
 export const createSeason = (dynastyId, payload) =>
   api.post(`/api/v1/dynasties/${dynastyId}/seasons`, { season: payload }).then((r) => r.data);
 
+export const analyzeSchedule = (dynastyId, seasonId, files) => {
+  const formData = new FormData();
+  files.forEach((file) => formData.append("images[]", file));
+  return api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/analyze_schedule`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+    .then((r) => r.data);
+};
+
+export const commitSchedule = (dynastyId, seasonId, weekId, rows) =>
+  api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_schedule`, { weekId, rows })
+    .then((r) => r.data);
+
+export const analyzeAllAmericans = (dynastyId, seasonId, files) => {
+  const formData = new FormData();
+  files.forEach((file) => formData.append("images[]", file));
+  return api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/analyze_all_americans`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+    .then((r) => r.data);
+};
+
+export const commitAllAmericans = (dynastyId, seasonId, groups) =>
+  api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_all_americans`, { groups })
+    .then((r) => r.data);
+
 export const fetchGame = (id) => api.get(`/api/v1/games/${id}`).then((r) => r.data);
 
 export const analyzeGameStats = (id, buckets) => {
