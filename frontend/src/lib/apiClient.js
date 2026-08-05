@@ -133,6 +133,21 @@ export const commitAllAmericans = (dynastyId, seasonId, groups) =>
     .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_all_americans`, { groups })
     .then((r) => r.data);
 
+export const analyzeNilSpend = (dynastyId, seasonId, files) => {
+  const formData = new FormData();
+  files.forEach((file) => formData.append("images[]", file));
+  return api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/analyze_nil_spend`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+    .then((r) => r.data);
+};
+
+export const commitNilSpend = (dynastyId, seasonId, rows) =>
+  api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_nil_spend`, { rows })
+    .then((r) => r.data);
+
 export const fetchGame = (id) => api.get(`/api/v1/games/${id}`).then((r) => r.data);
 
 export const analyzeGameStats = (id, buckets) => {
@@ -160,6 +175,19 @@ export const analyzeTop25Rankings = (weekId, files) => {
 
 export const commitTop25Rankings = (weekId, rows) =>
   api.post(`/api/v1/weeks/${weekId}/commit_top_25_rankings`, { rows }).then((r) => r.data);
+
+export const analyzeHeismanCandidates = (weekId, files) => {
+  const formData = new FormData();
+  files.forEach((file) => formData.append("images[]", file));
+  return api
+    .post(`/api/v1/weeks/${weekId}/analyze_heisman_candidates`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+    .then((r) => r.data);
+};
+
+export const commitHeismanCandidates = (weekId, rows) =>
+  api.post(`/api/v1/weeks/${weekId}/commit_heisman_candidates`, { rows }).then((r) => r.data);
 
 export const login = ({ email, password }) =>
   api.post("/users/sign_in", { user: { email, password } }).then((r) => r.data);

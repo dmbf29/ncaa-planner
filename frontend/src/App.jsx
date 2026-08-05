@@ -15,6 +15,8 @@ import DynastyUpdatesPage from "./pages/DynastyUpdatesPage";
 import Top25UpdatePage from "./pages/Top25UpdatePage";
 import ScheduleUpdatePage from "./pages/ScheduleUpdatePage";
 import AllAmericansUpdatePage from "./pages/AllAmericansUpdatePage";
+import HeismanUpdatePage from "./pages/HeismanUpdatePage";
+import NilSpendUpdatePage from "./pages/NilSpendUpdatePage";
 
 function App() {
   return (
@@ -35,6 +37,8 @@ function App() {
         <Route path="/dynasty/updates/top25" element={<Top25UpdatePage />} />
         <Route path="/dynasty/updates/schedule" element={<ScheduleUpdatePage />} />
         <Route path="/dynasty/updates/all-americans" element={<AllAmericansUpdatePage />} />
+        <Route path="/dynasty/updates/heisman" element={<HeismanUpdatePage />} />
+        <Route path="/dynasty/updates/nil-spend" element={<NilSpendUpdatePage />} />
       </Routes>
     </Layout>
   );
