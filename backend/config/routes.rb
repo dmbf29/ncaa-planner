@@ -27,6 +27,8 @@ Rails.application.routes.draw do
             post :commit_schedule
             post :analyze_all_americans
             post :commit_all_americans
+            post :analyze_nil_spend
+            post :commit_nil_spend
           end
         end
       end
@@ -42,6 +44,8 @@ Rails.application.routes.draw do
         member do
           post :analyze_top_25_rankings
           post :commit_top_25_rankings
+          post :analyze_heisman_candidates
+          post :commit_heisman_candidates
         end
       end
 

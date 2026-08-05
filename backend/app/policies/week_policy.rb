@@ -7,6 +7,14 @@ class WeekPolicy < ApplicationPolicy
     owner?
   end
 
+  def analyze_heisman_candidates?
+    owner?
+  end
+
+  def commit_heisman_candidates?
+    owner?
+  end
+
   def owner?
     record.season.dynasty.user == user
   end

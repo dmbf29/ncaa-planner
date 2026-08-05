@@ -18,9 +18,22 @@ module ScheduleStats
   # (that's about combinatorial grammar branching across independently
   # optional fields, not closed-vocabulary constraints).
   #
-  # Both the matchup/date call and the time/score call use that same
-  # enum-matched name as their join key, so merging the two calls' rows is
-  # an exact string match rather than a fuzzy one.
+  # Both calls also extract the plain-text raw name and it's THAT — not the
+  # enum-matched name — that's used both as the join key between the two
+  # calls and as the primary college-resolution signal. Empirically, the
+  # enum-constrained field truncates a correct longer answer down to a
+  # shorter college name that also happens to be a valid enum value and an
+  # exact prefix of the right one — "Arkansas State" -> "Arkansas", "Ohio
+  # State" -> "Ohio", "Georgia Tech" -> "Georgia" — even with an
+  # explicit exact match available. It's consistently wrong for that
+  # narrow case, not merely occasionally noisy, so college_raw_name (a
+  # plain unconstrained string, unaffected) is checked for an exact match
+  # first and the enum field is only trusted as a fallback for genuine
+  # nicknames/abbreviations where no exact match exists (e.g.
+  # "Appalachian State" -> "App St.", which this same fallback handles
+  # correctly). The enum field being independently wrong on separate calls
+  # is also why it's unsafe as a join key — two calls can each mis-resolve
+  # the same team to a *different* wrong value.
   class WeekScheduleExtractor
     UNMATCHED = "Unmatched".freeze
 
@@ -80,10 +93,12 @@ module ScheduleStats
     def fetch_results(images)
       names = college_names
       schema = RubyLLM::Schema.create do
-        array :games, description: "One entry per row — match rows up by the same away/home college names." do
+        array :games, description: "One entry per row — match rows up by the same away/home team names." do
           object do
-            string :away_college_name, enum: names, description: "Same matching rules as in the matchup table — used only to line this row up"
-            string :home_college_name, enum: names, description: "Same matching rules as in the matchup table — used only to line this row up"
+            string :away_raw_name, description: "The team on the left of 'at' in the MATCHUP column, exactly as shown — used to line this row up"
+            string :home_raw_name, description: "The team on the right of 'at' in the MATCHUP column, exactly as shown — used to line this row up"
+            string :away_college_name, enum: names, description: "Same matching rules as in the matchup table"
+            string :home_college_name, enum: names, description: "Same matching rules as in the matchup table"
             string :time_of_day, required: false,
                    description: "Exactly as shown in TIME(ET)/RESULT when it's a kickoff time, e.g. '4:00 PM'. " \
                                 "Leave unset if that column shows a final score instead."
@@ -112,18 +127,22 @@ module ScheduleStats
     end
 
     def key_for(row)
-      [ row["away_college_name"], row["home_college_name"] ]
+      [ normalize(row["away_raw_name"]), normalize(row["home_raw_name"]) ]
+    end
+
+    def normalize(name)
+      name.to_s.strip.downcase
     end
 
     def build_row(matchup, result)
-      away_name = matchup["away_college_name"]
-      home_name = matchup["home_college_name"]
+      away_raw = matchup["away_raw_name"]
+      home_raw = matchup["home_raw_name"]
 
       {
-        away_raw_name: matchup["away_raw_name"],
-        away_college_id: resolve_college(away_name)&.id,
-        home_raw_name: matchup["home_raw_name"],
-        home_college_id: resolve_college(home_name)&.id,
+        away_raw_name: away_raw,
+        away_college_id: resolve_college(away_raw, matchup["away_college_name"])&.id,
+        home_raw_name: home_raw,
+        home_college_id: resolve_college(home_raw, matchup["home_college_name"])&.id,
         month: matchup["month"],
         day: matchup["day"],
         time_of_day: result&.fetch("time_of_day", nil),
@@ -132,10 +151,11 @@ module ScheduleStats
       }
     end
 
-    def resolve_college(name)
-      return nil if name.blank? || name == UNMATCHED
-
-      colleges_by_name[name]
+    # Prefers an exact match on the plain-text raw name over the
+    # enum-constrained field — see the class comment for why.
+    def resolve_college(raw_name, matched_name)
+      colleges_by_downcased_name[normalize(raw_name)] ||
+        (matched_name.present? && matched_name != UNMATCHED ? colleges_by_name[matched_name] : nil)
     end
 
     def colleges
@@ -144,6 +164,10 @@ module ScheduleStats
 
     def colleges_by_name
       @colleges_by_name ||= colleges.index_by(&:name)
+    end
+
+    def colleges_by_downcased_name
+      @colleges_by_downcased_name ||= colleges.index_by { |college| college.name.downcase }
     end
 
     def college_names

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_05_065408) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_05_121937) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -122,6 +122,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_05_065408) do
     t.integer "overall"
     t.integer "wins"
     t.integer "losses"
+    t.integer "nil_spend"
+    t.jsonb "nil_spend_by_position", default: {}, null: false
     t.index ["coach_id"], name: "index_college_seasons_on_coach_id"
     t.index ["college_id"], name: "index_college_seasons_on_college_id"
     t.index ["season_id"], name: "index_college_seasons_on_season_id"
@@ -188,6 +190,16 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_05_065408) do
     t.index ["offensive_player_of_game_id"], name: "index_games_on_offensive_player_of_game_id"
     t.index ["week_id"], name: "index_games_on_week_id"
     t.check_constraint "home_college_id <> away_college_id", name: "games_home_away_college_different"
+  end
+
+  create_table "heisman_candidates", force: :cascade do |t|
+    t.bigint "week_id", null: false
+    t.bigint "student_season_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["student_season_id"], name: "index_heisman_candidates_on_student_season_id"
+    t.index ["week_id", "student_season_id"], name: "index_heisman_candidates_on_week_and_student_season", unique: true
+    t.index ["week_id"], name: "index_heisman_candidates_on_week_id"
   end
 
   create_table "player_flags", force: :cascade do |t|
@@ -395,6 +407,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_05_065408) do
   add_foreign_key "games", "student_seasons", column: "defensive_player_of_game_id"
   add_foreign_key "games", "student_seasons", column: "offensive_player_of_game_id"
   add_foreign_key "games", "weeks"
+  add_foreign_key "heisman_candidates", "student_seasons"
+  add_foreign_key "heisman_candidates", "weeks"
   add_foreign_key "player_flags", "flags"
   add_foreign_key "player_flags", "players"
   add_foreign_key "players", "position_boards"

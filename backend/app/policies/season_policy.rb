@@ -23,6 +23,14 @@ class SeasonPolicy < ApplicationPolicy
     owner?
   end
 
+  def analyze_nil_spend?
+    owner?
+  end
+
+  def commit_nil_spend?
+    owner?
+  end
+
   def owner?
     record.dynasty.user == user
   end

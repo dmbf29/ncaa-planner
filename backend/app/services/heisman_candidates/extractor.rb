@@ -1,37 +1,37 @@
-module AllAmericans
-  # Extracts player rows from one All-American list's screenshot(s) — all
-  # images given here are already known (via ImageClassifier) to belong to
-  # the same list, so this only has to read the table itself.
+module HeismanCandidates
+  # Extracts one week's Heisman Watch List (always exactly 4 rows) from
+  # however many screenshots it takes. Unlike AllAmericans::Extractor,
+  # there's only ever one list per upload — nothing on screen distinguishes
+  # "which list" the way National/Conference/1st/2nd team headers do — so
+  # no image-classification pass is needed first, just a single row read.
   #
-  # First/last name are extracted as separate fields rather than one "full
-  # name" field split in Ruby, since real names include suffixes and
-  # hyphens (e.g. "Mark Fletcher Jr.", "Ryan Coleman-Williams") that a
-  # naive last-space split gets wrong — the model already knows the
-  # convention.
+  # Team names get the same enum-constrained matching ScheduleStats/
+  # AllAmericans use, since this screen's names don't always match
+  # colleges.name verbatim. As discovered there, the enum field itself is
+  # unsafe to trust directly — it consistently truncates a correct longer
+  # answer down to a shorter college name that's also a valid enum value
+  # and an exact prefix of the right one ("Arkansas State" -> "Arkansas",
+  # "Ohio State" -> "Ohio") — so college_raw_name (plain text, unaffected)
+  # is checked for an exact match first and the enum field is only a
+  # fallback for genuine nicknames where no exact match exists.
   #
-  # Team names get the same enum-constrained matching ScheduleStats uses
-  # for opponent colleges, for the same reason: this screen's names don't
-  # always match colleges.name verbatim (e.g. "Ole Miss" is exact, but
-  # others aren't). As discovered there, the enum field itself is unsafe to
-  # trust directly — it consistently truncates a correct longer answer down
-  # to a shorter college name that's also a valid enum value and an exact
-  # prefix of the right one ("Arkansas State" -> "Arkansas", "Ohio State"
-  # -> "Ohio") — so college_raw_name (plain text, unaffected) is checked
-  # for an exact match first and the enum field is only a fallback for
-  # genuine nicknames where no exact match exists.
-  class RosterExtractor
+  # Order isn't tracked at all — the set of candidates for a week is what
+  # matters, not their standing relative to each other.
+  class Extractor
     UNMATCHED = "Unmatched".freeze
 
     SYSTEM_PROMPT = <<~PROMPT.freeze
-      You are an expert at reading college football video game All-American team screenshots and
+      You are an expert at reading college football video game Heisman Watch List screenshots and
       transcribing the exact values shown. Only report a value if you can actually see it — never guess.
     PROMPT
 
     def call(images)
-      return [] if images.blank?
+      return { rows: [], colleges: colleges_json } if images.blank?
 
       raw = chat.with_schema(schema).ask(prompt, with: images).content
-      Array(raw["players"]).select { |row| row.is_a?(Hash) }.map { |row| build_row(row) }
+      rows = Array(raw["candidates"]).select { |row| row.is_a?(Hash) }.map { |row| build_row(row) }
+
+      { rows: rows, colleges: colleges_json }
     end
 
     private
@@ -43,11 +43,11 @@ module AllAmericans
     def schema
       names = college_names
       RubyLLM::Schema.create do
-        array :players, description: "One entry per row in the table, in the order shown." do
+        array :candidates, description: "One entry per row in the table." do
           object do
             string :first_name, description: "Player's first name"
             string :last_name, description: "Player's last name (include suffixes like Jr./III here, not in first_name)"
-            string :position, description: "The POS column, e.g. 'QB', 'LT'"
+            string :position, description: "The POS column, e.g. 'QB', 'WR'"
             string :college_raw_name, description: "The TEAM column, exactly as shown (ignore any leading rank number)"
             string :college_name, enum: names,
                    description: "The database college that college_raw_name refers to — use your knowledge of team " \
@@ -59,7 +59,8 @@ module AllAmericans
     end
 
     def prompt
-      "This is one All-American team list, split across multiple images if needed. Read every row, top to bottom, across all images."
+      "This is a Heisman Watch List, split across multiple images if needed. Read every row, across all " \
+        "images. There should be exactly 4 candidates."
     end
 
     def build_row(row)
@@ -101,6 +102,10 @@ module AllAmericans
 
     def college_names
       @college_names ||= colleges.map(&:name) + [ UNMATCHED ]
+    end
+
+    def colleges_json
+      colleges.map { |college| { id: college.id, name: college.name } }
     end
   end
 end
