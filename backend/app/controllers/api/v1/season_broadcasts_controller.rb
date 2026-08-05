@@ -23,6 +23,11 @@ module Api
         render_broadcast(data) { ::SeasonWeeksMarkdownPresenter.new(data).to_markdown }
       end
 
+      def team_breakdown
+        data = ::TeamBreakdownSerializer.new(@season).as_json
+        render_broadcast(data) { ::TeamBreakdownMarkdownPresenter.new(data).to_markdown }
+      end
+
       private
 
       def set_season

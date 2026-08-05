@@ -152,6 +152,9 @@ function ExportPage() {
   const [weeksMode, setWeeksMode] = useState("download");
   const [selectedWeeks, setSelectedWeeks] = useState([]);
 
+  const [teamBreakdownFormat, setTeamBreakdownFormat] = useState("markdown");
+  const [teamBreakdownMode, setTeamBreakdownMode] = useState("download");
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -202,6 +205,12 @@ function ExportPage() {
         if (weeksFormat === "markdown") params.set("format", "markdown");
         return `${API_BASE_URL}/api/v1/dynasties/${season.dynastyId}/seasons/${season.id}/weeks?${params.toString()}`;
       })()
+    : "";
+
+  const teamBreakdownUrl = season
+    ? `${API_BASE_URL}/api/v1/dynasties/${season.dynastyId}/seasons/${season.id}/team_breakdown${
+        teamBreakdownFormat === "markdown" ? "?format=markdown" : ""
+      }`
     : "";
 
   return (
@@ -262,6 +271,17 @@ function ExportPage() {
                 </div>
               </div>
             }
+          />
+
+          <ExportCard
+            title="Team Breakdown"
+            description="Position-group-by-position-group comparison of our coached teams — best players, average ratings, NIL spend, and All-Americans, plus how we stack up against the rest of the conference."
+            format={teamBreakdownFormat}
+            setFormat={setTeamBreakdownFormat}
+            mode={teamBreakdownMode}
+            setMode={setTeamBreakdownMode}
+            url={teamBreakdownUrl}
+            filename={`season-${season.year}-team-breakdown.${teamBreakdownFormat === "markdown" ? "md" : "json"}`}
           />
         </>
       )}
