@@ -31,6 +31,13 @@ Rails.application.routes.draw do
         end
       end
 
+      resources :weeks, only: [] do
+        member do
+          post :analyze_top_25_rankings
+          post :commit_top_25_rankings
+        end
+      end
+
       # Public, unauthenticated broadcast data for third-party consumption (e.g. podcast generation).
       get "dynasties/:dynasty_id/seasons/:season_id/preview", to: "season_broadcasts#preview"
       get "dynasties/:dynasty_id/seasons/:season_id/weeks", to: "season_broadcasts#weeks"

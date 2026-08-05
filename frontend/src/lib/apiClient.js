@@ -115,6 +115,19 @@ export const analyzeGameStats = (id, buckets) => {
 export const commitGameStats = (id, analysis) =>
   api.post(`/api/v1/games/${id}/commit`, { analysis }).then((r) => r.data);
 
+export const analyzeTop25Rankings = (weekId, files) => {
+  const formData = new FormData();
+  files.forEach((file) => formData.append("images[]", file));
+  return api
+    .post(`/api/v1/weeks/${weekId}/analyze_top_25_rankings`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+    .then((r) => r.data);
+};
+
+export const commitTop25Rankings = (weekId, rows) =>
+  api.post(`/api/v1/weeks/${weekId}/commit_top_25_rankings`, { rows }).then((r) => r.data);
+
 export const login = ({ email, password }) =>
   api.post("/users/sign_in", { user: { email, password } }).then((r) => r.data);
 

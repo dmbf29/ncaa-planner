@@ -44,12 +44,20 @@ function DynastyDashboardPage() {
       <PageHeader
         title={season ? `${season.dynasty.name} - ${season.year} Season` : "Dynasty"}
         actions={
-          <Link
-            to="/dynasty/export"
-            className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
-          >
-            Export
-          </Link>
+          <>
+            <Link
+              to="/dynasty/updates"
+              className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+            >
+              Dynasty Updates
+            </Link>
+            <Link
+              to="/dynasty/export"
+              className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+            >
+              Export
+            </Link>
+          </>
         }
       />
       {loading && <p className="text-sm text-textSecondary">Loading dynasty...</p>}
