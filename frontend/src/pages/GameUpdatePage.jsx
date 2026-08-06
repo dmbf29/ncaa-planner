@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { clsx } from "clsx";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
-import { analyzeGameStats, commitGameStats, fetchGame } from "../lib/apiClient";
+import { API_BASE_URL, analyzeGameStats, commitGameStats, fetchGame } from "../lib/apiClient";
 
 const TEAM_STAT_GROUPS = [
   { label: "Scoring", fields: ["finalScore", "pointsInQuarter1", "pointsInQuarter2", "pointsInQuarter3", "pointsInQuarter4"] },
@@ -203,6 +203,36 @@ function ReferencePhotos({ buckets, homeCollege, awayCollege }) {
             </div>
           </div>
         ))}
+      </div>
+    </Card>
+  );
+}
+
+function ExistingScreenshotsGallery({ screenshots }) {
+  if (!screenshots || screenshots.length === 0) return null;
+
+  return (
+    <Card>
+      <div className="p-5 space-y-3">
+        <div>
+          <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">
+            Uploaded Screenshots
+          </h3>
+          <p className="text-sm text-textSecondary">
+            Previously uploaded for this game. Click one to open it full-size.
+          </p>
+        </div>
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+          {screenshots.map((screenshot) => (
+            <a key={screenshot.id} href={`${API_BASE_URL}${screenshot.url}`} target="_blank" rel="noreferrer">
+              <img
+                src={`${API_BASE_URL}${screenshot.url}`}
+                alt={screenshot.filename}
+                className="h-24 w-full rounded-md border border-border object-cover transition hover:opacity-80 dark:border-darkborder"
+              />
+            </a>
+          ))}
+        </div>
       </div>
     </Card>
   );
@@ -408,6 +438,13 @@ function GameUpdatePage() {
       try {
         const data = await fetchGame(gameId);
         setGame(data);
+        if (data.existingAnalysis) {
+          setAnalysis({
+            ...data.existingAnalysis,
+            collegeStats: normalizeCollegeStats(data.existingAnalysis.collegeStats, data.awayCollege, data.homeCollege),
+            screenshotSignedIds: [],
+          });
+        }
       } catch (err) {
         setLoadError(err.message);
         if (err.message?.toLowerCase().includes("unauthorized")) {
@@ -503,6 +540,12 @@ function GameUpdatePage() {
         />
       ) : (
         <>
+          {game.played && (
+            <p className="text-sm text-textSecondary">
+              This game already has recorded stats — edit the fields below and save to update them.
+            </p>
+          )}
+          <ExistingScreenshotsGallery screenshots={game.statScreenshots} />
           <ReferencePhotos buckets={buckets} homeCollege={game.homeCollege} awayCollege={game.awayCollege} />
           <NarrativeSection
             narrative={analysis.narrative}

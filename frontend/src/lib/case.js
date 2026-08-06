@@ -14,6 +14,7 @@ export const keysToCamel = (obj) => {
 const toSnake = (str) =>
   str
     .replace(/([A-Z])/g, "_$1")
+    .replace(/([a-zA-Z])(\d)/g, "$1_$2")
     .replace(/-/g, "_")
     .toLowerCase();
 
