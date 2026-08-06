@@ -1,4 +1,12 @@
 class SeasonDashboardSerializer
+  # category => primary StudentGameStat column that decides that category's leader
+  STAT_LEADER_CATEGORIES = {
+    passing: :passing_yards,
+    rushing: :rushing_yards,
+    receiving: :receiving_yards,
+    sacks: :defense_sacks
+  }.freeze
+
   def initialize(season)
     @season = season
   end
@@ -11,10 +19,10 @@ class SeasonDashboardSerializer
       year: @season.year,
       dynasty: { id: @season.dynasty.id, name: @season.dynasty.name },
       teams: teams,
-      current_week_number: current_week_number(teams),
       top_25: top_25_json,
       heisman_watch: heisman_watch_json,
-      around_the_league: around_the_league_json
+      around_the_league: around_the_league_json,
+      last_played_week_number: last_played_week_number
     }
   end
 
@@ -121,24 +129,33 @@ class SeasonDashboardSerializer
     }
   end
 
-  # The earliest week any coached team still has left to play — what a
-  # coach means by "this week" when they open the dashboard.
-  def current_week_number(teams)
-    teams.filter_map { |t| t[:next_game]&.dig(:week, :number) }.min
+  # The most recent week (season-wide, any game) that's actually been
+  # played — lets the dashboard show a "review" of last week's results
+  # alongside a "preview" of the week after, regardless of whether our own
+  # coached teams happen to have a bye that week.
+  def last_played_week_number
+    return @last_played_week_number if defined?(@last_played_week_number)
+
+    @last_played_week_number = @season.weeks
+                                       .includes(games: :college_game_stats)
+                                       .select { |week| week.games.any?(&:played?) }
+                                       .map(&:number)
+                                       .max
   end
 
   # Every game NOT involving a coached team, grouped by week — i.e.
   # everything a coach can't already see on one of their own team cards —
   # so the dashboard can show what's happening around the rest of the league.
+  # Every week is included (even ones with no non-coached games) so the
+  # frontend can always find the specific review/preview week it wants.
   def around_the_league_json
     @season.weeks
            .order(:number)
            .includes(games: %i[home_college away_college college_game_stats])
-           .filter_map do |week|
+           .map do |week|
       games = week.games.reject do |g|
         coached_college_ids.include?(g.home_college_id) || coached_college_ids.include?(g.away_college_id)
       end
-      next if games.empty?
 
       { week: { id: week.id, number: week.number, name: week.name }, games: games.map { |g| league_game_json(g) } }
     end
@@ -194,9 +211,35 @@ class SeasonDashboardSerializer
       next_game: next_game_json(college_season),
       best_offensive_players: college_season.best_offensive_players.map { |ss| player_json(ss) },
       best_defensive_players: college_season.best_defensive_players.map { |ss| player_json(ss) },
+      stat_leaders: team_stat_leaders_json(college_season),
       position_group_averages: college_season.position_group_averages,
       weeks: weeks_json(college_season)
     }
+  end
+
+  # Passing/rushing/receiving/sack leaders for this team specifically, once
+  # it has any recorded game stats — nil until then, so the frontend can
+  # keep showing the rating-based best_offensive/defensive_players instead.
+  def team_stat_leaders_json(college_season)
+    game_stats = StudentGameStat.joins(:student_season)
+                                 .where(student_seasons: { college_season_id: college_season.id })
+                                 .includes(student_season: :student)
+                                 .to_a
+    return nil if game_stats.empty?
+
+    totals_by_student_season = game_stats.group_by(&:student_season).transform_values do |rows|
+      STAT_LEADER_CATEGORIES.values.index_with { |column| rows.sum { |r| r.public_send(column) || 0 } }
+    end
+
+    STAT_LEADER_CATEGORIES.transform_values { |column| team_category_leader_json(totals_by_student_season, column) }
+  end
+
+  def team_category_leader_json(totals_by_student_season, column)
+    student_season, totals = totals_by_student_season.select { |_ss, totals| totals[column].positive? }
+                                                       .max_by { |_ss, totals| totals[column] }
+    return nil unless student_season
+
+    player_json(student_season).merge(value: totals[column])
   end
 
   def current_rank(college_season)

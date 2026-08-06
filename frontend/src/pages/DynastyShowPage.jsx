@@ -175,9 +175,10 @@ function DynastyShowPage() {
           <div className="mt-6">
             <AroundTheLeague
               weeks={dashboard.aroundTheLeague}
-              currentWeekNumber={dashboard.currentWeekNumber}
+              lastPlayedWeekNumber={dashboard.lastPlayedWeekNumber}
               dynastyId={dynastyId}
               seasonId={seasonId}
+              authed={authed}
             />
           </div>
 

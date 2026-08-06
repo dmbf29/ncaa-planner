@@ -34,6 +34,42 @@ function KeyPlayersGroup({ label, players }) {
   );
 }
 
+const STAT_LEADER_LABELS = {
+  passing: { label: "Passing", unit: "Yds" },
+  rushing: { label: "Rushing", unit: "Yds" },
+  receiving: { label: "Receiving", unit: "Yds" },
+  sacks: { label: "Sacks", unit: "Sck" },
+};
+
+function StatLeaderRow({ label, unit, leader }) {
+  return (
+    <div className="flex items-center justify-between gap-2 text-sm">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span className="w-16 shrink-0 text-xs text-textSecondary">{label}</span>
+        <span className="truncate text-textPrimary dark:text-white">{leader ? leader.name : "—"}</span>
+      </div>
+      {leader ? (
+        <span className="shrink-0 rounded-full bg-charcoal/5 px-1.5 py-0.5 text-xs font-semibold dark:bg-white/10">
+          {leader.value} {unit}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function StatLeadersGroup({ statLeaders }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-xs uppercase tracking-wide text-textSecondary">Stat Leaders</p>
+      <div className="space-y-1">
+        {Object.entries(STAT_LEADER_LABELS).map(([key, meta]) => (
+          <StatLeaderRow key={key} label={meta.label} unit={meta.unit} leader={statLeaders[key]} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const positionAverageTone = (value) => {
   if (value == null) return "muted";
   if (value >= 80) return "positive";
@@ -215,8 +251,14 @@ function TeamDashboardCard({ team, dynastyId, seasonId }) {
       </div>
 
       <div className="space-y-3 border-b border-border px-4 py-3 dark:border-darkborder">
-        <KeyPlayersGroup label="Offense" players={team.bestOffensivePlayers} />
-        <KeyPlayersGroup label="Defense" players={team.bestDefensivePlayers} />
+        {team.statLeaders ? (
+          <StatLeadersGroup statLeaders={team.statLeaders} />
+        ) : (
+          <>
+            <KeyPlayersGroup label="Offense" players={team.bestOffensivePlayers} />
+            <KeyPlayersGroup label="Defense" players={team.bestDefensivePlayers} />
+          </>
+        )}
       </div>
 
       <div className="border-b border-border px-4 py-3 dark:border-darkborder">
