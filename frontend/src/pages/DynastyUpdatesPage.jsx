@@ -9,7 +9,7 @@ const UPDATE_TYPES = [
   { key: "top25", label: "Update Top 25", description: "Upload the weekly AP-style poll screenshots.", to: "/dynasty/updates/top25" },
   { key: "games", label: "Add Games/Results", description: "Upload the weekly schedule screenshots.", to: "/dynasty/updates/schedule" },
   { key: "heisman", label: "Add Heisman Candidates", description: "Upload the weekly Heisman Watch List screenshot.", to: "/dynasty/updates/heisman" },
-  { key: "standings", label: "Update Conference Standings", description: "Coming soon." },
+  { key: "standings", label: "Update Conference Standings", description: "Upload the conference standings screenshots.", to: "/dynasty/updates/standings" },
   { key: "team-stats", label: "Update Team Stats", description: "Coming soon." },
   { key: "player-stats", label: "Update Player Stats", description: "Coming soon." },
   { key: "all-americans", label: "Add All-Americans", description: "Upload the National/Conference All-American screenshots.", to: "/dynasty/updates/all-americans" },

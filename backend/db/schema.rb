@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_05_121937) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_05_233038) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -124,6 +124,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_05_121937) do
     t.integer "losses"
     t.integer "nil_spend"
     t.jsonb "nil_spend_by_position", default: {}, null: false
+    t.integer "conference_wins"
+    t.integer "conference_losses"
+    t.integer "conference_points_for"
+    t.integer "conference_points_against"
+    t.integer "points_for"
+    t.integer "points_against"
+    t.integer "home_wins"
+    t.integer "home_losses"
     t.index ["coach_id"], name: "index_college_seasons_on_coach_id"
     t.index ["college_id"], name: "index_college_seasons_on_college_id"
     t.index ["season_id"], name: "index_college_seasons_on_season_id"

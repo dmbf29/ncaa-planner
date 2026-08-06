@@ -17,6 +17,7 @@ import ScheduleUpdatePage from "./pages/ScheduleUpdatePage";
 import AllAmericansUpdatePage from "./pages/AllAmericansUpdatePage";
 import HeismanUpdatePage from "./pages/HeismanUpdatePage";
 import NilSpendUpdatePage from "./pages/NilSpendUpdatePage";
+import ConferenceStandingsUpdatePage from "./pages/ConferenceStandingsUpdatePage";
 
 function App() {
   return (
@@ -39,6 +40,7 @@ function App() {
         <Route path="/dynasty/updates/all-americans" element={<AllAmericansUpdatePage />} />
         <Route path="/dynasty/updates/heisman" element={<HeismanUpdatePage />} />
         <Route path="/dynasty/updates/nil-spend" element={<NilSpendUpdatePage />} />
+        <Route path="/dynasty/updates/standings" element={<ConferenceStandingsUpdatePage />} />
       </Routes>
     </Layout>
   );

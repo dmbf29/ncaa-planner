@@ -29,6 +29,8 @@ Rails.application.routes.draw do
             post :commit_all_americans
             post :analyze_nil_spend
             post :commit_nil_spend
+            post :analyze_conference_standings
+            post :commit_conference_standings
           end
         end
       end

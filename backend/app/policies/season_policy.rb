@@ -31,6 +31,14 @@ class SeasonPolicy < ApplicationPolicy
     owner?
   end
 
+  def analyze_conference_standings?
+    owner?
+  end
+
+  def commit_conference_standings?
+    owner?
+  end
+
   def owner?
     record.dynasty.user == user
   end

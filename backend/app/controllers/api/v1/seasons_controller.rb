@@ -69,6 +69,22 @@ module Api
         render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
       end
 
+      def analyze_conference_standings
+        authorize @season
+        result = ConferenceStandings::Extractor.new.call(Array(params[:images]))
+        render json: result
+      rescue RubyLLM::Error => e
+        render json: { error: "AI extraction failed: #{e.message}", code: "extraction_failed" }, status: :unprocessable_entity
+      end
+
+      def commit_conference_standings
+        authorize @season
+        warnings = ConferenceStandings::CommitService.new(@season).call(commit_rows)
+        render json: { season_id: @season.id, warnings: warnings }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
+      end
+
       private
 
       def set_dynasty

@@ -51,4 +51,31 @@ class CollegeSeason < ApplicationRecord
                     .order(overall: :desc)
                     .first
   end
+
+  def point_differential
+    return nil if points_for.nil? || points_against.nil?
+
+    points_for - points_against
+  end
+
+  def margin_of_victory
+    return nil if points_for.nil? || points_against.nil?
+
+    games_played = wins.to_i + losses.to_i
+    return nil if games_played.zero?
+
+    (points_for - points_against) / games_played.to_f
+  end
+
+  def away_wins
+    return nil if wins.nil? || home_wins.nil?
+
+    wins - home_wins
+  end
+
+  def away_losses
+    return nil if losses.nil? || home_losses.nil?
+
+    losses - home_losses
+  end
 end
