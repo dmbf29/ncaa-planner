@@ -1,18 +1,16 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import PageHeader from "../components/PageHeader";
-import TeamDashboardCard from "../components/TeamDashboardCard";
-import { fetchDynasties, fetchSeason } from "../lib/apiClient";
+import { useNavigate } from "react-router-dom";
+import { fetchDynasties } from "../lib/apiClient";
 
+// Resolves the logged-in user's dynasty and redirects to its shareable,
+// ID-addressed show page — /dynasty stays as a convenience entry point for
+// signed-in coaches, but /dynasty/:dynastyId is the real, linkable page.
 function DynastyDashboardPage() {
-  const [season, setSeason] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const navigate = useNavigate();
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
+    const resolve = async () => {
       try {
         const dynasties = await fetchDynasties();
         const dynasty = dynasties[0];
@@ -20,59 +18,22 @@ function DynastyDashboardPage() {
           setError("No dynasty found yet.");
           return;
         }
-        const latestSeason = [...(dynasty.seasons || [])].sort((a, b) => b.year - a.year)[0];
-        if (!latestSeason) {
-          setError("This dynasty doesn't have a season yet.");
-          return;
-        }
-        const data = await fetchSeason(dynasty.id, latestSeason.id);
-        setSeason(data);
+        navigate(`/dynasty/${dynasty.id}`, { replace: true });
       } catch (err) {
-        setError(err.message);
         if (err.message?.toLowerCase().includes("unauthorized")) {
           navigate("/auth/login");
+        } else {
+          setError(err.message);
         }
-      } finally {
-        setLoading(false);
       }
     };
-    load();
+    resolve();
   }, [navigate]);
 
   return (
-    <div className="max-w-7xl mx-auto px-4">
-      <PageHeader
-        title={season ? `${season.dynasty.name} - ${season.year} Season` : "Dynasty"}
-        actions={
-          <>
-            <Link
-              to="/dynasty/updates"
-              className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
-            >
-              Dynasty Updates
-            </Link>
-            <Link
-              to="/dynasty/export"
-              className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
-            >
-              Export
-            </Link>
-          </>
-        }
-      />
-      {loading && <p className="text-sm text-textSecondary">Loading dynasty...</p>}
-      {error && <p className="text-sm text-danger">{error}</p>}
-      {!loading && !error && season && season.teams.length === 0 && (
-        <p className="text-sm text-textSecondary">No coached teams yet for this season.</p>
-      )}
-      {season && season.teams.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {season.teams.map((team) => (
-            <TeamDashboardCard key={team.id} team={team} />
-          ))}
-        </div>
-      )}
-    </div>
+    <p className="max-w-7xl mx-auto px-4 text-sm text-textSecondary">
+      {error ? <span className="text-danger">{error}</span> : "Loading dynasty..."}
+    </p>
   );
 }
 

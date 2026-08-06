@@ -1,0 +1,67 @@
+import { Link } from "react-router-dom";
+import { clsx } from "clsx";
+import Card from "./Card";
+
+function RankingEntry({ entry }) {
+  return (
+    <div
+      className={clsx(
+        "flex items-center gap-2 border-b border-border/60 py-1 text-sm last:border-0 dark:border-darkborder/60",
+        entry.coachedByUs && "font-semibold text-burnt",
+      )}
+    >
+      <span className="w-5 shrink-0 text-textSecondary">{entry.rank}</span>
+      <span className="truncate text-textPrimary dark:text-white">{entry.college.name}</span>
+      {entry.record && (
+        <span className="shrink-0 font-normal text-textSecondary">
+          ({entry.record.wins ?? 0}-{entry.record.losses ?? 0})
+        </span>
+      )}
+      {entry.coachedByUs ? <i className="fa-solid fa-gamepad shrink-0 text-[10px]" /> : null}
+    </div>
+  );
+}
+
+function Top25Snapshot({ top25, dynastyId, seasonId }) {
+  const week = top25?.week;
+  const rankings = top25?.rankings || [];
+  const half = Math.ceil(rankings.length / 2);
+  const leftColumn = rankings.slice(0, half);
+  const rightColumn = rankings.slice(half);
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex items-center justify-between gap-2 border-b border-border bg-charcoal px-4 py-3 text-white dark:border-darkborder">
+        <h3 className="font-varsity text-lg uppercase tracking-[0.06em]">Top 25</h3>
+        {week && dynastyId && seasonId && (
+          <Link
+            to={`/dynasty/${dynastyId}/seasons/${seasonId}/weeks/${week.number}/rankings`}
+            className="text-xs text-white/70 hover:text-white hover:underline"
+          >
+            View full &rarr;
+          </Link>
+        )}
+      </div>
+      {rankings.length > 0 ? (
+        <div className="px-4 py-3">
+          <div className="grid grid-cols-2 gap-x-4">
+            <div>
+              {leftColumn.map((entry) => (
+                <RankingEntry key={entry.rank} entry={entry} />
+              ))}
+            </div>
+            <div>
+              {rightColumn.map((entry) => (
+                <RankingEntry key={entry.rank} entry={entry} />
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <p className="px-4 py-3 text-sm text-textSecondary">No rankings entered yet for this season.</p>
+      )}
+    </Card>
+  );
+}
+
+export default Top25Snapshot;

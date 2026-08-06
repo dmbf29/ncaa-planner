@@ -157,7 +157,36 @@ function ScheduleRow({ week }) {
   return <div className={rowClass}>{content}</div>;
 }
 
-function TeamDashboardCard({ team }) {
+function NextGameBanner({ nextGame }) {
+  if (!nextGame) {
+    return (
+      <div className="border-b border-border bg-charcoal/5 px-4 py-2.5 text-xs italic text-textSecondary dark:border-darkborder dark:bg-white/5">
+        Season complete — no games remaining
+      </div>
+    );
+  }
+
+  const label = nextGame.week.name || `Week ${nextGame.week.number}`;
+
+  return (
+    <div className="border-b border-border bg-burnt/10 px-4 py-2.5 dark:border-darkborder">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-burnt">Next Game — {label}</p>
+      {nextGame.opponent ? (
+        <p className="mt-0.5 flex items-center gap-1.5 text-sm">
+          <span className="text-textSecondary">{nextGame.opponent.home ? "vs" : "@"}</span>
+          <span className="font-semibold text-textPrimary dark:text-white">{nextGame.opponent.name}</span>
+          {nextGame.opponent.userCoached ? (
+            <i className="fa-solid fa-gamepad text-[11px] text-burnt/80" title="User-coached opponent" />
+          ) : null}
+        </p>
+      ) : (
+        <p className="mt-0.5 text-sm italic text-textSecondary">TBD</p>
+      )}
+    </div>
+  );
+}
+
+function TeamDashboardCard({ team, dynastyId, seasonId }) {
   const record = team.wins != null || team.losses != null ? `${team.wins ?? 0}-${team.losses ?? 0}` : "—";
   const weeks = (team.weeks || []).filter((w) => w.number !== 0);
 
@@ -165,6 +194,9 @@ function TeamDashboardCard({ team }) {
     <Card className="flex flex-col overflow-hidden">
       <div className="border-b border-border bg-charcoal px-4 py-3 text-white dark:border-darkborder">
         <h3 className="flex items-center gap-2 font-varsity text-lg uppercase tracking-[0.06em]">
+          {team.currentRank ? (
+            <span className="rounded-full bg-burnt px-2 py-0.5 text-xs">#{team.currentRank}</span>
+          ) : null}
           {team.college.name}
           <PrestigeStars value={team.prestige} />
         </h3>
@@ -173,10 +205,13 @@ function TeamDashboardCard({ team }) {
         </p>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 border-b border-border px-4 py-3 dark:border-darkborder">
+      <NextGameBanner nextGame={team.nextGame} />
+
+      <div className="grid grid-cols-4 gap-2 border-b border-border px-4 py-3 dark:border-darkborder">
         <StatPill label="OVR" value={team.overall ?? "—"} />
         <StatPill label="OFF" value={team.offense ?? "—"} />
         <StatPill label="DEF" value={team.defense ?? "—"} />
+        <StatPill label="NIL" value={team.nilSpend != null ? team.nilSpend.toLocaleString() : "—"} />
       </div>
 
       <div className="space-y-3 border-b border-border px-4 py-3 dark:border-darkborder">
@@ -197,6 +232,15 @@ function TeamDashboardCard({ team }) {
           <ScheduleRow key={week.id} week={week} />
         ))}
       </div>
+
+      {dynastyId && seasonId && (
+        <Link
+          to={`/dynasty/${dynastyId}/seasons/${seasonId}/college_seasons/${team.id}/roster`}
+          className="border-t border-border px-4 py-2 text-center text-xs font-semibold uppercase tracking-wide text-burnt hover:bg-burnt/5 dark:border-darkborder"
+        >
+          Full Roster &rarr;
+        </Link>
+      )}
     </Card>
   );
 }

@@ -97,6 +97,28 @@ export const deleteRosterSlot = (positionBoardId, id) =>
 
 export const fetchDynasties = () => api.get("/api/v1/dynasties").then((r) => r.data);
 
+export const fetchDynastyPortal = (dynastyId) => api.get(`/api/v1/dynasties/${dynastyId}`).then((r) => r.data);
+
+export const fetchDynastyDashboard = (dynastyId, seasonId) =>
+  api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/dashboard`).then((r) => r.data);
+
+export const fetchStandings = (dynastyId, seasonId) =>
+  api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/standings`).then((r) => r.data);
+
+export const fetchRankings = (dynastyId, seasonId, weekNumber) =>
+  api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/weeks/${weekNumber}/rankings`).then((r) => r.data);
+
+export const fetchAllAmericans = (dynastyId, seasonId) =>
+  api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/all_americans`).then((r) => r.data);
+
+export const fetchRoster = (dynastyId, seasonId, collegeSeasonId) =>
+  api
+    .get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/college_seasons/${collegeSeasonId}/roster`)
+    .then((r) => r.data);
+
+export const fetchWeekGames = (dynastyId, seasonId, weekNumber) =>
+  api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/weeks/${weekNumber}/games`).then((r) => r.data);
+
 export const fetchSeason = (dynastyId, seasonId) =>
   api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}`).then((r) => r.data);
 

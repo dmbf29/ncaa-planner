@@ -9,6 +9,12 @@ import SignupPage from "./pages/SignupPage";
 import TeamCreatePage from "./pages/TeamCreatePage";
 import GraduatesPage from "./pages/GraduatesPage";
 import DynastyDashboardPage from "./pages/DynastyDashboardPage";
+import DynastyShowPage from "./pages/DynastyShowPage";
+import ConferenceStandingsPage from "./pages/ConferenceStandingsPage";
+import Top25Page from "./pages/Top25Page";
+import AllAmericansPage from "./pages/AllAmericansPage";
+import RosterPage from "./pages/RosterPage";
+import WeekResultsPage from "./pages/WeekResultsPage";
 import ExportPage from "./pages/ExportPage";
 import GameUpdatePage from "./pages/GameUpdatePage";
 import DynastyUpdatesPage from "./pages/DynastyUpdatesPage";
@@ -32,6 +38,16 @@ function App() {
         <Route path="/teams/:id/graduates" element={<GraduatesPage />} />
         <Route path="/teams/:id/squads/:squadId" element={<SquadBoardPage />} />
         <Route path="/dynasty" element={<DynastyDashboardPage />} />
+        <Route path="/dynasty/:dynastyId" element={<DynastyShowPage />} />
+        <Route path="/dynasty/:dynastyId/seasons/:seasonId" element={<DynastyShowPage />} />
+        <Route path="/dynasty/:dynastyId/seasons/:seasonId/standings" element={<ConferenceStandingsPage />} />
+        <Route path="/dynasty/:dynastyId/seasons/:seasonId/weeks/:weekNumber/rankings" element={<Top25Page />} />
+        <Route path="/dynasty/:dynastyId/seasons/:seasonId/all-americans" element={<AllAmericansPage />} />
+        <Route
+          path="/dynasty/:dynastyId/seasons/:seasonId/college_seasons/:collegeSeasonId/roster"
+          element={<RosterPage />}
+        />
+        <Route path="/dynasty/:dynastyId/seasons/:seasonId/weeks/:weekNumber/games" element={<WeekResultsPage />} />
         <Route path="/dynasty/export" element={<ExportPage />} />
         <Route path="/dynasty/games/:gameId" element={<GameUpdatePage />} />
         <Route path="/dynasty/updates" element={<DynastyUpdatesPage />} />

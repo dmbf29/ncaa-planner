@@ -55,6 +55,17 @@ Rails.application.routes.draw do
       get "dynasties/:dynasty_id/seasons/:season_id/preview", to: "season_broadcasts#preview"
       get "dynasties/:dynasty_id/seasons/:season_id/weeks", to: "season_broadcasts#weeks"
       get "dynasties/:dynasty_id/seasons/:season_id/team_breakdown", to: "season_broadcasts#team_breakdown"
+
+      # Public, unauthenticated dashboard data for the shareable dynasty portal — same
+      # no-ownership-check reasoning as the broadcast routes above, but shaped for the frontend UI.
+      get "dynasties/:id", to: "dynasty_portals#show"
+      get "dynasties/:dynasty_id/seasons/:season_id/dashboard", to: "dynasty_portals#dashboard"
+      get "dynasties/:dynasty_id/seasons/:season_id/standings", to: "dynasty_portals#standings"
+      get "dynasties/:dynasty_id/seasons/:season_id/weeks/:week_number/rankings", to: "dynasty_portals#rankings"
+      get "dynasties/:dynasty_id/seasons/:season_id/all_americans", to: "dynasty_portals#all_americans"
+      get "dynasties/:dynasty_id/seasons/:season_id/college_seasons/:college_season_id/roster",
+          to: "dynasty_portals#roster"
+      get "dynasties/:dynasty_id/seasons/:season_id/weeks/:week_number/games", to: "dynasty_portals#week_games"
     end
   end
 
