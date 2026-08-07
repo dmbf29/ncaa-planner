@@ -26,9 +26,23 @@ module Api
         render json: { error: "AI extraction failed: #{e.message}", code: "extraction_failed" }, status: :unprocessable_entity
       end
 
+      # Separate, opt-in step from #analyze — runs the text-only narrative/
+      # player-of-the-game AI pass over already-reviewed stats. Skipped
+      # entirely for games the user doesn't care to write up (e.g. games
+      # for non-user-coached colleges), saving the extra AI call.
+      def analyze_narrative
+        authorize @game
+        payload = analysis_params
+        narrative = GameStats::NarrativeSynthesizer.new(home_college: @game.home_college, away_college: @game.away_college)
+                                                    .call(college_stats: payload[:college_stats] || [], player_stats: payload[:player_stats] || [])
+        render json: { narrative: narrative }
+      rescue RubyLLM::Error => e
+        render json: { error: "AI analysis failed: #{e.message}", code: "narrative_failed" }, status: :unprocessable_entity
+      end
+
       def commit
         authorize @game
-        payload = commit_params
+        payload = analysis_params
         GameStats::CommitService.new(@game).call(
           screenshot_signed_ids: payload[:screenshot_signed_ids] || [],
           narrative: payload[:narrative] || {},
@@ -46,7 +60,7 @@ module Api
         @game = Game.find(params[:id])
       end
 
-      def commit_params
+      def analysis_params
         params.require(:analysis).to_unsafe_h.deep_symbolize_keys
       end
 
@@ -127,7 +141,6 @@ module Api
           screenshot_signed_ids: result[:screenshot_signed_ids],
           college_stats: result[:college_stats],
           player_stats: result[:player_stats],
-          narrative: result[:narrative],
           home_roster: result[:home_roster],
           away_roster: result[:away_roster]
         }

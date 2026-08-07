@@ -4,7 +4,9 @@ class SeasonDashboardSerializer
     passing: :passing_yards,
     rushing: :rushing_yards,
     receiving: :receiving_yards,
-    sacks: :defense_sacks
+    sacks: :defense_sacks,
+    tackles: :defense_tackles,
+    interceptions: :defense_interceptions
   }.freeze
 
   def initialize(season)
@@ -22,7 +24,7 @@ class SeasonDashboardSerializer
       top_25: top_25_json,
       heisman_watch: heisman_watch_json,
       around_the_league: around_the_league_json,
-      last_played_week_number: last_played_week_number
+      current_week_number: current_week_number
     }
   end
 
@@ -83,11 +85,60 @@ class SeasonDashboardSerializer
 
     {
       rank: cwr.ranking,
+      rank_trend: rank_trend(cwr.ranking, previous_rankings_by_college_id[cwr.college_id]),
       college: { id: cwr.college.id, name: cwr.college.name, conference: cwr.college.conference },
       coached_by_us: coached_college_ids.include?(cwr.college_id),
       record: college_season && { wins: college_season.wins, losses: college_season.losses },
+      this_week: this_week_matchup_json(cwr.college_id),
       last_result: college_season && top_25_last_result_json(college_season)
     }
+  end
+
+  # The most recent ranking each currently-ranked college held before
+  # latest_ranked_week — skips over any weeks that don't have rankings
+  # entered, same "most recently entered" convention as latest_ranked_week
+  # itself, so a gap in data entry doesn't read as "unranked last week."
+  def previous_rankings_by_college_id
+    return @previous_rankings_by_college_id if defined?(@previous_rankings_by_college_id)
+    return @previous_rankings_by_college_id = {} unless latest_ranked_week
+
+    rows = CollegeWeekRanking.joins(:week)
+                              .where(weeks: { season_id: @season.id })
+                              .where("weeks.number < ?", latest_ranked_week.number)
+                              .select("college_week_rankings.college_id, college_week_rankings.ranking, weeks.number AS week_number")
+
+    @previous_rankings_by_college_id = rows.group_by(&:college_id).transform_values do |college_rows|
+      college_rows.max_by(&:week_number).ranking
+    end
+  end
+
+  def rank_trend(current_rank, previous_rank)
+    return nil if previous_rank.nil?
+    return "same" if current_rank == previous_rank
+
+    current_rank < previous_rank ? "up" : "down"
+  end
+
+  # Every game being played in latest_ranked_week, indexed by each side's
+  # college_id — "who's on deck" for a Top 25 team this week.
+  def this_week_games_by_college_id
+    return @this_week_games_by_college_id if defined?(@this_week_games_by_college_id)
+    return @this_week_games_by_college_id = {} unless latest_ranked_week
+
+    games = Game.where(week_id: latest_ranked_week.id).includes(:home_college, :away_college)
+    @this_week_games_by_college_id = games.each_with_object({}) do |game, hash|
+      hash[game.home_college_id] = game
+      hash[game.away_college_id] = game
+    end
+  end
+
+  def this_week_matchup_json(college_id)
+    game = this_week_games_by_college_id[college_id]
+    return nil unless game
+
+    home = game.home_college_id == college_id
+    opponent = home ? game.away_college : game.home_college
+    { opponent: { id: opponent.id, name: opponent.name, rank: rank_for_college(opponent.id) }, home: home }
   end
 
   # The most recent played game through the latest ranked week — "how'd
@@ -128,9 +179,8 @@ class SeasonDashboardSerializer
   end
 
   # The most recent week (season-wide, any game) that's actually been
-  # played — lets the dashboard show a "review" of last week's results
-  # alongside a "preview" of the week after, regardless of whether our own
-  # coached teams happen to have a bye that week.
+  # played — used as a fallback by current_week_number once every
+  # week-with-games has fully resolved.
   def last_played_week_number
     return @last_played_week_number if defined?(@last_played_week_number)
 
@@ -141,11 +191,32 @@ class SeasonDashboardSerializer
                                        .max
   end
 
+  # The week the dashboard defaults to for "Around the League": the
+  # earliest week any coached team still has an unplayed game in — i.e.
+  # the week the dynasty is actually in the middle of. Scoped to coached
+  # teams (rather than "any week with an unplayed game league-wide") so an
+  # unrelated, never-simulated slate like other teams' Week 0 openers
+  # doesn't get mistaken for "current." Falls back to the last week any
+  # coached team played (+1) once every coached team has finished its
+  # season, or the season's first week if nothing has been played at all.
+  def current_week_number
+    return @current_week_number if defined?(@current_week_number)
+
+    next_game_weeks = coached_college_seasons.filter_map do |cs|
+      cs.games.includes(:college_game_stats, :week)
+        .sort_by { |g| g.week.number }
+        .find { |g| !g.played? }
+        &.week&.number
+    end
+
+    @current_week_number = next_game_weeks.min || (last_played_week_number ? last_played_week_number + 1 : @season.weeks.minimum(:number))
+  end
+
   # Every game NOT involving a coached team, grouped by week — i.e.
   # everything a coach can't already see on one of their own team cards —
   # so the dashboard can show what's happening around the rest of the league.
   # Every week is included (even ones with no non-coached games) so the
-  # frontend can always find the specific review/preview week it wants.
+  # frontend can scroll to any week, defaulting to current_week_number.
   def around_the_league_json
     @season.weeks
            .order(:number)
@@ -189,6 +260,9 @@ class SeasonDashboardSerializer
   end
 
   def team_json(college_season)
+    played_games = played_games_with_stats(college_season)
+    record = effective_record(college_season, played_games)
+
     {
       id: college_season.id,
       college: {
@@ -202,17 +276,73 @@ class SeasonDashboardSerializer
       defense: college_season.defense,
       prestige: college_season.prestige,
       recruiting_rank: college_season.recruiting_rank,
-      wins: college_season.wins,
-      losses: college_season.losses,
+      wins: record[:wins],
+      losses: record[:losses],
       nil_spend: college_season.nil_spend,
       current_rank: current_rank(college_season),
       next_game: next_game_json(college_season),
       best_offensive_players: college_season.best_offensive_players.map { |ss| player_json(ss) },
       best_defensive_players: college_season.best_defensive_players.map { |ss| player_json(ss) },
       stat_leaders: team_stat_leaders_json(college_season),
+      team_stats: team_stats_json(played_games),
       position_group_averages: college_season.position_group_averages,
       weeks: weeks_json(college_season)
     }
+  end
+
+  # Every played game for this team, paired with both sides' box score —
+  # shared by effective_record (games-played tiebreak against the manually
+  # entered college_season.wins/losses) and team_stats_json (per-game
+  # offense/defense averages).
+  def played_games_with_stats(college_season)
+    college_season.games
+                   .includes(:college_game_stats)
+                   .map { |g| game_stat_pair(g, college_season.college_id) }
+                   .compact
+  end
+
+  def game_stat_pair(game, college_id)
+    stats = game.college_game_stats.index_by(&:college_id)
+    team_stat = stats[college_id]
+    opponent_stat = stats.values.find { |s| s.college_id != college_id }
+    return nil unless team_stat&.final_score && opponent_stat&.final_score
+
+    { team_stat: team_stat, opponent_stat: opponent_stat, won: team_stat.final_score > opponent_stat.final_score }
+  end
+
+  # college_season.wins/losses is a manually entered snapshot that can lag
+  # behind actual results (e.g. a completed game before standings have been
+  # re-entered) — use whichever source accounts for more games played, and
+  # prefer the stored/official value on a tie.
+  def effective_record(college_season, played_games)
+    computed_count = played_games.size
+    stored_count = college_season.wins.to_i + college_season.losses.to_i
+    return { wins: college_season.wins, losses: college_season.losses } if stored_count >= computed_count
+
+    wins = played_games.count { |g| g[:won] }
+    { wins: wins, losses: computed_count - wins }
+  end
+
+  # Team-level box score averages (yards/points per game), once this team
+  # has any played games — nil until then, same convention as stat_leaders.
+  def team_stats_json(played_games)
+    return nil if played_games.empty?
+
+    {
+      passing_offense: avg_stat(played_games) { |g| g[:team_stat].passing_yards },
+      rushing_offense: avg_stat(played_games) { |g| g[:team_stat].rushing_yards },
+      passing_defense: avg_stat(played_games) { |g| g[:opponent_stat].passing_yards },
+      rushing_defense: avg_stat(played_games) { |g| g[:opponent_stat].rushing_yards },
+      points_per_game: avg_stat(played_games) { |g| g[:team_stat].final_score },
+      points_against_per_game: avg_stat(played_games) { |g| g[:opponent_stat].final_score }
+    }
+  end
+
+  def avg_stat(played_games)
+    values = played_games.filter_map { |g| yield(g) }
+    return nil if values.empty?
+
+    (values.sum.to_f / values.size).round(1)
   end
 
   # Passing/rushing/receiving/sack leaders for this team specifically, once

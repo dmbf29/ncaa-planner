@@ -1,58 +1,10 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import { clsx } from "clsx";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
+import Top25TableBody from "../components/Top25TableBody";
 import { weekLabel } from "../components/LeagueGameRow";
 import { fetchRankings } from "../lib/apiClient";
-
-function NextGameLabel({ nextGame }) {
-  if (!nextGame) return null;
-
-  return (
-    <p className="mt-0.5 truncate text-xs font-normal text-textSecondary">
-      <span className="font-semibold">Next:</span> {nextGame.opponent.home ? "vs" : "@"} {nextGame.opponent.name} (
-      {weekLabel(nextGame.week)})
-    </p>
-  );
-}
-
-function PrevGameLabel({ lastResult }) {
-  if (!lastResult) return null;
-
-  return (
-    <p className="mt-0.5 truncate text-xs font-normal text-textSecondary">
-      <span className="font-semibold">Prev:</span>{" "}
-      <span className={lastResult.won ? "text-success" : "text-danger"}>{lastResult.won ? "W" : "L"}</span>{" "}
-      {lastResult.teamScore}-{lastResult.opponentScore} vs {lastResult.opponent.name}
-    </p>
-  );
-}
-
-function RankingRow({ entry }) {
-  const record = entry.record ? `${entry.record.wins ?? 0}-${entry.record.losses ?? 0}` : null;
-
-  return (
-    <div
-      className={clsx(
-        "flex items-center gap-3 border-b border-border/60 py-2 text-sm last:border-0 dark:border-darkborder/60",
-        entry.coachedByUs && "font-semibold text-burnt",
-      )}
-    >
-      <span className="w-6 shrink-0 text-textSecondary">{entry.rank}</span>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <span className="truncate text-textPrimary dark:text-white">{entry.college.name}</span>
-          {record && <span className="shrink-0 font-normal text-textSecondary">({record})</span>}
-          {entry.coachedByUs && <i className="fa-solid fa-gamepad shrink-0 text-[10px] text-burnt/80" title="User-coached" />}
-        </div>
-        <PrevGameLabel lastResult={entry.lastResult} />
-        <NextGameLabel nextGame={entry.nextGame} />
-      </div>
-      <span className="shrink-0 text-xs text-textSecondary">{entry.college.conference}</span>
-    </div>
-  );
-}
 
 function Top25Page() {
   const { dynastyId, seasonId, weekNumber } = useParams();
@@ -81,7 +33,7 @@ function Top25Page() {
   }, [dynastyId, seasonId, weekNumber]);
 
   return (
-    <div className="max-w-2xl mx-auto px-4">
+    <div className="max-w-3xl mx-auto px-4">
       <PageHeader
         title="Top 25"
         actions={
@@ -116,10 +68,8 @@ function Top25Page() {
             )}
           </div>
           {data.rankings.length > 0 ? (
-            <div className="px-4 py-2">
-              {data.rankings.map((entry) => (
-                <RankingRow key={entry.rank} entry={entry} />
-              ))}
+            <div className="overflow-x-auto">
+              <Top25TableBody rankings={data.rankings} />
             </div>
           ) : (
             <p className="px-4 py-3 text-sm text-textSecondary">No rankings entered for this week.</p>

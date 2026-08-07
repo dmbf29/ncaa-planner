@@ -1,26 +1,6 @@
 import { Link } from "react-router-dom";
-import { clsx } from "clsx";
 import Card from "./Card";
-
-function RankingEntry({ entry }) {
-  return (
-    <div
-      className={clsx(
-        "flex items-center gap-2 border-b border-border/60 py-1 text-xs last:border-0 dark:border-darkborder/60",
-        entry.coachedByUs && "font-semibold text-burnt",
-      )}
-    >
-      <span className="w-5 shrink-0 text-textSecondary">{entry.rank}</span>
-      <span className="truncate text-textPrimary dark:text-white">{entry.college.name}</span>
-      {entry.record && (
-        <span className="shrink-0 font-normal text-textSecondary">
-          ({entry.record.wins ?? 0}-{entry.record.losses ?? 0})
-        </span>
-      )}
-      {entry.coachedByUs ? <i className="fa-solid fa-gamepad shrink-0 text-[10px]" /> : null}
-    </div>
-  );
-}
+import Top25TableBody from "./Top25TableBody";
 
 function Top25Snapshot({ top25, dynastyId, seasonId }) {
   const week = top25?.week;
@@ -40,14 +20,8 @@ function Top25Snapshot({ top25, dynastyId, seasonId }) {
         )}
       </div>
       {rankings.length > 0 ? (
-        <div className="px-4 py-3">
-          <div className="gap-x-4">
-            <div>
-              {rankings.map((entry) => (
-                <RankingEntry key={entry.rank} entry={entry} />
-              ))}
-            </div>
-          </div>
+        <div className="overflow-x-auto">
+          <Top25TableBody rankings={rankings} />
         </div>
       ) : (
         <p className="px-4 py-3 text-sm text-textSecondary">No rankings entered yet for this season.</p>

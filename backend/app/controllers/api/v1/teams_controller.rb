@@ -1,7 +1,7 @@
 module Api
   module V1
     class TeamsController < BaseController
-      before_action :set_team, only: %i[show update destroy]
+      before_action :set_team, only: %i[show update destroy import_roster]
 
       def index
         teams = policy_scope(Team.includes(:squads).where(user: current_user))
@@ -10,19 +10,7 @@ module Api
 
       def show
         authorize @team
-        render json: @team.as_json(
-          include: {
-            squads: {
-              include: {
-                position_boards: {
-                  include: {
-                    players: { only: %i[id name status class_year dev_trait archetype overall attributes tags] }
-                  }
-                }
-              }
-            }
-          }
-        )
+        render json: team_json(@team)
       end
 
       def create
@@ -53,6 +41,12 @@ module Api
         head :no_content
       end
 
+      def import_roster
+        authorize @team
+        ScrapePlayersJob.perform_now(team_id: @team.id, college_id: params[:college_id])
+        render json: team_json(@team.reload)
+      end
+
       private
 
       def set_team
@@ -60,7 +54,23 @@ module Api
       end
 
       def team_params
-        params.require(:team).permit(:name)
+        params.require(:team).permit(:name, :college_id)
+      end
+
+      def team_json(team)
+        team.as_json(
+          include: {
+            squads: {
+              include: {
+                position_boards: {
+                  include: {
+                    players: { only: %i[id name status class_year dev_trait archetype overall attributes tags] }
+                  }
+                }
+              }
+            }
+          }
+        )
       end
     end
   end

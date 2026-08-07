@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { clsx } from "clsx";
 import Card from "./Card";
@@ -39,6 +40,8 @@ const STAT_LEADER_LABELS = {
   rushing: { label: "Rushing", unit: "Yds" },
   receiving: { label: "Receiving", unit: "Yds" },
   sacks: { label: "Sacks", unit: "Sck" },
+  tackles: { label: "Tackles", unit: "Tkl" },
+  interceptions: { label: "INT", unit: "Int" },
 };
 
 function StatLeaderRow({ label, unit, leader }) {
@@ -46,7 +49,7 @@ function StatLeaderRow({ label, unit, leader }) {
     <div className="flex items-center justify-between gap-2 text-sm">
       <div className="flex min-w-0 items-center gap-1.5">
         <span className="w-16 shrink-0 text-xs text-textSecondary">{label}</span>
-        <span className="truncate text-textPrimary dark:text-white">{leader ? leader.name : "—"}</span>
+        <span className="truncate text-textPrimary dark:text-white text-xs">{leader ? leader.name : "—"}</span>
       </div>
       {leader ? (
         <span className="shrink-0 rounded-full bg-charcoal/5 px-1.5 py-0.5 text-xs font-semibold dark:bg-white/10">
@@ -70,6 +73,41 @@ function StatLeadersGroup({ statLeaders }) {
   );
 }
 
+const TEAM_STAT_LABELS = {
+  passingOffense: { label: "Pass Off", unit: "Yds" },
+  passingDefense: { label: "Pass Def", unit: "Yds" },
+  rushingOffense: { label: "Rush Off", unit: "Yds" },
+  rushingDefense: { label: "Rush Def", unit: "Yds" },
+  pointsPerGame: { label: "PPG", unit: "Pts" },
+  pointsAgainstPerGame: { label: "PA/G", unit: "Pts" },
+};
+
+function TeamStatRow({ label, unit, value }) {
+  return (
+    <div className="flex items-center justify-between gap-2 text-sm">
+      <span className="text-xs text-textSecondary">{label}</span>
+      <span className="shrink-0 rounded-full bg-charcoal/5 px-1.5 py-0.5 text-xs font-semibold dark:bg-white/10">
+        {value ?? "—"} {unit}
+      </span>
+    </div>
+  );
+}
+
+function TeamStatsGroup({ teamStats }) {
+  if (!teamStats) return null;
+
+  return (
+    <div className="space-y-1">
+      <p className="text-xs uppercase tracking-wide text-textSecondary">Team Stats</p>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+        {Object.entries(TEAM_STAT_LABELS).map(([key, meta]) => (
+          <TeamStatRow key={key} label={meta.label} unit={meta.unit} value={teamStats[key]} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function PositionGroupAverages({ averages }) {
   const entries = Object.entries(averages || {});
   if (!entries.length) return null;
@@ -81,6 +119,29 @@ function PositionGroupAverages({ averages }) {
           <NumberPill label={label} key={label} value={value ?? "—"} />
         ))}
       </div>
+    </div>
+  );
+}
+
+function PositionGroupAveragesCollapsible({ averages }) {
+  const [open, setOpen] = useState(false);
+  const entries = Object.entries(averages || {});
+  if (!entries.length) return null;
+
+  return (
+    <div className="border-b border-border dark:border-darkborder">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex w-full items-center justify-center px-4 pb-2 text-xs font-semibold uppercase tracking-wide text-textSecondary"
+      >
+        <i className={clsx("fa-solid fa-chevron-down transition-transform", open && "rotate-180")} />
+      </button>
+      {open && (
+        <div className="px-4 pb-3">
+          <PositionGroupAverages averages={averages} />
+        </div>
+      )}
     </div>
   );
 }
@@ -213,9 +274,10 @@ function TeamDashboardCard({ team, dynastyId, seasonId }) {
             <KeyPlayersGroup label="Defense" players={team.bestDefensivePlayers} />
           </>
         )}
+        <TeamStatsGroup teamStats={team.teamStats} />
       </div>
 
-      <div className="space-y-3 px-4 pt-3 dark:border-darkborder">
+      <div className="space-y-3 px-4 pt-3 pb-2 dark:border-darkborder">
         <div className="grid grid-cols-3 gap-1.5">
           <NumberPill label="OVR" bold="true" value={team.overall ?? "—"} />
           <NumberPill label="OFF" bold="true" value={team.offense ?? "—"} />
@@ -223,9 +285,7 @@ function TeamDashboardCard({ team, dynastyId, seasonId }) {
         </div>
       </div>
 
-      <div className="border-b border-border px-4 pt-1 pb-3 dark:border-darkborder">
-        <PositionGroupAverages averages={team.positionGroupAverages} />
-      </div>
+      <PositionGroupAveragesCollapsible averages={team.positionGroupAverages} />
 
       <div className="max-h-72 overflow-y-auto px-4 py-3">
         <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-textSecondary flex justify-between">

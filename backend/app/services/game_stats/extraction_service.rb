@@ -7,6 +7,10 @@ module GameStats
   # screenshots may cover multiple categories). Persists nothing on the
   # Game/CollegeGameStat/StudentGameStat tables — that only happens if/when
   # the user confirms via CommitService.
+  #
+  # Deliberately does NOT run NarrativeSynthesizer — the narrative/player-
+  # of-the-game pass is a separate opt-in step (see GamesController#analyze_narrative)
+  # so games the user doesn't care to write up skip that extra AI call.
   class ExtractionService
     def initialize(game)
       @game = game
@@ -26,14 +30,10 @@ module GameStats
       player_stats = player_stats_for(@game.home_college, home_roster, home_blobs) +
                      player_stats_for(@game.away_college, away_roster, away_blobs)
 
-      narrative = NarrativeSynthesizer.new(home_college: @game.home_college, away_college: @game.away_college)
-                                       .call(college_stats: college_stats, player_stats: player_stats)
-
       {
         screenshot_signed_ids: (box_score_blobs + home_blobs + away_blobs).map(&:signed_id),
         college_stats: college_stats,
         player_stats: player_stats,
-        narrative: narrative,
         home_roster: home_roster,
         away_roster: away_roster
       }

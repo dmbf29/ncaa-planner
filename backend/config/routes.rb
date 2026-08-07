@@ -9,6 +9,9 @@ Rails.application.routes.draw do
   namespace :api do
     namespace :v1 do
       resources :teams, only: %i[index show create update destroy] do
+        member do
+          post :import_roster
+        end
         resources :squads, only: %i[index create update destroy]
         resources :position_boards, only: %i[index create update destroy]
         resources :players, only: %i[index create update destroy]
@@ -19,6 +22,8 @@ Rails.application.routes.draw do
       end
 
       resources :flags, only: %i[index]
+
+      resources :colleges, only: %i[index]
 
       resources :dynasties, only: %i[index] do
         resources :seasons, only: %i[show create] do
@@ -38,6 +43,7 @@ Rails.application.routes.draw do
       resources :games, only: %i[show] do
         member do
           post :analyze
+          post :analyze_narrative
           post :commit
         end
       end

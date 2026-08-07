@@ -44,6 +44,13 @@ class ScrapePlayersJob < ApplicationJob
     "P" => { squad: "Offense", board: "P" }
   }.freeze
 
+  # Broader than POSITION_BOARD_MAP's keys — used only to guess which squad an
+  # unrecognized position code belongs to, so it can land on that squad's "OTHER"
+  # board instead of being saved with no position_board at all (invisible in the
+  # roster UI).
+  OFFENSE_CODES = %w[QB HB RB FB WR TE OL OT OG LT RT LG RG C].freeze
+  DEFENSE_CODES = %w[DE DT NT DL OLB ILB LB MLB LOLB ROLB MIKE SAM WILL LE RE CB DB S FS SS NB NICKEL].freeze
+
   def perform(college_id: nil, team_name: nil, team_id: nil, user_id: nil)
     team = find_or_create_team(team_id: team_id, team_name: team_name, user_id: user_id)
     url = College.find_by(id: college_id)&.scraping_url
@@ -122,12 +129,24 @@ class ScrapePlayersJob < ApplicationJob
   end
 
   def find_or_create_position_board(team, position_code)
-    board_meta = POSITION_BOARD_MAP[position_code]
+    board_meta = POSITION_BOARD_MAP[position_code] || fallback_board_meta(position_code)
     return nil if board_meta.blank?
 
     squad = team.squads.find_or_create_by!(name: board_meta[:squad])
-    team.position_boards.find_or_create_by!(name: board_meta[:board]) do |board|
-      board.squad = squad
-    end
+    team.position_boards.find_or_create_by!(name: board_meta[:board], squad_id: squad.id)
+  end
+
+  def fallback_board_meta(position_code)
+    squad_name = guess_squad(position_code)
+    return nil if squad_name.blank?
+
+    { squad: squad_name, board: "OTHER" }
+  end
+
+  def guess_squad(position_code)
+    return "Offense" if OFFENSE_CODES.include?(position_code)
+    return "Defense" if DEFENSE_CODES.include?(position_code)
+
+    nil
   end
 end

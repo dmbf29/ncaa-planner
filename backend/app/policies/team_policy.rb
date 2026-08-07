@@ -12,4 +12,8 @@ class TeamPolicy < ApplicationPolicy
   def create?
     true
   end
+
+  def import_roster?
+    owner?
+  end
 end

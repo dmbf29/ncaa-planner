@@ -65,6 +65,11 @@ export const fetchSquadBoards = (teamId, squadId) =>
 
 export const createTeam = (payload) => api.post("/api/v1/teams", { team: payload }).then((r) => r.data);
 
+export const importRoster = (teamId, payload) =>
+  api.post(`/api/v1/teams/${teamId}/import_roster`, payload).then((r) => r.data);
+
+export const fetchColleges = () => api.get("/api/v1/colleges").then((r) => r.data);
+
 export const createPositionBoard = (teamId, payload) =>
   api.post(`/api/v1/teams/${teamId}/position_boards`, { position_board: payload }).then((r) => r.data);
 
@@ -196,6 +201,9 @@ export const analyzeGameStats = (id, buckets) => {
     .post(`/api/v1/games/${id}/analyze`, formData, { headers: { "Content-Type": "multipart/form-data" } })
     .then((r) => r.data);
 };
+
+export const analyzeGameNarrative = (id, { collegeStats, playerStats }) =>
+  api.post(`/api/v1/games/${id}/analyze_narrative`, { analysis: { collegeStats, playerStats } }).then((r) => r.data);
 
 export const commitGameStats = (id, analysis) =>
   api.post(`/api/v1/games/${id}/commit`, { analysis }).then((r) => r.data);

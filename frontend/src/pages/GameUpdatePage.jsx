@@ -5,8 +5,16 @@ import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import ExistingScreenshotsGallery from "../components/ExistingScreenshotsGallery";
 import GameSummary from "../components/GameSummary";
-import { analyzeGameStats, commitGameStats, fetchGame } from "../lib/apiClient";
+import { analyzeGameNarrative, analyzeGameStats, commitGameStats, fetchGame } from "../lib/apiClient";
 import { TEAM_STAT_GROUPS, FIELD_LABELS, CATEGORY_FIELDS, PLAYER_FIELD_LABELS, normalizeCollegeStats } from "../lib/gameStatFields";
+
+const EMPTY_NARRATIVE = {
+  narrativeSummary: "",
+  offensePlayerOfGameId: null,
+  offensePlayerStatLine: "",
+  defensePlayerOfGameId: null,
+  defensePlayerStatLine: "",
+};
 
 const inputClass =
   "w-full rounded-md border border-border bg-white px-2 py-1.5 text-sm text-textPrimary focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface dark:text-white";
@@ -158,13 +166,29 @@ function ReferencePhotos({ buckets, homeCollege, awayCollege }) {
   );
 }
 
-function NarrativeSection({ narrative, onChange, roster }) {
+function NarrativeSection({ narrative, onChange, roster, onRunAnalysis, running, error }) {
   const update = (key, value) => onChange({ ...narrative, [key]: value });
+  const hasContent = Boolean(narrative.narrativeSummary || narrative.offensePlayerOfGameId || narrative.defensePlayerOfGameId);
 
   return (
     <Card>
       <div className="p-5 space-y-4">
-        <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">Game Recap</h3>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">Game Recap</h3>
+          <button
+            type="button"
+            onClick={onRunAnalysis}
+            disabled={running}
+            className="rounded-md border border-burnt px-3 py-1.5 text-xs font-semibold text-burnt transition hover:bg-burnt/10 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {running ? "Running..." : hasContent ? "Re-run Game Analysis" : "Run Game Analysis"}
+          </button>
+        </div>
+        <p className="text-xs text-textSecondary">
+          Optional AI pass that writes a narrative summary and picks offense/defense players of the game from the
+          stats above. Skip it for games you don&rsquo;t need a recap for.
+        </p>
+        {error && <p className="text-sm text-danger">{error}</p>}
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-xs uppercase tracking-wide text-textSecondary">Narrative Summary</span>
           <textarea
@@ -348,6 +372,8 @@ function GameUpdatePage() {
   const [analyzeError, setAnalyzeError] = useState(null);
 
   const [analysis, setAnalysis] = useState(null);
+  const [narrativeRunning, setNarrativeRunning] = useState(false);
+  const [narrativeError, setNarrativeError] = useState(null);
   const [committing, setCommitting] = useState(false);
   const [commitError, setCommitError] = useState(null);
   const [saved, setSaved] = useState(false);
@@ -381,12 +407,29 @@ function GameUpdatePage() {
       const result = await analyzeGameStats(gameId, buckets);
       setAnalysis({
         ...result,
+        narrative: EMPTY_NARRATIVE,
         collegeStats: normalizeCollegeStats(result.collegeStats, game.awayCollege, game.homeCollege),
       });
     } catch (err) {
       setAnalyzeError(err.message);
     } finally {
       setAnalyzing(false);
+    }
+  };
+
+  const handleRunNarrative = async () => {
+    setNarrativeRunning(true);
+    setNarrativeError(null);
+    try {
+      const result = await analyzeGameNarrative(gameId, {
+        collegeStats: analysis.collegeStats,
+        playerStats: analysis.playerStats,
+      });
+      setAnalysis((prev) => ({ ...prev, narrative: result.narrative }));
+    } catch (err) {
+      setNarrativeError(err.message);
+    } finally {
+      setNarrativeRunning(false);
     }
   };
 
@@ -470,6 +513,9 @@ function GameUpdatePage() {
             narrative={analysis.narrative}
             onChange={(narrative) => setAnalysis({ ...analysis, narrative })}
             roster={[...analysis.homeRoster, ...analysis.awayRoster]}
+            onRunAnalysis={handleRunNarrative}
+            running={narrativeRunning}
+            error={narrativeError}
           />
           <TeamStatsSection
             collegeStats={analysis.collegeStats}
