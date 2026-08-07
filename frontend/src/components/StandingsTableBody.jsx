@@ -20,8 +20,9 @@ function StandingsTableBody({ teams }) {
               team.coachedByUs && "bg-burnt/10 font-semibold",
             )}
           >
-            <td className="px-4 py-1.5">
+            <td className="px-4 py-2">
               <span className="flex items-center gap-1.5">
+                {team.rank && <span className="text-textSecondary">#{team.rank}</span>}
                 {team.college.name}
                 {team.coachedByUs && <i className="fa-solid fa-gamepad text-[10px] text-burnt/80" title="User-coached" />}
               </span>

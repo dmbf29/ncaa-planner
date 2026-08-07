@@ -6,7 +6,7 @@ function RankingEntry({ entry }) {
   return (
     <div
       className={clsx(
-        "flex items-center gap-2 border-b border-border/60 py-1 text-sm last:border-0 dark:border-darkborder/60",
+        "flex items-center gap-2 border-b border-border/60 py-1 text-xs last:border-0 dark:border-darkborder/60",
         entry.coachedByUs && "font-semibold text-burnt",
       )}
     >
@@ -25,9 +25,6 @@ function RankingEntry({ entry }) {
 function Top25Snapshot({ top25, dynastyId, seasonId }) {
   const week = top25?.week;
   const rankings = top25?.rankings || [];
-  const half = Math.ceil(rankings.length / 2);
-  const leftColumn = rankings.slice(0, half);
-  const rightColumn = rankings.slice(half);
 
   return (
     <Card className="overflow-hidden">
@@ -44,14 +41,9 @@ function Top25Snapshot({ top25, dynastyId, seasonId }) {
       </div>
       {rankings.length > 0 ? (
         <div className="px-4 py-3">
-          <div className="grid grid-cols-2 gap-x-4">
+          <div className="gap-x-4">
             <div>
-              {leftColumn.map((entry) => (
-                <RankingEntry key={entry.rank} entry={entry} />
-              ))}
-            </div>
-            <div>
-              {rightColumn.map((entry) => (
+              {rankings.map((entry) => (
                 <RankingEntry key={entry.rank} entry={entry} />
               ))}
             </div>

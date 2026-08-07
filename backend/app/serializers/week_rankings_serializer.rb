@@ -41,7 +41,8 @@ class WeekRankingsSerializer
       college: { id: cwr.college.id, name: cwr.college.name, conference: cwr.college.conference },
       coached_by_us: coached_college_ids.include?(cwr.college_id),
       record: college_season && { wins: college_season.wins, losses: college_season.losses },
-      last_result: college_season && last_result_json(college_season)
+      last_result: college_season && last_result_json(college_season),
+      next_game: college_season && next_game_json(college_season)
     }
   end
 
@@ -66,6 +67,25 @@ class WeekRankingsSerializer
       team_score: team_stat.final_score,
       opponent_score: opponent_stat.final_score,
       won: team_stat.final_score > opponent_stat.final_score
+    }
+  end
+
+  # The next game scheduled after this ranking's week — chronologically
+  # after, so it's always "not yet played as of this week" by construction,
+  # matching what a coach means by "who's up next" when browsing a past
+  # week's rankings.
+  def next_game_json(college_season)
+    upcoming = college_season.games
+                              .includes(:home_college, :away_college, :week)
+                              .select { |g| g.week.number > @week.number }
+                              .min_by { |g| g.week.number }
+    return nil unless upcoming
+
+    team_is_home = upcoming.home_college_id == college_season.college_id
+    opponent_college = team_is_home ? upcoming.away_college : upcoming.home_college
+    {
+      week: { id: upcoming.week.id, number: upcoming.week.number, name: upcoming.week.name },
+      opponent: { id: opponent_college.id, name: opponent_college.name, home: team_is_home }
     }
   end
 

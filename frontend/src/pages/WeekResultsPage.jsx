@@ -14,7 +14,6 @@ function WeekResultsPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const authed = Boolean(localStorage.getItem("jwt"));
 
   useEffect(() => {
     let cancelled = false;
@@ -79,7 +78,7 @@ function WeekResultsPage() {
           {data.games.length > 0 ? (
             <div className="px-4 py-2">
               {data.games.map((game) => (
-                <LeagueGameRow key={game.id} game={game} linkToGame={authed} />
+                <LeagueGameRow key={game.id} game={game} />
               ))}
             </div>
           ) : (

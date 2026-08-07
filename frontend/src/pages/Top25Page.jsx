@@ -6,9 +6,31 @@ import Card from "../components/Card";
 import { weekLabel } from "../components/LeagueGameRow";
 import { fetchRankings } from "../lib/apiClient";
 
+function NextGameLabel({ nextGame }) {
+  if (!nextGame) return null;
+
+  return (
+    <p className="mt-0.5 truncate text-xs font-normal text-textSecondary">
+      <span className="font-semibold">Next:</span> {nextGame.opponent.home ? "vs" : "@"} {nextGame.opponent.name} (
+      {weekLabel(nextGame.week)})
+    </p>
+  );
+}
+
+function PrevGameLabel({ lastResult }) {
+  if (!lastResult) return null;
+
+  return (
+    <p className="mt-0.5 truncate text-xs font-normal text-textSecondary">
+      <span className="font-semibold">Prev:</span>{" "}
+      <span className={lastResult.won ? "text-success" : "text-danger"}>{lastResult.won ? "W" : "L"}</span>{" "}
+      {lastResult.teamScore}-{lastResult.opponentScore} vs {lastResult.opponent.name}
+    </p>
+  );
+}
+
 function RankingRow({ entry }) {
   const record = entry.record ? `${entry.record.wins ?? 0}-${entry.record.losses ?? 0}` : null;
-  const lastResult = entry.lastResult;
 
   return (
     <div
@@ -24,12 +46,8 @@ function RankingRow({ entry }) {
           {record && <span className="shrink-0 font-normal text-textSecondary">({record})</span>}
           {entry.coachedByUs && <i className="fa-solid fa-gamepad shrink-0 text-[10px] text-burnt/80" title="User-coached" />}
         </div>
-        {lastResult && (
-          <p className="mt-0.5 truncate text-xs font-normal text-textSecondary">
-            <span className={lastResult.won ? "text-success" : "text-danger"}>{lastResult.won ? "W" : "L"}</span>{" "}
-            {lastResult.teamScore}-{lastResult.opponentScore} vs {lastResult.opponent.name}
-          </p>
-        )}
+        <PrevGameLabel lastResult={entry.lastResult} />
+        <NextGameLabel nextGame={entry.nextGame} />
       </div>
       <span className="shrink-0 text-xs text-textSecondary">{entry.college.conference}</span>
     </div>

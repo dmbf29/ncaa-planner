@@ -8,7 +8,10 @@ function HeismanCandidateRow({ candidate }) {
         <span className="text-xs text-textSecondary">{candidate.position}</span>
         <span className="truncate text-textPrimary dark:text-white">{candidate.name}</span>
       </div>
-      <span className="shrink-0 truncate text-xs text-textSecondary">{candidate.college.name}</span>
+      <span className="shrink-0 truncate text-xs text-textSecondary">
+        {candidate.college.rank ? `#${candidate.college.rank} ` : ""}
+        {candidate.college.name}
+      </span>
     </div>
   );
 }
@@ -40,7 +43,10 @@ function HeismanWatch({ heismanWatch }) {
               <i className="fa-solid fa-trophy text-burnt" />
               <span className="truncate font-semibold text-textPrimary dark:text-white">{winner.name}</span>
             </div>
-            <span className="shrink-0 text-xs text-textSecondary">{winner.college.name}</span>
+            <span className="shrink-0 text-xs text-textSecondary">
+              {winner.college.rank ? `#${winner.college.rank} ` : ""}
+              {winner.college.name}
+            </span>
           </div>
         ) : null}
         {weeks.length > 0 ? (

@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import Card from "./Card";
 import LeagueGameRow, { weekLabel } from "./LeagueGameRow";
 
-function WeekPanel({ tag, group, dynastyId, seasonId, authed }) {
+function WeekPanel({ tag, group, dynastyId, seasonId }) {
   return (
     <div className="border-b border-border px-4 py-3 last:border-0 sm:border-b-0 dark:border-darkborder">
       <p className="mb-1.5 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-textSecondary">
@@ -20,7 +20,7 @@ function WeekPanel({ tag, group, dynastyId, seasonId, authed }) {
       </p>
       <div className="max-h-96 overflow-y-auto">
         {group.games.length > 0 ? (
-          group.games.map((game) => <LeagueGameRow key={game.id} game={game} linkToGame={authed} />)
+          group.games.map((game) => <LeagueGameRow key={game.id} game={game} />)
         ) : (
           <p className="text-sm text-textSecondary">No other games to show for this week.</p>
         )}
@@ -29,7 +29,7 @@ function WeekPanel({ tag, group, dynastyId, seasonId, authed }) {
   );
 }
 
-function AroundTheLeague({ weeks, lastPlayedWeekNumber, dynastyId, seasonId, authed }) {
+function AroundTheLeague({ weeks, lastPlayedWeekNumber, dynastyId, seasonId }) {
   const availableWeeks = weeks || [];
   const hasPlayedWeek = lastPlayedWeekNumber != null;
   const previewNumber = hasPlayedWeek ? lastPlayedWeekNumber + 1 : 0;
@@ -47,7 +47,7 @@ function AroundTheLeague({ weeks, lastPlayedWeekNumber, dynastyId, seasonId, aut
       {panels.length > 0 ? (
         <div className="sm:grid sm:grid-cols-2 sm:divide-x sm:divide-border dark:sm:divide-darkborder">
           {panels.map(({ tag, group }) => (
-            <WeekPanel key={group.week.id} tag={tag} group={group} dynastyId={dynastyId} seasonId={seasonId} authed={authed} />
+            <WeekPanel key={group.week.id} tag={tag} group={group} dynastyId={dynastyId} seasonId={seasonId} />
           ))}
         </div>
       ) : (

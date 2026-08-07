@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { clsx } from "clsx";
 import Card from "./Card";
-import StatPill from "./StatPill";
+import NumberPill from "./NumberPill";
 
 function KeyPlayerRow({ player }) {
   return (
@@ -70,56 +70,15 @@ function StatLeadersGroup({ statLeaders }) {
   );
 }
 
-const positionAverageTone = (value) => {
-  if (value == null) return "muted";
-  if (value >= 80) return "positive";
-  if (value < 70) return "danger";
-  return "warning";
-};
-
-const positionAverageToneClasses = {
-  muted: "bg-textSecondary/10 text-textSecondary",
-  positive: "bg-success/20 text-success",
-  warning: "bg-warning/20 text-warning",
-  danger: "bg-danger/20 text-danger",
-};
-
-const positionGroupShortLabels = {
-  Quarterbacks: "QB",
-  "Running Backs": "RB",
-  "Wide Receivers": "WR",
-  "Tight Ends": "TE",
-  "Offensive Line": "OL",
-  "Defensive Line": "DL",
-  Linebackers: "LB",
-  Secondary: "Sec",
-  "Kickers/Punters": "K/P",
-};
-
 function PositionGroupAverages({ averages }) {
   const entries = Object.entries(averages || {});
   if (!entries.length) return null;
 
   return (
     <div className="space-y-1">
-      <p className="text-xs uppercase tracking-wide text-textSecondary">Position Averages</p>
-      <div className="grid grid-cols-3 gap-1.5">
+      <div className="grid grid-flow-col grid-cols-3 grid-rows-3 gap-1.5">
         {entries.map(([label, value]) => (
-          <div
-            key={label}
-            title={label}
-            className="flex items-center justify-between gap-1 rounded-md border border-border px-2 py-1.5 text-xs dark:border-darkborder"
-          >
-            <span className="text-textSecondary">{positionGroupShortLabels[label] || label}</span>
-            <span
-              className={clsx(
-                "shrink-0 rounded-full px-2 py-0.5 font-bold",
-                positionAverageToneClasses[positionAverageTone(value)],
-              )}
-            >
-              {value ?? "—"}
-            </span>
-          </div>
+          <NumberPill label={label} key={label} value={value ?? "—"} />
         ))}
       </div>
     </div>
@@ -157,6 +116,7 @@ function ScheduleRow({ week }) {
       {week.opponent ? (
         <span className="flex min-w-0 flex-1 items-center gap-1 truncate">
           <span className="text-textSecondary">{week.opponent.home ? "vs" : "@"}</span>{" "}
+          {week.opponent.rank && <span className="shrink-0 text-textSecondary">#{week.opponent.rank}</span>}
           <span className="truncate text-textPrimary dark:text-white">{week.opponent.name}</span>
           {week.opponent.userCoached ? (
             <i className="fa-solid fa-gamepad shrink-0 text-[11px] text-burnt/80" title="User-coached opponent" />
@@ -210,6 +170,7 @@ function NextGameBanner({ nextGame }) {
       {nextGame.opponent ? (
         <p className="mt-0.5 flex items-center gap-1.5 text-sm">
           <span className="text-textSecondary">{nextGame.opponent.home ? "vs" : "@"}</span>
+          {nextGame.opponent.rank && <span className="text-textSecondary">#{nextGame.opponent.rank}</span>}
           <span className="font-semibold text-textPrimary dark:text-white">{nextGame.opponent.name}</span>
           {nextGame.opponent.userCoached ? (
             <i className="fa-solid fa-gamepad text-[11px] text-burnt/80" title="User-coached opponent" />
@@ -243,13 +204,6 @@ function TeamDashboardCard({ team, dynastyId, seasonId }) {
 
       <NextGameBanner nextGame={team.nextGame} />
 
-      <div className="grid grid-cols-4 gap-2 border-b border-border px-4 py-3 dark:border-darkborder">
-        <StatPill label="OVR" value={team.overall ?? "—"} />
-        <StatPill label="OFF" value={team.offense ?? "—"} />
-        <StatPill label="DEF" value={team.defense ?? "—"} />
-        <StatPill label="NIL" value={team.nilSpend != null ? team.nilSpend.toLocaleString() : "—"} />
-      </div>
-
       <div className="space-y-3 border-b border-border px-4 py-3 dark:border-darkborder">
         {team.statLeaders ? (
           <StatLeadersGroup statLeaders={team.statLeaders} />
@@ -261,7 +215,15 @@ function TeamDashboardCard({ team, dynastyId, seasonId }) {
         )}
       </div>
 
-      <div className="border-b border-border px-4 py-3 dark:border-darkborder">
+      <div className="space-y-3 px-4 pt-3 dark:border-darkborder">
+        <div className="grid grid-cols-3 gap-1.5">
+          <NumberPill label="OVR" bold="true" value={team.overall ?? "—"} />
+          <NumberPill label="OFF" bold="true" value={team.offense ?? "—"} />
+          <NumberPill label="DEF" bold="true" value={team.defense ?? "—"} />
+        </div>
+      </div>
+
+      <div className="border-b border-border px-4 pt-1 pb-3 dark:border-darkborder">
         <PositionGroupAverages averages={team.positionGroupAverages} />
       </div>
 

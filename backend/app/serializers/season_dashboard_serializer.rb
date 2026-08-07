@@ -114,9 +114,7 @@ class SeasonDashboardSerializer
   end
 
   def heisman_watch_json
-    winner = @season.heisman && player_json(@season.heisman).merge(
-      college: { id: @season.heisman.college_season.college.id, name: @season.heisman.college_season.college.name }
-    )
+    winner = @season.heisman && player_json(@season.heisman).merge(college: heisman_college_json(@season.heisman))
 
     {
       winner: winner,
@@ -170,20 +168,20 @@ class SeasonDashboardSerializer
     {
       id: game.id,
       time: game.time,
-      home: { id: game.home_college.id, name: game.home_college.name },
-      away: { id: game.away_college.id, name: game.away_college.name },
+      home: { id: game.home_college.id, name: game.home_college.name, rank: rank_for_college(game.home_college_id) },
+      away: { id: game.away_college.id, name: game.away_college.name, rank: rank_for_college(game.away_college_id) },
       result: played ? { home_score: home_stat.final_score, away_score: away_stat.final_score } : nil
     }
   end
 
   def heisman_candidate_json(candidate)
     student_season = candidate.student_season
-    player_json(student_season).merge(
-      college: {
-        id: student_season.college_season.college.id,
-        name: student_season.college_season.college.name
-      }
-    )
+    player_json(student_season).merge(college: heisman_college_json(student_season))
+  end
+
+  def heisman_college_json(student_season)
+    college = student_season.college_season.college
+    { id: college.id, name: college.name, rank: rank_for_college(college.id) }
   end
 
   def coached_college_ids
@@ -243,9 +241,16 @@ class SeasonDashboardSerializer
   end
 
   def current_rank(college_season)
+    rank_for_college(college_season.college_id)
+  end
+
+  # This week's Top 25 rank for any college (not just coached ones) — used
+  # everywhere a team name shows up (schedules, Around the League, Heisman
+  # Watch) so a ranked opponent reads as ranked wherever it appears.
+  def rank_for_college(college_id)
     return nil unless latest_ranked_week
 
-    latest_ranked_week.college_week_rankings.find { |cwr| cwr.college_id == college_season.college_id }&.ranking
+    latest_ranked_week.college_week_rankings.find { |cwr| cwr.college_id == college_id }&.ranking
   end
 
   # The next week (in order) where this team has a scheduled game that
@@ -305,7 +310,8 @@ class SeasonDashboardSerializer
       id: opponent_college.id,
       name: opponent_college.name,
       home: home,
-      user_coached: coached_college_ids.include?(opponent_college.id)
+      user_coached: coached_college_ids.include?(opponent_college.id),
+      rank: rank_for_college(opponent_college.id)
     }
   end
 

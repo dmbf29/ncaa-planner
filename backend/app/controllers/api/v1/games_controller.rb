@@ -3,10 +3,14 @@ module Api
     class GamesController < BaseController
       skip_after_action :verify_policy_scoped
       skip_after_action :verify_authorized
+      skip_before_action :authenticate_user!, only: :show
       before_action :set_game
 
+      # Public, unauthenticated — the game show page is part of the shareable
+      # dynasty portal, same reasoning as DynastyPortalsController. Uploading
+      # or editing (analyze/commit below) still requires being the dynasty's
+      # owner, enforced by GamePolicy.
       def show
-        authorize @game
         render json: game_json
       end
 

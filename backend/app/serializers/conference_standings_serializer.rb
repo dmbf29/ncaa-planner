@@ -29,6 +29,18 @@ class ConferenceStandingsSerializer
     @coached_college_ids ||= @season.college_seasons.where.not(coach_id: nil).pluck(:college_id).to_set
   end
 
+  def latest_ranked_week
+    return @latest_ranked_week if defined?(@latest_ranked_week)
+
+    @latest_ranked_week = @season.weeks.joins(:college_week_rankings).order(number: :desc).first
+  end
+
+  def rank_for_college(college_id)
+    return nil unless latest_ranked_week
+
+    latest_ranked_week.college_week_rankings.find { |cwr| cwr.college_id == college_id }&.ranking
+  end
+
   def conference_json(conference, rows)
     {
       conference: conference,
@@ -50,6 +62,7 @@ class ConferenceStandingsSerializer
       college: { id: college_season.college.id, name: college_season.college.name },
       coach: college_season.coach && { id: college_season.coach.id, name: college_season.coach.name },
       coached_by_us: coached_college_ids.include?(college_season.college_id),
+      rank: rank_for_college(college_season.college_id),
       wins: college_season.wins,
       losses: college_season.losses,
       conference_wins: college_season.conference_wins,

@@ -1,65 +1,15 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { clsx } from "clsx";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
-import { API_BASE_URL, analyzeGameStats, commitGameStats, fetchGame } from "../lib/apiClient";
-
-const TEAM_STAT_GROUPS = [
-  { label: "Scoring", fields: ["finalScore", "pointsInQuarter1", "pointsInQuarter2", "pointsInQuarter3", "pointsInQuarter4"] },
-  { label: "Offense", fields: ["firstDowns", "totalOffense", "totalPlays", "yardsPerPlay", "totalYards"] },
-  { label: "Rushing", fields: ["rushes", "rushingYards", "rushingTds", "yardsPerRush"] },
-  { label: "Passing", fields: ["passingCompletions", "passingAttempts", "passingTds", "passingYards", "yardsPerPass"] },
-  {
-    label: "Downs & 2-PT",
-    fields: [
-      "thirdDownConversions", "thirdDownAttempts", "fourthDownConversions", "fourthDownAttempts",
-      "twoPointConversions", "twoPointAttempts",
-    ],
-  },
-  { label: "Red Zone", fields: ["redZoneTds", "redZoneFieldGoals", "redZoneSuccessPercentage"] },
-  { label: "Ball Security", fields: ["turnovers", "fumblesLost", "interceptionsThrown"] },
-  { label: "Special Teams", fields: ["puntReturnYards", "kickReturnYards", "punts"] },
-  { label: "Penalties & Time", fields: ["penalties", "penaltyYards", "timeOfPossession"] },
-];
-
-const FIELD_LABELS = {
-  finalScore: "Final Score", pointsInQuarter1: "Q1", pointsInQuarter2: "Q2", pointsInQuarter3: "Q3", pointsInQuarter4: "Q4",
-  firstDowns: "First Downs", totalOffense: "Total Offense", totalPlays: "Total Plays", yardsPerPlay: "Yards/Play",
-  totalYards: "Total Yards", rushes: "Rushes", rushingYards: "Rush Yards", rushingTds: "Rush TDs",
-  yardsPerRush: "Yards/Rush", passingCompletions: "Comp", passingAttempts: "Att", passingTds: "Pass TDs",
-  passingYards: "Pass Yards", yardsPerPass: "Yards/Pass", thirdDownConversions: "3rd Down Made",
-  thirdDownAttempts: "3rd Down Att", fourthDownConversions: "4th Down Made", fourthDownAttempts: "4th Down Att",
-  twoPointConversions: "2-PT Made", twoPointAttempts: "2-PT Att", redZoneTds: "RZ TDs", redZoneFieldGoals: "RZ FGs",
-  redZoneSuccessPercentage: "RZ %", turnovers: "Turnovers", fumblesLost: "Fumbles Lost",
-  interceptionsThrown: "INTs Thrown", puntReturnYards: "PR Yards", kickReturnYards: "KR Yards", punts: "Punts",
-  penalties: "Penalties", penaltyYards: "Penalty Yards", timeOfPossession: "TOP (sec)",
-};
-
-const CATEGORY_FIELDS = {
-  passing: ["passingCompletions", "passingAttempts", "passingYards", "passingTds", "passingInterceptions", "passingRating", "passingLongest", "passingSacksTaken", "passingAvg"],
-  rushing: ["rushingCarries", "rushingYards", "rushingAvg", "rushingTds", "rushingFumbles", "rushingYac", "rushingLongest"],
-  receiving: ["receivingReceptions", "receivingYards", "receivingAvg", "receivingTds", "receivingRac", "receivingLongest", "receivingDrop"],
-  defense: ["defenseSoloTackles", "defenseAssistTackles", "defenseTackles", "defenseTfl", "defenseSacks", "defenseInterceptions", "defenseInterceptionsLongest"],
-};
-
-const PLAYER_FIELD_LABELS = {
-  passingRating: "Rating", passingCompletions: "Comp", passingAttempts: "Att", passingYards: "Yards",
-  passingTds: "TD", passingInterceptions: "INT", passingLongest: "Long", passingSacksTaken: "Sacks Taken",
-  passingAvg: "Comp %", rushingCarries: "Car", rushingYards: "Yards", rushingAvg: "Avg", rushingTds: "TD",
-  rushingFumbles: "Fumb", rushingYac: "YAC", rushingLongest: "Long", receivingReceptions: "Rec",
-  receivingYards: "Yards", receivingAvg: "Avg", receivingTds: "TD", receivingRac: "RAC", receivingLongest: "Long",
-  receivingDrop: "Drops", defenseSoloTackles: "Solo", defenseAssistTackles: "Assist", defenseTackles: "Tak",
-  defenseTfl: "TFL", defenseSacks: "Sack", defenseInterceptions: "INT", defenseInterceptionsLongest: "INT Long",
-};
+import ExistingScreenshotsGallery from "../components/ExistingScreenshotsGallery";
+import GameSummary from "../components/GameSummary";
+import { analyzeGameStats, commitGameStats, fetchGame } from "../lib/apiClient";
+import { TEAM_STAT_GROUPS, FIELD_LABELS, CATEGORY_FIELDS, PLAYER_FIELD_LABELS, normalizeCollegeStats } from "../lib/gameStatFields";
 
 const inputClass =
   "w-full rounded-md border border-border bg-white px-2 py-1.5 text-sm text-textPrimary focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface dark:text-white";
-
-const normalizeCollegeStats = (rows, awayCollege, homeCollege) => {
-  const byTeam = Object.fromEntries((rows || []).map((row) => [row.team, row]));
-  return [awayCollege, homeCollege].map((college) => byTeam[college.name] || { team: college.name, fields: {} });
-};
 
 function NumberField({ label, value, onChange }) {
   return (
@@ -203,36 +153,6 @@ function ReferencePhotos({ buckets, homeCollege, awayCollege }) {
             </div>
           </div>
         ))}
-      </div>
-    </Card>
-  );
-}
-
-function ExistingScreenshotsGallery({ screenshots }) {
-  if (!screenshots || screenshots.length === 0) return null;
-
-  return (
-    <Card>
-      <div className="p-5 space-y-3">
-        <div>
-          <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">
-            Uploaded Screenshots
-          </h3>
-          <p className="text-sm text-textSecondary">
-            Previously uploaded for this game. Click one to open it full-size.
-          </p>
-        </div>
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-          {screenshots.map((screenshot) => (
-            <a key={screenshot.id} href={`${API_BASE_URL}${screenshot.url}`} target="_blank" rel="noreferrer">
-              <img
-                src={`${API_BASE_URL}${screenshot.url}`}
-                alt={screenshot.filename}
-                className="h-24 w-full rounded-md border border-border object-cover transition hover:opacity-80 dark:border-darkborder"
-              />
-            </a>
-          ))}
-        </div>
       </div>
     </Card>
   );
@@ -417,7 +337,7 @@ function PlayerStatsSection({ playerStats, onChange, awayRoster, homeRoster, hom
 
 function GameUpdatePage() {
   const { gameId } = useParams();
-  const navigate = useNavigate();
+  const authed = Boolean(localStorage.getItem("jwt"));
 
   const [game, setGame] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -438,7 +358,7 @@ function GameUpdatePage() {
       try {
         const data = await fetchGame(gameId);
         setGame(data);
-        if (data.existingAnalysis) {
+        if (authed && data.existingAnalysis) {
           setAnalysis({
             ...data.existingAnalysis,
             collegeStats: normalizeCollegeStats(data.existingAnalysis.collegeStats, data.awayCollege, data.homeCollege),
@@ -447,15 +367,12 @@ function GameUpdatePage() {
         }
       } catch (err) {
         setLoadError(err.message);
-        if (err.message?.toLowerCase().includes("unauthorized")) {
-          navigate("/auth/login");
-        }
       } finally {
         setLoading(false);
       }
     };
     load();
-  }, [gameId, navigate]);
+  }, [gameId, authed]);
 
   const handleAnalyze = async () => {
     setAnalyzing(true);
@@ -517,7 +434,9 @@ function GameUpdatePage() {
         }
       />
 
-      {saved ? (
+      {!authed ? (
+        <GameSummary game={game} />
+      ) : saved ? (
         <Card>
           <div className="p-5 space-y-2">
             <p className="text-sm font-semibold text-success">

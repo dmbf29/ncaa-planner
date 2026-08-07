@@ -9,17 +9,24 @@ const gameDateLabel = (time) =>
 function TeamName({ side }) {
   return (
     <span className="inline-flex items-center gap-1">
+      {side.rank ? <span className="text-textSecondary">#{side.rank}</span> : null}
       {side.name}
       {side.coachedByUs ? <i className="fa-solid fa-gamepad text-[10px] text-burnt/80" title="User-coached" /> : null}
     </span>
   );
 }
 
-function LeagueGameRow({ game, linkToGame }) {
+// Game pages are public (view results, screenshots, box score for anyone;
+// editing is gated separately on that page itself), so every game row
+// links there regardless of login state.
+function LeagueGameRow({ game }) {
   const dateLabel = gameDateLabel(game.time);
 
-  const content = (
-    <>
+  const rowClass =
+    "flex items-center justify-between gap-2 border-b border-border/60 py-1.5 text-sm last:border-0 dark:border-darkborder/60";
+
+  return (
+    <Link to={`/dynasty/games/${game.id}`} className={clsx(rowClass, "hover:bg-charcoal/5 dark:hover:bg-white/5")}>
       <div className="flex min-w-0 items-center gap-2">
         {dateLabel && <span className="shrink-0 text-xs text-textSecondary">{dateLabel}</span>}
         <span className="truncate text-textPrimary dark:text-white">
@@ -33,21 +40,8 @@ function LeagueGameRow({ game, linkToGame }) {
       ) : (
         <span className="shrink-0 text-xs text-textSecondary/60">Upcoming</span>
       )}
-    </>
+    </Link>
   );
-
-  const rowClass =
-    "flex items-center justify-between gap-2 border-b border-border/60 py-1.5 text-sm last:border-0 dark:border-darkborder/60";
-
-  if (linkToGame) {
-    return (
-      <Link to={`/dynasty/games/${game.id}`} className={clsx(rowClass, "hover:bg-charcoal/5 dark:hover:bg-white/5")}>
-        {content}
-      </Link>
-    );
-  }
-
-  return <div className={rowClass}>{content}</div>;
 }
 
 export default LeagueGameRow;

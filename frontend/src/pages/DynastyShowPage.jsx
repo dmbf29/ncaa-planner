@@ -178,7 +178,6 @@ function DynastyShowPage() {
               lastPlayedWeekNumber={dashboard.lastPlayedWeekNumber}
               dynastyId={dynastyId}
               seasonId={seasonId}
-              authed={authed}
             />
           </div>
 
