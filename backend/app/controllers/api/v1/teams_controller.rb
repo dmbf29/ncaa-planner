@@ -1,7 +1,7 @@
 module Api
   module V1
     class TeamsController < BaseController
-      before_action :set_team, only: %i[show update destroy import_roster]
+      before_action :set_team, only: %i[show update destroy import_roster analyze_roster_update commit_roster_update]
 
       def index
         teams = policy_scope(Team.includes(:squads).where(user: current_user))
@@ -47,6 +47,25 @@ module Api
         render json: team_json(@team.reload)
       end
 
+      def analyze_roster_update
+        authorize @team
+        result = RosterUpdates::Extractor.new.call(@team, Array(params[:images]))
+        render json: result
+      rescue RubyLLM::Error => e
+        render json: { error: "AI extraction failed: #{e.message}", code: "extraction_failed" }, status: :unprocessable_entity
+      end
+
+      def commit_roster_update
+        authorize @team
+        warnings = RosterUpdates::CommitService.new(@team).call(
+          rows: commit_rows,
+          missing_player_actions: commit_missing_player_actions
+        )
+        render json: { team: team_json(@team.reload), warnings: warnings }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
+      end
+
       private
 
       def set_team
@@ -55,6 +74,14 @@ module Api
 
       def team_params
         params.require(:team).permit(:name, :college_id)
+      end
+
+      def commit_rows
+        Array(params[:rows]).map { |row| row.to_unsafe_h.deep_symbolize_keys }
+      end
+
+      def commit_missing_player_actions
+        Array(params[:missing_player_actions]).map { |action| action.to_unsafe_h.deep_symbolize_keys }
       end
 
       def team_json(team)

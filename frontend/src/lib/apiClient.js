@@ -70,6 +70,19 @@ export const importRoster = (teamId, payload) =>
 
 export const fetchColleges = () => api.get("/api/v1/colleges").then((r) => r.data);
 
+export const analyzeRosterUpdate = (teamId, files) => {
+  const formData = new FormData();
+  files.forEach((file) => formData.append("images[]", file));
+  return api
+    .post(`/api/v1/teams/${teamId}/analyze_roster_update`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+    .then((r) => r.data);
+};
+
+export const commitRosterUpdate = (teamId, payload) =>
+  api.post(`/api/v1/teams/${teamId}/commit_roster_update`, payload).then((r) => r.data);
+
 export const createPositionBoard = (teamId, payload) =>
   api.post(`/api/v1/teams/${teamId}/position_boards`, { position_board: payload }).then((r) => r.data);
 

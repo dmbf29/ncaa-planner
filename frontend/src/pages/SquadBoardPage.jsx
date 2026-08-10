@@ -1154,6 +1154,12 @@ function SquadBoardPage() {
               >
                 Alumni
               </Link>
+              <Link
+                to={`/teams/${id}/batch-update`}
+                className="font-varsity uppercase rounded-md px-3 py-2 text-sm bg-burnt text-white transition hover:bg-burnt/80"
+              >
+                Batch Update
+              </Link>
             </div>
             <div className="mt-3">
               <PriorityPositions

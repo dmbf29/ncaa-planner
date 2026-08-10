@@ -11,6 +11,8 @@ Rails.application.routes.draw do
       resources :teams, only: %i[index show create update destroy] do
         member do
           post :import_roster
+          post :analyze_roster_update
+          post :commit_roster_update
         end
         resources :squads, only: %i[index create update destroy]
         resources :position_boards, only: %i[index create update destroy]

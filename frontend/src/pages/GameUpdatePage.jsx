@@ -6,7 +6,16 @@ import Card from "../components/Card";
 import ExistingScreenshotsGallery from "../components/ExistingScreenshotsGallery";
 import GameSummary from "../components/GameSummary";
 import { analyzeGameNarrative, analyzeGameStats, commitGameStats, fetchGame } from "../lib/apiClient";
-import { TEAM_STAT_GROUPS, FIELD_LABELS, CATEGORY_FIELDS, PLAYER_FIELD_LABELS, normalizeCollegeStats } from "../lib/gameStatFields";
+import {
+  TEAM_STAT_GROUPS,
+  FIELD_LABELS,
+  CATEGORY_FIELDS,
+  PLAYER_FIELD_LABELS,
+  POSITIONS,
+  CLASS_YEARS,
+  DEFAULT_POSITION_BY_CATEGORY,
+  normalizeCollegeStats,
+} from "../lib/gameStatFields";
 
 const EMPTY_NARRATIVE = {
   narrativeSummary: "",
@@ -18,6 +27,47 @@ const EMPTY_NARRATIVE = {
 
 const inputClass =
   "w-full rounded-md border border-border bg-white px-2 py-1.5 text-sm text-textPrimary focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface dark:text-white";
+
+// When screenshots get analyzed on top of an already-reviewed game (e.g.
+// a game that already has a final score from a schedule upload but no box
+// score yet), merge the freshly extracted values in rather than replacing
+// the review wholesale — a field the new screenshots didn't cover keeps
+// whatever was already there instead of getting blanked out.
+const mergeCollegeStats = (existingRows, freshRows) =>
+  existingRows.map((existingRow) => {
+    const freshRow = freshRows.find((row) => row.team === existingRow.team);
+    if (!freshRow) return existingRow;
+
+    const mergedFields = { ...existingRow.fields };
+    Object.entries(freshRow.fields || {}).forEach(([key, value]) => {
+      if (value != null) mergedFields[key] = value;
+    });
+    return { ...existingRow, fields: mergedFields };
+  });
+
+// A row the AI couldn't confidently match to the roster now gets a new
+// Student/StudentSeason created on save instead of being silently
+// dropped — pre-fill a reasonable starting position/class year so the
+// review form isn't blank, since both are required fields on save.
+const withUnmatchedDefaults = (playerStats) =>
+  (playerStats || []).map((row) =>
+    row.studentSeasonId
+      ? row
+      : {
+          ...row,
+          position: row.position || DEFAULT_POSITION_BY_CATEGORY[row.category] || POSITIONS[0],
+          classYear: row.classYear || "FR",
+        },
+  );
+
+const mergeAnalysis = (existing, fresh, awayCollege, homeCollege) => ({
+  ...existing,
+  screenshotSignedIds: [...(existing.screenshotSignedIds || []), ...(fresh.screenshotSignedIds || [])],
+  collegeStats: mergeCollegeStats(existing.collegeStats, normalizeCollegeStats(fresh.collegeStats, awayCollege, homeCollege)),
+  playerStats: [...existing.playerStats, ...withUnmatchedDefaults(fresh.playerStats)],
+  homeRoster: existing.homeRoster?.length ? existing.homeRoster : fresh.homeRoster,
+  awayRoster: existing.awayRoster?.length ? existing.awayRoster : fresh.awayRoster,
+});
 
 function NumberField({ label, value, onChange }) {
   return (
@@ -79,7 +129,7 @@ function FileDropZone({ label, hint, files, onFilesChange }) {
   );
 }
 
-function UploadStep({ buckets, onBucketsChange, onAnalyze, analyzing, error, homeCollege, awayCollege }) {
+function UploadStep({ buckets, onBucketsChange, onAnalyze, analyzing, error, homeCollege, awayCollege, addingMore }) {
   const totalFiles = buckets.boxScore.length + buckets.home.length + buckets.away.length;
 
   return (
@@ -87,11 +137,12 @@ function UploadStep({ buckets, onBucketsChange, onAnalyze, analyzing, error, hom
       <div className="p-5 space-y-4">
         <div>
           <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">
-            Upload Screenshots
+            {addingMore ? "Upload More Screenshots" : "Upload Screenshots"}
           </h3>
           <p className="mt-1 text-sm text-textSecondary">
-            Upload the box score separately from each team&rsquo;s player stat screens (passing/rushing/receiving/
-            defense). The AI reads them and proposes stats below for you to review before anything is saved.
+            {addingMore
+              ? "Add screenshots to fill in anything still missing — new values merge into the review below without touching what's already there."
+              : "Upload the box score separately from each team’s player stat screens (passing/rushing/receiving/defense). The AI reads them and proposes stats below for you to review before anything is saved."}
           </p>
         </div>
 
@@ -330,7 +381,7 @@ function PlayerStatsSection({ playerStats, onChange, awayRoster, homeRoster, hom
                   onChange={(e) => updateRow(index, { studentSeasonId: e.target.value ? Number(e.target.value) : null })}
                   className="rounded-md border border-border bg-white px-2 py-1.5 text-xs dark:border-darkborder dark:bg-darksurface"
                 >
-                  <option value="">Unmatched — won&rsquo;t be saved</option>
+                  <option value="">New player (will be created)</option>
                   {rosterFor(row.team).map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name} ({p.position})
@@ -341,6 +392,33 @@ function PlayerStatsSection({ playerStats, onChange, awayRoster, homeRoster, hom
                   Remove
                 </button>
               </div>
+              {!row.studentSeasonId && (
+                <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-burnt/5 p-2 text-xs">
+                  <span className="text-textSecondary">Not on the roster yet — will be created as:</span>
+                  <select
+                    value={row.position || ""}
+                    onChange={(e) => updateRow(index, { position: e.target.value })}
+                    className="rounded-md border border-border bg-white px-2 py-1 text-xs dark:border-darkborder dark:bg-darksurface"
+                  >
+                    {POSITIONS.map((position) => (
+                      <option key={position} value={position}>
+                        {position}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={row.classYear || ""}
+                    onChange={(e) => updateRow(index, { classYear: e.target.value })}
+                    className="rounded-md border border-border bg-white px-2 py-1 text-xs dark:border-darkborder dark:bg-darksurface"
+                  >
+                    {CLASS_YEARS.map((classYear) => (
+                      <option key={classYear} value={classYear}>
+                        {classYear}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
                 {(CATEGORY_FIELDS[row.category] || []).map((field) => (
                   <NumberField
@@ -405,11 +483,16 @@ function GameUpdatePage() {
     setAnalyzeError(null);
     try {
       const result = await analyzeGameStats(gameId, buckets);
-      setAnalysis({
-        ...result,
-        narrative: EMPTY_NARRATIVE,
-        collegeStats: normalizeCollegeStats(result.collegeStats, game.awayCollege, game.homeCollege),
-      });
+      setAnalysis((prev) =>
+        prev
+          ? mergeAnalysis(prev, result, game.awayCollege, game.homeCollege)
+          : {
+              ...result,
+              narrative: EMPTY_NARRATIVE,
+              collegeStats: normalizeCollegeStats(result.collegeStats, game.awayCollege, game.homeCollege),
+              playerStats: withUnmatchedDefaults(result.playerStats),
+            },
+      );
     } catch (err) {
       setAnalyzeError(err.message);
     } finally {
@@ -490,66 +573,71 @@ function GameUpdatePage() {
             </Link>
           </div>
         </Card>
-      ) : !analysis ? (
-        <UploadStep
-          buckets={buckets}
-          onBucketsChange={setBuckets}
-          onAnalyze={handleAnalyze}
-          analyzing={analyzing}
-          error={analyzeError}
-          homeCollege={game.homeCollege}
-          awayCollege={game.awayCollege}
-        />
       ) : (
         <>
-          {game.played && (
-            <p className="text-sm text-textSecondary">
-              This game already has recorded stats — edit the fields below and save to update them.
-            </p>
-          )}
-          <ExistingScreenshotsGallery screenshots={game.statScreenshots} />
-          <ReferencePhotos buckets={buckets} homeCollege={game.homeCollege} awayCollege={game.awayCollege} />
-          <NarrativeSection
-            narrative={analysis.narrative}
-            onChange={(narrative) => setAnalysis({ ...analysis, narrative })}
-            roster={[...analysis.homeRoster, ...analysis.awayRoster]}
-            onRunAnalysis={handleRunNarrative}
-            running={narrativeRunning}
-            error={narrativeError}
-          />
-          <TeamStatsSection
-            collegeStats={analysis.collegeStats}
-            onChange={(collegeStats) => setAnalysis({ ...analysis, collegeStats })}
+          <UploadStep
+            buckets={buckets}
+            onBucketsChange={setBuckets}
+            onAnalyze={handleAnalyze}
+            analyzing={analyzing}
+            error={analyzeError}
+            homeCollege={game.homeCollege}
             awayCollege={game.awayCollege}
-            homeCollege={game.homeCollege}
-          />
-          <PlayerStatsSection
-            playerStats={analysis.playerStats}
-            onChange={(playerStats) => setAnalysis({ ...analysis, playerStats })}
-            awayRoster={analysis.awayRoster}
-            homeRoster={analysis.homeRoster}
-            homeCollege={game.homeCollege}
+            addingMore={Boolean(analysis)}
           />
 
-          {commitError && <p className="text-sm text-danger">{commitError}</p>}
+          {analysis && (
+            <>
+              {game.played && (
+                <p className="text-sm text-textSecondary">
+                  This game already has recorded stats — edit the fields below and save to update them.
+                </p>
+              )}
+              <ExistingScreenshotsGallery screenshots={game.statScreenshots} />
+              <ReferencePhotos buckets={buckets} homeCollege={game.homeCollege} awayCollege={game.awayCollege} />
+              <NarrativeSection
+                narrative={analysis.narrative}
+                onChange={(narrative) => setAnalysis({ ...analysis, narrative })}
+                roster={[...analysis.homeRoster, ...analysis.awayRoster]}
+                onRunAnalysis={handleRunNarrative}
+                running={narrativeRunning}
+                error={narrativeError}
+              />
+              <TeamStatsSection
+                collegeStats={analysis.collegeStats}
+                onChange={(collegeStats) => setAnalysis({ ...analysis, collegeStats })}
+                awayCollege={game.awayCollege}
+                homeCollege={game.homeCollege}
+              />
+              <PlayerStatsSection
+                playerStats={analysis.playerStats}
+                onChange={(playerStats) => setAnalysis({ ...analysis, playerStats })}
+                awayRoster={analysis.awayRoster}
+                homeRoster={analysis.homeRoster}
+                homeCollege={game.homeCollege}
+              />
 
-          <div className="flex gap-2 pb-8">
-            <button
-              type="button"
-              onClick={handleCommit}
-              disabled={committing}
-              className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {committing ? "Saving..." : "Save Game Stats"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setAnalysis(null)}
-              className="rounded-md border border-border px-4 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
-            >
-              Start Over
-            </button>
-          </div>
+              {commitError && <p className="text-sm text-danger">{commitError}</p>}
+
+              <div className="flex gap-2 pb-8">
+                <button
+                  type="button"
+                  onClick={handleCommit}
+                  disabled={committing}
+                  className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {committing ? "Saving..." : "Save Game Stats"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAnalysis(null)}
+                  className="rounded-md border border-border px-4 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+                >
+                  Clear Review
+                </button>
+              </div>
+            </>
+          )}
         </>
       )}
     </div>

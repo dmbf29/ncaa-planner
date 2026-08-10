@@ -7,6 +7,7 @@ import SquadBoardPage from "./pages/SquadBoardPage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import TeamCreatePage from "./pages/TeamCreatePage";
+import RosterBatchUpdatePage from "./pages/RosterBatchUpdatePage";
 import GraduatesPage from "./pages/GraduatesPage";
 import DynastyDashboardPage from "./pages/DynastyDashboardPage";
 import DynastyShowPage from "./pages/DynastyShowPage";
@@ -35,6 +36,7 @@ function App() {
         <Route path="/teams/new" element={<TeamCreatePage />} />
         <Route path="/teams" element={<TeamsPage />} />
         <Route path="/teams/:id/setup" element={<TeamSetupPage />} />
+        <Route path="/teams/:id/batch-update" element={<RosterBatchUpdatePage />} />
         <Route path="/teams/:id/graduates" element={<GraduatesPage />} />
         <Route path="/teams/:id/squads/:squadId" element={<SquadBoardPage />} />
         <Route path="/dynasty" element={<DynastyDashboardPage />} />

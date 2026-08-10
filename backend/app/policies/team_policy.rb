@@ -16,4 +16,12 @@ class TeamPolicy < ApplicationPolicy
   def import_roster?
     owner?
   end
+
+  def analyze_roster_update?
+    owner?
+  end
+
+  def commit_roster_update?
+    owner?
+  end
 end

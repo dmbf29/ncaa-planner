@@ -9,7 +9,12 @@ class SeasonWeeksSerializer
 
     {
       focus: focus_json(weeks.first),
-      season: { id: @season.id, year: @season.year, dynasty: @season.dynasty.name },
+      season: {
+        id: @season.id,
+        year: @season.year,
+        dynasty: @season.dynasty.name,
+        coached_conferences: coached_conferences
+      },
       weeks: weeks
     }
   end
@@ -46,9 +51,21 @@ class SeasonWeeksSerializer
     @coached_college_ids ||= coached_college_seasons.map(&:college_id).to_set
   end
 
+  # The conference(s) our coached teams play in — used to scope the "around
+  # the conference" scoreboard to results relevant to our dynasty rather
+  # than every other game league-wide.
+  def coached_conferences
+    @coached_conferences ||= coached_college_seasons.map { |cs| cs.college.conference }.uniq
+  end
+
+  def college_seasons_by_college_id
+    @college_seasons_by_college_id ||= @season.college_seasons.index_by(&:college_id)
+  end
+
   def all_games
     @all_games ||= Game.where(week_id: @season.week_ids)
-                        .includes(:home_college, :away_college, :college_game_stats, :week)
+                        .includes(:home_college, :away_college, :college_game_stats, :week,
+                                  offensive_player_of_game: :student, defensive_player_of_game: :student)
                         .to_a
   end
 
@@ -70,7 +87,10 @@ class SeasonWeeksSerializer
         post_season: week.post_season
       },
       teams: coached_college_seasons.map { |cs| team_week_json(cs, week) },
-      coached_matchups: coached_matchups_for_week(week)
+      coached_matchups: coached_matchups_for_week(week),
+      conference_results: conference_results_for_week(week),
+      conference_top_25: conference_top_25_for_week(week),
+      conference_heisman_watch: conference_heisman_watch_for_week(week)
     }
   end
 
@@ -81,12 +101,21 @@ class SeasonWeeksSerializer
 
     {
       college: { id: college_season.college.id, name: college_season.college.name },
-      coach: { id: college_season.coach.id, name: college_season.coach.name },
+      coach: coach_json(college_season.coach),
       record_entering_week: record_before(college_season.college_id, games, week.number),
       ranking: ranking_json(college_season.college_id, week),
       game: this_week_game_json(this_week_game, college_season.college_id),
       top_performers: top_performers_json(this_week_game, college_season),
       next_game: next_game && upcoming_game_json(next_game, college_season.college_id)
+    }
+  end
+
+  def coach_json(coach)
+    {
+      id: coach.id,
+      name: coach.name,
+      offensive_scheme: coach.offensive_scheme,
+      defensive_scheme: coach.defensive_scheme
     }
   end
 
@@ -123,14 +152,49 @@ class SeasonWeeksSerializer
     {
       status: result ? "final" : "scheduled",
       opponent: opponent_json(opponent, home),
-      result: result
+      result: result,
+      narrative_summary: result ? game.narrative_summary : nil,
+      offensive_player_of_game: result ? player_of_game_json(game.offensive_player_of_game, game.offensive_player_stat_line) : nil,
+      defensive_player_of_game: result ? player_of_game_json(game.defensive_player_of_game, game.defensive_player_stat_line) : nil
     }
+  end
+
+  def player_of_game_json(student_season, stat_line)
+    return nil unless student_season
+
+    { name: student_season.student.name, position: student_season.position, stat_line: stat_line }
   end
 
   def upcoming_game_json(game, college_id)
     home = game.home_college_id == college_id
     opponent = home ? game.away_college : game.home_college
-    { week_number: game.week.number, opponent: opponent_json(opponent, home) }
+    {
+      week_number: game.week.number,
+      opponent: opponent_json(opponent, home),
+      scouting_report: scouting_report_json(opponent.id)
+    }
+  end
+
+  # Overall/offense/defense ratings plus the one player to watch on each
+  # side of the ball for a not-yet-played opponent — nil-shaped when the
+  # opponent has no CollegeSeason on record for this season.
+  def scouting_report_json(college_id)
+    college_season = college_seasons_by_college_id[college_id]
+    return { overall: nil, offense: nil, defense: nil, best_offensive_player: nil, best_defensive_player: nil } unless college_season
+
+    {
+      overall: college_season.overall,
+      offense: college_season.offense,
+      defense: college_season.defense,
+      best_offensive_player: scouting_player_json(college_season.best_offensive_players(limit: 1).first),
+      best_defensive_player: scouting_player_json(college_season.best_defensive_players(limit: 1).first)
+    }
+  end
+
+  def scouting_player_json(student_season)
+    return nil unless student_season
+
+    { name: student_season.student.name, position: student_season.position, overall: student_season.overall }
   end
 
   def opponent_json(opponent, home)
@@ -158,13 +222,40 @@ class SeasonWeeksSerializer
     current.ranking < previous.ranking ? "moved_up" : "moved_down"
   end
 
-  def top_performers_json(game, college_season)
-    return [] unless game
+  # Position codes that get pulled to the front of each team's performer
+  # list, in this order — everything else keeps its natural (name) order
+  # after them.
+  TOP_PERFORMER_POSITION_PRIORITY = %w[QB HB WR].freeze
 
+  def top_performers_json(game, college_season)
+    return nil unless game
+
+    home = college_season.college_id == game.home_college_id
+    opponent_college = home ? game.away_college : game.home_college
+
+    {
+      team: team_performers_json(game, college_season, college_season.college),
+      opponent: team_performers_json(game, college_seasons_by_college_id[opponent_college.id], opponent_college)
+    }
+  end
+
+  def team_performers_json(game, college_season, college)
+    performers = college_season ? performers_for(game, college_season) : []
+    { college: { id: college.id, name: college.name }, performers: sort_performers(performers) }
+  end
+
+  def performers_for(game, college_season)
     stat_columns = StudentGameStat.column_names - %w[id game_id student_season_id created_at updated_at]
     StudentGameStat.where(game_id: game.id, student_season_id: college_season.student_seasons.select(:id))
                    .includes(student_season: :student)
                    .map { |stat| performer_json(stat, stat_columns) }
+  end
+
+  def sort_performers(performers)
+    performers.sort_by do |performer|
+      priority = TOP_PERFORMER_POSITION_PRIORITY.index(performer[:position])
+      [ priority || TOP_PERFORMER_POSITION_PRIORITY.size, performer[:name] ]
+    end
   end
 
   def performer_json(stat, stat_columns)
@@ -174,6 +265,90 @@ class SeasonWeeksSerializer
       position: student_season.position,
       stats: stat.attributes.slice(*stat_columns).compact.reject { |_key, value| value.zero? }
     }
+  end
+
+  def conference_results_for_week(week)
+    all_games.select { |game| game.week_id == week.id }
+             .reject { |game| coached_college_ids.include?(game.home_college_id) || coached_college_ids.include?(game.away_college_id) }
+             .select { |game| coached_conferences.include?(game.home_college.conference) || coached_conferences.include?(game.away_college.conference) }
+             .filter_map { |game| conference_game_json(game) }
+  end
+
+  def conference_game_json(game)
+    stats = game.college_game_stats.index_by(&:college_id)
+    home_stat = stats[game.home_college_id]
+    away_stat = stats[game.away_college_id]
+    return nil unless home_stat&.final_score && away_stat&.final_score
+
+    {
+      home: { id: game.home_college.id, name: game.home_college.name },
+      away: { id: game.away_college.id, name: game.away_college.name },
+      result: { home_score: home_stat.final_score, away_score: away_stat.final_score }
+    }
+  end
+
+  # Top 25 movement for conference rivals (excludes our own coached teams,
+  # whose ranking is already shown in their own team section) — anyone who
+  # entered, moved, held steady, or dropped out, between last week and this
+  # one. Empty when no conference team appears in either week's poll.
+  def conference_top_25_for_week(week)
+    previous_week = @season.weeks.find_by(number: week.number - 1)
+    current_by_college = week.college_week_rankings.includes(:college).index_by(&:college_id)
+    previous_by_college = previous_week ? previous_week.college_week_rankings.includes(:college).index_by(&:college_id) : {}
+
+    relevant_college_ids = (current_by_college.keys + previous_by_college.keys).uniq.select do |college_id|
+      college = (current_by_college[college_id] || previous_by_college[college_id]).college
+      coached_conferences.include?(college.conference) && !coached_college_ids.include?(college_id)
+    end
+
+    relevant_college_ids.map do |college_id|
+      current = current_by_college[college_id]
+      previous = previous_by_college[college_id]
+      college = (current || previous).college
+
+      {
+        college: { id: college.id, name: college.name },
+        current_rank: current&.ranking,
+        previous_rank: previous&.ranking,
+        status: ranking_status(current, previous)
+      }
+    end.sort_by { |ranking| ranking[:current_rank] || ranking[:previous_rank] }
+  end
+
+  # Heisman watch adds/drops for conference rivals (excludes our own coached
+  # teams' players) between last week and this one. Empty when no conference
+  # player appears on the watch list in either week.
+  def conference_heisman_watch_for_week(week)
+    previous_week = @season.weeks.find_by(number: week.number - 1)
+    student_season_includes = { student_season: [ :student, { college_season: :college } ] }
+    current_by_student_season = week.heisman_candidates.includes(student_season_includes).index_by(&:student_season_id)
+    previous_by_student_season = previous_week ? previous_week.heisman_candidates.includes(student_season_includes).index_by(&:student_season_id) : {}
+
+    relevant_student_season_ids = (current_by_student_season.keys + previous_by_student_season.keys).uniq.select do |student_season_id|
+      candidate = current_by_student_season[student_season_id] || previous_by_student_season[student_season_id]
+      college = candidate.student_season.college_season.college
+      coached_conferences.include?(college.conference) && !coached_college_ids.include?(college.id)
+    end
+
+    relevant_student_season_ids.map do |student_season_id|
+      current = current_by_student_season[student_season_id]
+      previous = previous_by_student_season[student_season_id]
+      student_season = (current || previous).student_season
+      college = student_season.college_season.college
+
+      {
+        student: { name: student_season.student.name, position: student_season.position },
+        college: { id: college.id, name: college.name },
+        status: heisman_watch_status(current, previous)
+      }
+    end
+  end
+
+  def heisman_watch_status(current, previous)
+    return "added" if current && !previous
+    return "dropped" if previous && !current
+
+    "steady"
   end
 
   def coached_matchups_for_week(week)

@@ -50,3 +50,15 @@ export const normalizeCollegeStats = (rows, awayCollege, homeCollege) => {
   const byTeam = Object.fromEntries((rows || []).map((row) => [row.team, row]));
   return [awayCollege, homeCollege].map((college) => byTeam[college.name] || { team: college.name, fields: {} });
 };
+
+// Every valid position across CollegeSeason::POSITION_GROUPS on the backend
+// — offered as a dropdown when creating a new player from an unmatched
+// stat row, since position is otherwise free text with no source of truth
+// to fetch from.
+export const POSITIONS = ["QB", "HB", "FB", "WR", "TE", "LT", "LG", "C", "RG", "RT", "LE", "RE", "DT", "MLB", "LOLB", "ROLB", "CB", "FS", "SS", "K", "P"];
+
+export const CLASS_YEARS = ["FR", "FR(RS)", "SO", "SO(RS)", "JR", "JR(RS)", "SR", "SR(RS)"];
+
+// Mirrors GameStats::CommitService::DEFAULT_POSITION_BY_CATEGORY — just a
+// starting guess for a newly-created player; the user can correct it.
+export const DEFAULT_POSITION_BY_CATEGORY = { passing: "QB", rushing: "HB", receiving: "WR", defense: "MLB" };
