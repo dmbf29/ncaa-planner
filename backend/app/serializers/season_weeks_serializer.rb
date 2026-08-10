@@ -65,7 +65,8 @@ class SeasonWeeksSerializer
   def all_games
     @all_games ||= Game.where(week_id: @season.week_ids)
                         .includes(:home_college, :away_college, :college_game_stats, :week,
-                                  offensive_player_of_game: :student, defensive_player_of_game: :student)
+                                  offensive_player_of_game: [ :student, { college_season: :college } ],
+                                  defensive_player_of_game: [ :student, { college_season: :college } ])
                         .to_a
   end
 
@@ -162,7 +163,12 @@ class SeasonWeeksSerializer
   def player_of_game_json(student_season, stat_line)
     return nil unless student_season
 
-    { name: student_season.student.name, position: student_season.position, stat_line: stat_line }
+    {
+      name: student_season.student.name,
+      position: student_season.position,
+      college: student_season.college_season.college.name,
+      stat_line: stat_line
+    }
   end
 
   def upcoming_game_json(game, college_id)

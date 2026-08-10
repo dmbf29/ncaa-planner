@@ -49,7 +49,7 @@ class ScrapePlayersJob < ApplicationJob
       meta = name_cell.at_css("div.flex.items-center.gap-2.text-xs.text-content-muted")
 
       {
-        name: name_cell.at_css("a")&.text&.strip,
+        name: name_cell.at_css("a")&.text&.strip&.sub(/\*+\z/, "")&.strip,
         position_code: meta&.at_css("span.bg-surface-hover")&.text&.strip,
         class_year: parse_class_year(meta),
         archetype: meta&.css("> span")&.last&.text&.strip,

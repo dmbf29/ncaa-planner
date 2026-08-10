@@ -268,7 +268,7 @@ class SeasonWeeksMarkdownPresenter
   end
 
   def player_of_game_line(player)
-    base = "#{player[:name]} (#{player[:position]})"
+    base = "#{player[:name]} (#{player[:position]}, #{player[:college]})"
     player[:stat_line].present? ? "#{base}: #{player[:stat_line]}" : base
   end
 

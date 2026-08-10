@@ -17,7 +17,8 @@ class SeedCollegesJob < ApplicationJob
           conference: row[:conference],
           nil_total: row[:nil_total]&.delete(",")&.to_i,
           capacity: row[:capacity]&.delete(",")&.to_i,
-          pipeline_ranking: row[:pipeline_ranking]
+          pipeline_ranking: row[:pipeline_ranking],
+          alternate_name: row[:alternate_name].presence
         )
       else
         College.create(
@@ -30,7 +31,8 @@ class SeedCollegesJob < ApplicationJob
           conference: row[:conference],
           nil_total: row[:nil_total]&.delete(",")&.to_i,
           capacity: row[:capacity]&.delete(",")&.to_i,
-          pipeline_ranking: row[:pipeline_ranking]
+          pipeline_ranking: row[:pipeline_ranking],
+          alternate_name: row[:alternate_name].presence
         )
       end
     end

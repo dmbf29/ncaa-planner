@@ -44,7 +44,9 @@ module Api
         authorize @game
         payload = analysis_params
         GameStats::CommitService.new(@game).call(
-          screenshot_signed_ids: payload[:screenshot_signed_ids] || [],
+          box_score_screenshot_signed_ids: payload[:box_score_screenshot_signed_ids] || [],
+          home_screenshot_signed_ids: payload[:home_screenshot_signed_ids] || [],
+          away_screenshot_signed_ids: payload[:away_screenshot_signed_ids] || [],
           narrative: payload[:narrative] || {},
           college_stats: payload[:college_stats] || [],
           player_stats: payload[:player_stats] || []
@@ -73,13 +75,15 @@ module Api
           home_college: { id: @game.home_college.id, name: @game.home_college.name },
           away_college: { id: @game.away_college.id, name: @game.away_college.name },
           played: @game.played?,
-          stat_screenshots: stat_screenshots_json,
+          box_score_screenshots: screenshots_json(@game.box_score_screenshots),
+          home_screenshots: screenshots_json(@game.home_stat_screenshots),
+          away_screenshots: screenshots_json(@game.away_stat_screenshots),
           existing_analysis: existing_analysis_json
         }
       end
 
-      def stat_screenshots_json
-        @game.stat_screenshots.map do |screenshot|
+      def screenshots_json(attachments)
+        attachments.map do |screenshot|
           { id: screenshot.id, filename: screenshot.filename.to_s, url: rails_blob_path(screenshot, only_path: true) }
         end
       end
@@ -89,7 +93,7 @@ module Api
       # the same review/edit form instead of needing a separate "view" mode.
       # nil when there's nothing to reconstruct yet (a never-touched game).
       def existing_analysis_json
-        return nil unless @game.played? || @game.stat_screenshots.attached?
+        return nil unless @game.played? || @game.box_score_screenshots.attached? || @game.home_stat_screenshots.attached? || @game.away_stat_screenshots.attached?
 
         {
           college_stats: @game.college_game_stats.includes(:college).map { |stat| existing_college_stat_json(stat) },
@@ -138,7 +142,9 @@ module Api
 
       def analysis_json(result)
         {
-          screenshot_signed_ids: result[:screenshot_signed_ids],
+          box_score_screenshot_signed_ids: result[:box_score_screenshot_signed_ids],
+          home_screenshot_signed_ids: result[:home_screenshot_signed_ids],
+          away_screenshot_signed_ids: result[:away_screenshot_signed_ids],
           college_stats: result[:college_stats],
           player_stats: result[:player_stats],
           home_roster: result[:home_roster],

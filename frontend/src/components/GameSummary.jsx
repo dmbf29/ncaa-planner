@@ -149,7 +149,13 @@ function GameSummary({ game }) {
   return (
     <div className="space-y-6">
       <ScoreHeader game={game} collegeStats={analysis.collegeStats} />
-      <ExistingScreenshotsGallery screenshots={game.statScreenshots} />
+      <ExistingScreenshotsGallery
+        groups={[
+          { label: "Box Score", screenshots: game.boxScoreScreenshots },
+          { label: game.homeCollege.name, screenshots: game.homeScreenshots },
+          { label: game.awayCollege.name, screenshots: game.awayScreenshots },
+        ]}
+      />
       <NarrativeCard narrative={analysis.narrative} />
       <TeamStatsTable collegeStats={analysis.collegeStats} awayCollege={game.awayCollege} homeCollege={game.homeCollege} />
       <PlayerStatsCard playerStats={analysis.playerStats} />

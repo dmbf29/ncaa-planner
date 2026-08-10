@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { clsx } from "clsx";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
-import ExistingScreenshotsGallery from "../components/ExistingScreenshotsGallery";
 import GameSummary from "../components/GameSummary";
-import { analyzeGameNarrative, analyzeGameStats, commitGameStats, fetchGame } from "../lib/apiClient";
+import ScreenshotLightbox from "../components/ScreenshotLightbox";
+import { analyzeGameNarrative, analyzeGameStats, commitGameStats, fetchGame, API_BASE_URL } from "../lib/apiClient";
 import {
   TEAM_STAT_GROUPS,
   FIELD_LABELS,
@@ -24,6 +23,12 @@ const EMPTY_NARRATIVE = {
   defensePlayerOfGameId: null,
   defensePlayerStatLine: "",
 };
+
+const EMPTY_PENDING_FILES = { boxScore: [], home: [], away: [] };
+const EMPTY_SECTION_STATUS = { boxScore: {}, home: {}, away: {} };
+
+const PLAYER_CATEGORY_ORDER = ["passing", "rushing", "receiving", "defense"];
+const PLAYER_CATEGORY_LABELS = { passing: "Passing", rushing: "Rushing", receiving: "Receiving", defense: "Defense" };
 
 const inputClass =
   "w-full rounded-md border border-border bg-white px-2 py-1.5 text-sm text-textPrimary focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface dark:text-white";
@@ -60,9 +65,16 @@ const withUnmatchedDefaults = (playerStats) =>
         },
   );
 
+// Each of Box Score / Home / Away is analyzed independently (its own
+// request, its own loading state) so one section processing doesn't block
+// another. Every merge below uses the functional setState form, so two
+// analyze calls that resolve out of order (e.g. Away finishes before Home)
+// both land correctly regardless of which one completes first.
 const mergeAnalysis = (existing, fresh, awayCollege, homeCollege) => ({
   ...existing,
-  screenshotSignedIds: [...(existing.screenshotSignedIds || []), ...(fresh.screenshotSignedIds || [])],
+  boxScoreScreenshotSignedIds: [...(existing.boxScoreScreenshotSignedIds || []), ...(fresh.boxScoreScreenshotSignedIds || [])],
+  homeScreenshotSignedIds: [...(existing.homeScreenshotSignedIds || []), ...(fresh.homeScreenshotSignedIds || [])],
+  awayScreenshotSignedIds: [...(existing.awayScreenshotSignedIds || []), ...(fresh.awayScreenshotSignedIds || [])],
   collegeStats: mergeCollegeStats(existing.collegeStats, normalizeCollegeStats(fresh.collegeStats, awayCollege, homeCollege)),
   playerStats: [...existing.playerStats, ...withUnmatchedDefaults(fresh.playerStats)],
   homeRoster: existing.homeRoster?.length ? existing.homeRoster : fresh.homeRoster,
@@ -71,7 +83,7 @@ const mergeAnalysis = (existing, fresh, awayCollege, homeCollege) => ({
 
 function NumberField({ label, value, onChange }) {
   return (
-    <label className="flex flex-col gap-1 text-xs text-textSecondary">
+    <label className="flex flex-col gap-1 text-xs text-textSecondary text-nowrap">
       <span>{label}</span>
       <input
         type="number"
@@ -84,224 +96,176 @@ function NumberField({ label, value, onChange }) {
   );
 }
 
-function FileDropZone({ label, hint, files, onFilesChange }) {
+function AccordionSection({ title, subtitle, expanded, onToggle, children }) {
+  return (
+    <Card>
+      <button type="button" onClick={onToggle} className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left">
+        <div>
+          <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">{title}</h3>
+          {subtitle && <p className="mt-0.5 text-xs text-textSecondary">{subtitle}</p>}
+        </div>
+        <span className="shrink-0 text-sm text-textSecondary">{expanded ? "Collapse" : "Expand"}</span>
+      </button>
+      {expanded && <div className="space-y-4 border-t border-border px-5 py-4 dark:border-darkborder">{children}</div>}
+    </Card>
+  );
+}
+
+// Small thumbnail strip + scoped upload/analyze control for one bucket
+// (box score, home stats, or away stats). Existing (already-saved)
+// screenshots and newly-staged local files render side by side — only the
+// local ones can be removed before they're analyzed. Clicking any
+// thumbnail opens the shared lightbox.
+function ScreenshotUploadRow({ hint, existingScreenshots, pendingFiles, onPendingFilesChange, onAnalyze, analyzing, error, onOpenLightbox }) {
   const handleFileInput = (e) => {
-    onFilesChange([...files, ...Array.from(e.target.files || [])]);
+    onPendingFilesChange([...pendingFiles, ...Array.from(e.target.files || [])]);
     e.target.value = "";
   };
 
-  const removeFile = (index) => onFilesChange(files.filter((_, i) => i !== index));
+  const removePending = (index) => onPendingFilesChange(pendingFiles.filter((_, i) => i !== index));
+
+  const combined = [
+    ...existingScreenshots.map((s) => ({ src: `${API_BASE_URL}${s.url}`, alt: s.filename, pending: false })),
+    ...pendingFiles.map((f, i) => ({ src: URL.createObjectURL(f), alt: f.name, pending: true, pendingIndex: i })),
+  ];
 
   return (
-    <div className="space-y-2 rounded-md border border-border p-3 dark:border-darkborder">
-      <div>
-        <p className="text-sm font-semibold text-textPrimary dark:text-white">{label}</p>
-        {hint && <p className="text-xs text-textSecondary">{hint}</p>}
+    <div className="space-y-3 rounded-md border border-border p-3 dark:border-darkborder">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-textSecondary">Screenshots</p>
+          {hint && <p className="text-xs text-textSecondary">{hint}</p>}
+        </div>
+        <input
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={handleFileInput}
+          className="block text-xs text-textSecondary file:mr-2 file:rounded-md file:border-0 file:bg-burnt file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white"
+        />
       </div>
-      <input
-        type="file"
-        accept="image/*"
-        multiple
-        onChange={handleFileInput}
-        className="block w-full text-xs text-textSecondary file:mr-3 file:rounded-md file:border-0 file:bg-burnt file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white"
-      />
-      {files.length > 0 && (
-        <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
-          {files.map((file, index) => (
-            <div key={`${file.name}-${index}`} className="relative">
-              <img
-                src={URL.createObjectURL(file)}
-                alt={file.name}
-                className="h-16 w-full rounded-md border border-border object-cover dark:border-darkborder"
-              />
+
+      {combined.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {combined.map((img, i) => (
+            <div key={i} className="relative">
               <button
                 type="button"
-                onClick={() => removeFile(index)}
-                className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-danger text-xs text-white"
+                onClick={() => onOpenLightbox(combined, i)}
+                className="h-12 w-12 overflow-hidden rounded-md border border-border dark:border-darkborder"
               >
-                ✕
+                <img src={img.src} alt={img.alt} className="h-full w-full object-cover" />
               </button>
+              {img.pending && (
+                <button
+                  type="button"
+                  onClick={() => removePending(img.pendingIndex)}
+                  className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-danger text-[10px] text-white"
+                >
+                  ✕
+                </button>
+              )}
             </div>
           ))}
         </div>
       )}
+
+      {error && <p className="text-sm text-danger">{error}</p>}
+
+      <button
+        type="button"
+        onClick={onAnalyze}
+        disabled={pendingFiles.length === 0 || analyzing}
+        className="rounded-md bg-burnt px-3 py-1.5 text-xs font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {analyzing ? "Analyzing..." : `Analyze ${pendingFiles.length || ""} Photo${pendingFiles.length === 1 ? "" : "s"}`}
+      </button>
     </div>
   );
 }
 
-function UploadStep({ buckets, onBucketsChange, onAnalyze, analyzing, error, homeCollege, awayCollege, addingMore }) {
-  const totalFiles = buckets.boxScore.length + buckets.home.length + buckets.away.length;
-
-  return (
-    <Card>
-      <div className="p-5 space-y-4">
-        <div>
-          <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">
-            {addingMore ? "Upload More Screenshots" : "Upload Screenshots"}
-          </h3>
-          <p className="mt-1 text-sm text-textSecondary">
-            {addingMore
-              ? "Add screenshots to fill in anything still missing — new values merge into the review below without touching what's already there."
-              : "Upload the box score separately from each team’s player stat screens (passing/rushing/receiving/defense). The AI reads them and proposes stats below for you to review before anything is saved."}
-          </p>
-        </div>
-
-        <FileDropZone
-          label="Box Score"
-          hint="1-2 shots covering both teams"
-          files={buckets.boxScore}
-          onFilesChange={(files) => onBucketsChange({ ...buckets, boxScore: files })}
-        />
-        <FileDropZone
-          label={`${homeCollege.name} (Home) Player Stats`}
-          hint="Passing/rushing/receiving/defense, up to 4 shots"
-          files={buckets.home}
-          onFilesChange={(files) => onBucketsChange({ ...buckets, home: files })}
-        />
-        <FileDropZone
-          label={`${awayCollege.name} (Away) Player Stats`}
-          hint="Passing/rushing/receiving/defense, up to 4 shots"
-          files={buckets.away}
-          onFilesChange={(files) => onBucketsChange({ ...buckets, away: files })}
-        />
-
-        {error && <p className="text-sm text-danger">{error}</p>}
-
-        <button
-          type="button"
-          onClick={onAnalyze}
-          disabled={totalFiles === 0 || analyzing}
-          className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {analyzing ? "Analyzing... this can take a minute" : `Analyze ${totalFiles || ""} Photo${totalFiles === 1 ? "" : "s"}`}
-        </button>
-      </div>
-    </Card>
-  );
-}
-
-function ReferencePhotos({ buckets, homeCollege, awayCollege }) {
-  const sections = [
-    { label: "Box Score", files: buckets.boxScore },
-    { label: `${homeCollege.name} (Home)`, files: buckets.home },
-    { label: `${awayCollege.name} (Away)`, files: buckets.away },
-  ].filter((section) => section.files.length > 0);
-
-  if (sections.length === 0) return null;
-
-  return (
-    <Card>
-      <div className="p-5 space-y-4">
-        <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">
-          Uploaded Screenshots
-        </h3>
-        <p className="text-sm text-textSecondary">Reference these while reviewing the fields below. Click one to open it full-size.</p>
-        {sections.map((section) => (
-          <div key={section.label} className="space-y-2">
-            <p className="text-xs uppercase tracking-wide text-textSecondary">{section.label}</p>
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-              {section.files.map((file, index) => (
-                <a key={`${file.name}-${index}`} href={URL.createObjectURL(file)} target="_blank" rel="noreferrer">
-                  <img
-                    src={URL.createObjectURL(file)}
-                    alt={file.name}
-                    className="h-24 w-full rounded-md border border-border object-cover transition hover:opacity-80 dark:border-darkborder"
-                  />
-                </a>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-function NarrativeSection({ narrative, onChange, roster, onRunAnalysis, running, error }) {
+function NarrativeBody({ narrative, onChange, roster, onRunAnalysis, running, error }) {
   const update = (key, value) => onChange({ ...narrative, [key]: value });
   const hasContent = Boolean(narrative.narrativeSummary || narrative.offensePlayerOfGameId || narrative.defensePlayerOfGameId);
 
   return (
-    <Card>
-      <div className="p-5 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">Game Recap</h3>
-          <button
-            type="button"
-            onClick={onRunAnalysis}
-            disabled={running}
-            className="rounded-md border border-burnt px-3 py-1.5 text-xs font-semibold text-burnt transition hover:bg-burnt/10 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {running ? "Running..." : hasContent ? "Re-run Game Analysis" : "Run Game Analysis"}
-          </button>
-        </div>
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-textSecondary">
           Optional AI pass that writes a narrative summary and picks offense/defense players of the game from the
-          stats above. Skip it for games you don&rsquo;t need a recap for.
+          stats below. Skip it for games you don&rsquo;t need a recap for.
         </p>
-        {error && <p className="text-sm text-danger">{error}</p>}
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-xs uppercase tracking-wide text-textSecondary">Narrative Summary</span>
-          <textarea
-            rows={3}
-            value={narrative.narrativeSummary || ""}
-            onChange={(e) => update("narrativeSummary", e.target.value)}
+        <button
+          type="button"
+          onClick={onRunAnalysis}
+          disabled={running}
+          className="rounded-md border border-burnt px-3 py-1.5 text-xs font-semibold text-burnt transition hover:bg-burnt/10 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {running ? "Running..." : hasContent ? "Re-run Game Analysis" : "Run Game Analysis"}
+        </button>
+      </div>
+      {error && <p className="text-sm text-danger">{error}</p>}
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="text-xs uppercase tracking-wide text-textSecondary">Narrative Summary</span>
+        <textarea
+          rows={3}
+          value={narrative.narrativeSummary || ""}
+          onChange={(e) => update("narrativeSummary", e.target.value)}
+          className={inputClass}
+        />
+      </label>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <p className="text-xs uppercase tracking-wide text-textSecondary">Offense Player of the Game</p>
+          <select
+            value={narrative.offensePlayerOfGameId || ""}
+            onChange={(e) => update("offensePlayerOfGameId", e.target.value ? Number(e.target.value) : null)}
+            className={inputClass}
+          >
+            <option value="">— none —</option>
+            {roster.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} ({p.position})
+              </option>
+            ))}
+          </select>
+          <input
+            type="text"
+            placeholder="Stat line"
+            value={narrative.offensePlayerStatLine || ""}
+            onChange={(e) => update("offensePlayerStatLine", e.target.value)}
             className={inputClass}
           />
-        </label>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-wide text-textSecondary">Offense Player of the Game</p>
-            <select
-              value={narrative.offensePlayerOfGameId || ""}
-              onChange={(e) => update("offensePlayerOfGameId", e.target.value ? Number(e.target.value) : null)}
-              className={inputClass}
-            >
-              <option value="">— none —</option>
-              {roster.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.position})
-                </option>
-              ))}
-            </select>
-            <input
-              type="text"
-              placeholder="Stat line"
-              value={narrative.offensePlayerStatLine || ""}
-              onChange={(e) => update("offensePlayerStatLine", e.target.value)}
-              className={inputClass}
-            />
-          </div>
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-wide text-textSecondary">Defense Player of the Game</p>
-            <select
-              value={narrative.defensePlayerOfGameId || ""}
-              onChange={(e) => update("defensePlayerOfGameId", e.target.value ? Number(e.target.value) : null)}
-              className={inputClass}
-            >
-              <option value="">— none —</option>
-              {roster.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.position})
-                </option>
-              ))}
-            </select>
-            <input
-              type="text"
-              placeholder="Stat line"
-              value={narrative.defensePlayerStatLine || ""}
-              onChange={(e) => update("defensePlayerStatLine", e.target.value)}
-              className={inputClass}
-            />
-          </div>
+        </div>
+        <div className="space-y-2">
+          <p className="text-xs uppercase tracking-wide text-textSecondary">Defense Player of the Game</p>
+          <select
+            value={narrative.defensePlayerOfGameId || ""}
+            onChange={(e) => update("defensePlayerOfGameId", e.target.value ? Number(e.target.value) : null)}
+            className={inputClass}
+          >
+            <option value="">— none —</option>
+            {roster.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} ({p.position})
+              </option>
+            ))}
+          </select>
+          <input
+            type="text"
+            placeholder="Stat line"
+            value={narrative.defensePlayerStatLine || ""}
+            onChange={(e) => update("defensePlayerStatLine", e.target.value)}
+            className={inputClass}
+          />
         </div>
       </div>
-    </Card>
+    </>
   );
 }
 
-function TeamStatsSection({ collegeStats, onChange, awayCollege, homeCollege }) {
+function TeamStatsBody({ collegeStats, onChange, awayCollege, homeCollege }) {
   const findEntry = (name) => collegeStats.find((row) => row.team === name);
 
   const updateField = (team, key, value) => {
@@ -309,131 +273,144 @@ function TeamStatsSection({ collegeStats, onChange, awayCollege, homeCollege }) 
   };
 
   return (
-    <Card>
-      <div className="p-5 space-y-4">
-        <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">Team Stats</h3>
-        {TEAM_STAT_GROUPS.map((group) => (
-          <div key={group.label} className="space-y-2">
-            <p className="text-xs uppercase tracking-wide text-textSecondary">{group.label}</p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {[awayCollege, homeCollege].map((college) => {
-                const entry = findEntry(college.name);
-                return (
-                  <div key={college.id} className="space-y-2 rounded-md border border-border p-3 dark:border-darkborder">
-                    <p className="text-xs font-semibold text-textPrimary dark:text-white">{college.name}</p>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                      {group.fields.map((field) => (
-                        <NumberField
-                          key={field}
-                          label={FIELD_LABELS[field]}
-                          value={entry?.fields?.[field]}
-                          onChange={(value) => updateField(college.name, field, value)}
-                        />
-                      ))}
-                    </div>
+    <>
+      {TEAM_STAT_GROUPS.map((group) => (
+        <div key={group.label} className="space-y-2">
+          <p className="text-xs uppercase tracking-wide text-textSecondary">{group.label}</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[awayCollege, homeCollege].map((college) => {
+              const entry = findEntry(college.name);
+              return (
+                <div key={college.id} className="space-y-2 rounded-md border border-border p-3 dark:border-darkborder">
+                  <p className="text-xs font-semibold text-textPrimary dark:text-white">{college.name}</p>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-6">
+                    {group.fields.map((field) => (
+                      <NumberField
+                        key={field}
+                        label={FIELD_LABELS[field]}
+                        value={entry?.fields?.[field]}
+                        onChange={(value) => updateField(college.name, field, value)}
+                      />
+                    ))}
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
           </div>
-        ))}
-      </div>
-    </Card>
+        </div>
+      ))}
+    </>
   );
 }
 
-function PlayerStatsSection({ playerStats, onChange, awayRoster, homeRoster, homeCollege }) {
-  const rosterFor = (team) => (team === homeCollege.name ? homeRoster : awayRoster);
+function PlayerStatRowEditor({ row, index, roster, updateRow, updateField, removeRow }) {
+  return (
+    <div className="rounded-md border border-border p-3 dark:border-darkborder">
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="text"
+          value={row.displayName || ""}
+          onChange={(e) => updateRow(index, { displayName: e.target.value })}
+          className="w-40 rounded-md border border-border bg-white px-2 py-1.5 text-sm font-semibold text-textPrimary dark:border-darkborder dark:bg-darksurface dark:text-white"
+        />
+        <select
+          value={row.studentSeasonId || ""}
+          onChange={(e) => updateRow(index, { studentSeasonId: e.target.value ? Number(e.target.value) : null })}
+          className="rounded-md border border-border bg-white px-2 py-1.5 text-xs dark:border-darkborder dark:bg-darksurface"
+        >
+          <option value="">New player (will be created)</option>
+          {roster.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name} ({p.position})
+            </option>
+          ))}
+        </select>
+        <button type="button" onClick={() => removeRow(index)} className="ml-auto text-xs text-danger hover:underline">
+          Remove
+        </button>
+      </div>
+      {!row.studentSeasonId && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-burnt/5 p-2 text-xs">
+          <span className="text-textSecondary">Not on the roster yet — will be created as:</span>
+          <select
+            value={row.position || ""}
+            onChange={(e) => updateRow(index, { position: e.target.value })}
+            className="rounded-md border border-border bg-white px-2 py-1 text-xs dark:border-darkborder dark:bg-darksurface"
+          >
+            {POSITIONS.map((position) => (
+              <option key={position} value={position}>
+                {position}
+              </option>
+            ))}
+          </select>
+          <select
+            value={row.classYear || ""}
+            onChange={(e) => updateRow(index, { classYear: e.target.value })}
+            className="rounded-md border border-border bg-white px-2 py-1 text-xs dark:border-darkborder dark:bg-darksurface"
+          >
+            {CLASS_YEARS.map((classYear) => (
+              <option key={classYear} value={classYear}>
+                {classYear}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-9">
+        {(CATEGORY_FIELDS[row.category] || []).map((field) => (
+          <NumberField
+            key={field}
+            label={PLAYER_FIELD_LABELS[field]}
+            value={row.fields?.[field]}
+            onChange={(value) => updateField(index, field, value)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 
+// Renders one team's player rows out of the shared `playerStats` array,
+// grouped into Passing/Rushing/Receiving/Defense. Row mutations still write
+// back through the row's index in the full (unfiltered) array.
+function TeamPlayerStatsBody({ team, playerStats, onChange, roster }) {
   const updateRow = (index, patch) => onChange(playerStats.map((row, i) => (i === index ? { ...row, ...patch } : row)));
   const updateField = (index, key, value) =>
     onChange(playerStats.map((row, i) => (i === index ? { ...row, fields: { ...row.fields, [key]: value } } : row)));
   const removeRow = (index) => onChange(playerStats.filter((_, i) => i !== index));
 
+  const teamRows = playerStats.map((row, index) => ({ row, index })).filter(({ row }) => row.team === team);
+
+  if (teamRows.length === 0) {
+    return <p className="text-sm text-textSecondary">No player stat rows extracted from these screenshots yet.</p>;
+  }
+
   return (
-    <Card>
-      <div className="p-5 space-y-4">
-        <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">Player Stats</h3>
-        {playerStats.length === 0 && (
-          <p className="text-sm text-textSecondary">No player stat rows extracted from these screenshots.</p>
-        )}
-        <div className="space-y-3">
-          {playerStats.map((row, index) => (
-            <div key={index} className="rounded-md border border-border p-3 dark:border-darkborder">
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  type="text"
-                  value={row.displayName || ""}
-                  onChange={(e) => updateRow(index, { displayName: e.target.value })}
-                  className="w-40 rounded-md border border-border bg-white px-2 py-1.5 text-sm font-semibold text-textPrimary dark:border-darkborder dark:bg-darksurface dark:text-white"
+    <>
+      {PLAYER_CATEGORY_ORDER.map((category) => {
+        const categoryRows = teamRows.filter(({ row }) => row.category === category);
+        if (categoryRows.length === 0) return null;
+
+        return (
+          <div key={category} className="space-y-2">
+            <p className="text-xs uppercase tracking-wide text-burnt">{PLAYER_CATEGORY_LABELS[category]}</p>
+            <div className="space-y-3">
+              {categoryRows.map(({ row, index }) => (
+                <PlayerStatRowEditor
+                  key={index}
+                  row={row}
+                  index={index}
+                  roster={roster}
+                  updateRow={updateRow}
+                  updateField={updateField}
+                  removeRow={removeRow}
                 />
-                <span
-                  className={clsx(
-                    "rounded-full px-2 py-1 text-xs uppercase",
-                    row.team === homeCollege.name ? "bg-charcoal/5 dark:bg-white/10" : "bg-charcoal/10 dark:bg-white/20",
-                  )}
-                >
-                  {row.team}
-                </span>
-                <span className="rounded-full bg-burnt/10 px-2 py-1 text-xs uppercase text-burnt">{row.category}</span>
-                <select
-                  value={row.studentSeasonId || ""}
-                  onChange={(e) => updateRow(index, { studentSeasonId: e.target.value ? Number(e.target.value) : null })}
-                  className="rounded-md border border-border bg-white px-2 py-1.5 text-xs dark:border-darkborder dark:bg-darksurface"
-                >
-                  <option value="">New player (will be created)</option>
-                  {rosterFor(row.team).map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.position})
-                    </option>
-                  ))}
-                </select>
-                <button type="button" onClick={() => removeRow(index)} className="ml-auto text-xs text-danger hover:underline">
-                  Remove
-                </button>
-              </div>
-              {!row.studentSeasonId && (
-                <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-burnt/5 p-2 text-xs">
-                  <span className="text-textSecondary">Not on the roster yet — will be created as:</span>
-                  <select
-                    value={row.position || ""}
-                    onChange={(e) => updateRow(index, { position: e.target.value })}
-                    className="rounded-md border border-border bg-white px-2 py-1 text-xs dark:border-darkborder dark:bg-darksurface"
-                  >
-                    {POSITIONS.map((position) => (
-                      <option key={position} value={position}>
-                        {position}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={row.classYear || ""}
-                    onChange={(e) => updateRow(index, { classYear: e.target.value })}
-                    className="rounded-md border border-border bg-white px-2 py-1 text-xs dark:border-darkborder dark:bg-darksurface"
-                  >
-                    {CLASS_YEARS.map((classYear) => (
-                      <option key={classYear} value={classYear}>
-                        {classYear}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
-                {(CATEGORY_FIELDS[row.category] || []).map((field) => (
-                  <NumberField
-                    key={field}
-                    label={PLAYER_FIELD_LABELS[field]}
-                    value={row.fields?.[field]}
-                    onChange={(value) => updateField(index, field, value)}
-                  />
-                ))}
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </div>
-    </Card>
+          </div>
+        );
+      })}
+    </>
   );
 }
 
@@ -445,9 +422,14 @@ function GameUpdatePage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
-  const [buckets, setBuckets] = useState({ boxScore: [], home: [], away: [] });
-  const [analyzing, setAnalyzing] = useState(false);
-  const [analyzeError, setAnalyzeError] = useState(null);
+  const [openSections, setOpenSections] = useState({ recap: true, boxScore: true, home: true, away: true });
+  const toggleSection = (key) => setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  const [pendingFiles, setPendingFiles] = useState(EMPTY_PENDING_FILES);
+  const [sectionStatus, setSectionStatus] = useState(EMPTY_SECTION_STATUS);
+
+  const [lightbox, setLightbox] = useState(null);
+  const openLightbox = (images, index) => setLightbox({ images, index });
 
   const [analysis, setAnalysis] = useState(null);
   const [narrativeRunning, setNarrativeRunning] = useState(false);
@@ -466,7 +448,9 @@ function GameUpdatePage() {
           setAnalysis({
             ...data.existingAnalysis,
             collegeStats: normalizeCollegeStats(data.existingAnalysis.collegeStats, data.awayCollege, data.homeCollege),
-            screenshotSignedIds: [],
+            boxScoreScreenshotSignedIds: [],
+            homeScreenshotSignedIds: [],
+            awayScreenshotSignedIds: [],
           });
         }
       } catch (err) {
@@ -478,10 +462,13 @@ function GameUpdatePage() {
     load();
   }, [gameId, authed]);
 
-  const handleAnalyze = async () => {
-    setAnalyzing(true);
-    setAnalyzeError(null);
+  const handleAnalyzeSection = async (sectionKey) => {
+    const files = pendingFiles[sectionKey];
+    if (files.length === 0) return;
+
+    setSectionStatus((prev) => ({ ...prev, [sectionKey]: { analyzing: true, error: null } }));
     try {
+      const buckets = { boxScore: [], home: [], away: [], [sectionKey]: files };
       const result = await analyzeGameStats(gameId, buckets);
       setAnalysis((prev) =>
         prev
@@ -493,10 +480,10 @@ function GameUpdatePage() {
               playerStats: withUnmatchedDefaults(result.playerStats),
             },
       );
+      setPendingFiles((prev) => ({ ...prev, [sectionKey]: [] }));
+      setSectionStatus((prev) => ({ ...prev, [sectionKey]: { analyzing: false, error: null } }));
     } catch (err) {
-      setAnalyzeError(err.message);
-    } finally {
-      setAnalyzing(false);
+      setSectionStatus((prev) => ({ ...prev, [sectionKey]: { analyzing: false, error: err.message } }));
     }
   };
 
@@ -575,27 +562,15 @@ function GameUpdatePage() {
         </Card>
       ) : (
         <>
-          <UploadStep
-            buckets={buckets}
-            onBucketsChange={setBuckets}
-            onAnalyze={handleAnalyze}
-            analyzing={analyzing}
-            error={analyzeError}
-            homeCollege={game.homeCollege}
-            awayCollege={game.awayCollege}
-            addingMore={Boolean(analysis)}
-          />
+          {game.played && (
+            <p className="text-sm text-textSecondary">
+              This game already has recorded stats — edit the fields below and save to update them.
+            </p>
+          )}
 
-          {analysis && (
-            <>
-              {game.played && (
-                <p className="text-sm text-textSecondary">
-                  This game already has recorded stats — edit the fields below and save to update them.
-                </p>
-              )}
-              <ExistingScreenshotsGallery screenshots={game.statScreenshots} />
-              <ReferencePhotos buckets={buckets} homeCollege={game.homeCollege} awayCollege={game.awayCollege} />
-              <NarrativeSection
+          <AccordionSection title="Game Recap" expanded={openSections.recap} onToggle={() => toggleSection("recap")}>
+            {analysis ? (
+              <NarrativeBody
                 narrative={analysis.narrative}
                 onChange={(narrative) => setAnalysis({ ...analysis, narrative })}
                 roster={[...analysis.homeRoster, ...analysis.awayRoster]}
@@ -603,20 +578,86 @@ function GameUpdatePage() {
                 running={narrativeRunning}
                 error={narrativeError}
               />
-              <TeamStatsSection
+            ) : (
+              <p className="text-sm text-textSecondary">
+                Upload and analyze the box score or player stats below first, then come back here to write a recap.
+              </p>
+            )}
+          </AccordionSection>
+
+          <AccordionSection title="Box Score" expanded={openSections.boxScore} onToggle={() => toggleSection("boxScore")}>
+            <ScreenshotUploadRow
+              hint="1-2 shots covering both teams"
+              existingScreenshots={game.boxScoreScreenshots}
+              pendingFiles={pendingFiles.boxScore}
+              onPendingFilesChange={(files) => setPendingFiles((prev) => ({ ...prev, boxScore: files }))}
+              onAnalyze={() => handleAnalyzeSection("boxScore")}
+              analyzing={Boolean(sectionStatus.boxScore.analyzing)}
+              error={sectionStatus.boxScore.error}
+              onOpenLightbox={openLightbox}
+            />
+            {analysis && (
+              <TeamStatsBody
                 collegeStats={analysis.collegeStats}
                 onChange={(collegeStats) => setAnalysis({ ...analysis, collegeStats })}
                 awayCollege={game.awayCollege}
                 homeCollege={game.homeCollege}
               />
-              <PlayerStatsSection
+            )}
+          </AccordionSection>
+
+          <AccordionSection
+            title={`${game.homeCollege.name} Player Stats (Home)`}
+            expanded={openSections.home}
+            onToggle={() => toggleSection("home")}
+          >
+            <ScreenshotUploadRow
+              hint="Passing/rushing/receiving/defense, up to 4 shots"
+              existingScreenshots={game.homeScreenshots}
+              pendingFiles={pendingFiles.home}
+              onPendingFilesChange={(files) => setPendingFiles((prev) => ({ ...prev, home: files }))}
+              onAnalyze={() => handleAnalyzeSection("home")}
+              analyzing={Boolean(sectionStatus.home.analyzing)}
+              error={sectionStatus.home.error}
+              onOpenLightbox={openLightbox}
+            />
+            {analysis && (
+              <TeamPlayerStatsBody
+                team={game.homeCollege.name}
                 playerStats={analysis.playerStats}
                 onChange={(playerStats) => setAnalysis({ ...analysis, playerStats })}
-                awayRoster={analysis.awayRoster}
-                homeRoster={analysis.homeRoster}
-                homeCollege={game.homeCollege}
+                roster={analysis.homeRoster}
               />
+            )}
+          </AccordionSection>
 
+          <AccordionSection
+            title={`${game.awayCollege.name} Player Stats (Away)`}
+            expanded={openSections.away}
+            onToggle={() => toggleSection("away")}
+          >
+            <ScreenshotUploadRow
+              hint="Passing/rushing/receiving/defense, up to 4 shots"
+              existingScreenshots={game.awayScreenshots}
+              pendingFiles={pendingFiles.away}
+              onPendingFilesChange={(files) => setPendingFiles((prev) => ({ ...prev, away: files }))}
+              onAnalyze={() => handleAnalyzeSection("away")}
+              analyzing={Boolean(sectionStatus.away.analyzing)}
+              error={sectionStatus.away.error}
+              onOpenLightbox={openLightbox}
+            />
+            {analysis && (
+              <TeamPlayerStatsBody
+                team={game.awayCollege.name}
+                playerStats={analysis.playerStats}
+                onChange={(playerStats) => setAnalysis({ ...analysis, playerStats })}
+                roster={analysis.awayRoster}
+              />
+            )}
+          </AccordionSection>
+
+          {analysis && (
+            <>
               {commitError && <p className="text-sm text-danger">{commitError}</p>}
 
               <div className="flex gap-2 pb-8">
@@ -639,6 +680,15 @@ function GameUpdatePage() {
             </>
           )}
         </>
+      )}
+
+      {lightbox && (
+        <ScreenshotLightbox
+          images={lightbox.images}
+          index={lightbox.index}
+          onIndexChange={(index) => setLightbox((prev) => ({ ...prev, index }))}
+          onClose={() => setLightbox(null)}
+        />
       )}
     </div>
   );

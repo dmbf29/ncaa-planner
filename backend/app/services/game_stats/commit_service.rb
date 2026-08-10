@@ -20,9 +20,11 @@ module GameStats
       @created_student_seasons = {}
     end
 
-    def call(screenshot_signed_ids:, narrative:, college_stats:, player_stats:)
+    def call(box_score_screenshot_signed_ids:, home_screenshot_signed_ids:, away_screenshot_signed_ids:, narrative:, college_stats:, player_stats:)
       ActiveRecord::Base.transaction do
-        attach_screenshots(screenshot_signed_ids)
+        attach_screenshots(@game.box_score_screenshots, box_score_screenshot_signed_ids)
+        attach_screenshots(@game.home_stat_screenshots, home_screenshot_signed_ids)
+        attach_screenshots(@game.away_stat_screenshots, away_screenshot_signed_ids)
         update_narrative(narrative)
         upsert_college_stats(college_stats)
         upsert_player_stats(player_stats)
@@ -32,11 +34,11 @@ module GameStats
 
     private
 
-    def attach_screenshots(signed_ids)
+    def attach_screenshots(attachment, signed_ids)
       return if signed_ids.blank?
 
       blobs = Array(signed_ids).filter_map { |signed_id| ActiveStorage::Blob.find_signed(signed_id) }
-      @game.stat_screenshots.attach(blobs) if blobs.any?
+      attachment.attach(blobs) if blobs.any?
     end
 
     def update_narrative(narrative)

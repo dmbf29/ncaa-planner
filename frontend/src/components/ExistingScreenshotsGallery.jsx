@@ -1,30 +1,64 @@
+import { useState } from "react";
 import Card from "./Card";
+import ScreenshotLightbox from "./ScreenshotLightbox";
 import { API_BASE_URL } from "../lib/apiClient";
 
-function ExistingScreenshotsGallery({ screenshots }) {
-  if (!screenshots || screenshots.length === 0) return null;
+// Renders one or more labeled groups of already-saved screenshots as small
+// thumbnails, clickable into a shared lightbox. `groups` is
+// `[{ label, screenshots }]`; groups with no screenshots are skipped.
+function ExistingScreenshotsGallery({ groups }) {
+  const [lightboxIndex, setLightboxIndex] = useState(null);
+
+  const visibleGroups = (groups || []).filter((group) => group.screenshots?.length > 0);
+  const images = visibleGroups.flatMap((group) =>
+    group.screenshots.map((screenshot) => ({ src: `${API_BASE_URL}${screenshot.url}`, alt: screenshot.filename })),
+  );
+
+  if (visibleGroups.length === 0) return null;
+
+  let offset = 0;
 
   return (
     <Card>
-      <div className="p-5 space-y-3">
+      <div className="p-5 space-y-4">
         <div>
           <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">
             Uploaded Screenshots
           </h3>
           <p className="text-sm text-textSecondary">Click one to open it full-size.</p>
         </div>
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-          {screenshots.map((screenshot) => (
-            <a key={screenshot.id} href={`${API_BASE_URL}${screenshot.url}`} target="_blank" rel="noreferrer">
-              <img
-                src={`${API_BASE_URL}${screenshot.url}`}
-                alt={screenshot.filename}
-                className="h-24 w-full rounded-md border border-border object-cover transition hover:opacity-80 dark:border-darkborder"
-              />
-            </a>
-          ))}
-        </div>
+        {visibleGroups.map((group) => {
+          const groupOffset = offset;
+          offset += group.screenshots.length;
+          return (
+            <div key={group.label} className="space-y-2">
+              <p className="text-xs uppercase tracking-wide text-textSecondary">{group.label}</p>
+              <div className="flex flex-wrap gap-2">
+                {group.screenshots.map((screenshot, index) => (
+                  <button
+                    key={screenshot.id}
+                    type="button"
+                    onClick={() => setLightboxIndex(groupOffset + index)}
+                    className="h-14 w-14 shrink-0 overflow-hidden rounded-md border border-border transition hover:opacity-80 dark:border-darkborder"
+                  >
+                    <img
+                      src={`${API_BASE_URL}${screenshot.url}`}
+                      alt={screenshot.filename}
+                      className="h-full w-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
+      <ScreenshotLightbox
+        images={images}
+        index={lightboxIndex}
+        onIndexChange={setLightboxIndex}
+        onClose={() => setLightboxIndex(null)}
+      />
     </Card>
   );
 }

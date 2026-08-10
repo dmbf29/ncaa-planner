@@ -35,7 +35,7 @@ module ScheduleStats
   # is also why it's unsafe as a join key — two calls can each mis-resolve
   # the same team to a *different* wrong value.
   class WeekScheduleExtractor
-    UNMATCHED = "Unmatched".freeze
+    include CollegeMatching
 
     SYSTEM_PROMPT = <<~PROMPT.freeze
       You are an expert at reading college football video game weekly schedule screenshots and transcribing
@@ -149,33 +149,6 @@ module ScheduleStats
         away_score: result&.fetch("away_score", nil),
         home_score: result&.fetch("home_score", nil)
       }
-    end
-
-    # Prefers an exact match on the plain-text raw name over the
-    # enum-constrained field — see the class comment for why.
-    def resolve_college(raw_name, matched_name)
-      colleges_by_downcased_name[normalize(raw_name)] ||
-        (matched_name.present? && matched_name != UNMATCHED ? colleges_by_name[matched_name] : nil)
-    end
-
-    def colleges
-      @colleges ||= College.order(:name).to_a
-    end
-
-    def colleges_by_name
-      @colleges_by_name ||= colleges.index_by(&:name)
-    end
-
-    def colleges_by_downcased_name
-      @colleges_by_downcased_name ||= colleges.index_by { |college| college.name.downcase }
-    end
-
-    def college_names
-      @college_names ||= colleges.map(&:name) + [ UNMATCHED ]
-    end
-
-    def colleges_json
-      colleges.map { |college| { id: college.id, name: college.name } }
     end
   end
 end

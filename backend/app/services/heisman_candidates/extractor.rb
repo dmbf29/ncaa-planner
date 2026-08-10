@@ -18,7 +18,7 @@ module HeismanCandidates
   # Order isn't tracked at all — the set of candidates for a week is what
   # matters, not their standing relative to each other.
   class Extractor
-    UNMATCHED = "Unmatched".freeze
+    include CollegeMatching
 
     SYSTEM_PROMPT = <<~PROMPT.freeze
       You are an expert at reading college football video game Heisman Watch List screenshots and
@@ -74,38 +74,11 @@ module HeismanCandidates
       }
     end
 
-    # Prefers an exact match on the plain-text raw name over the
-    # enum-constrained field — see the class comment for why.
-    def resolve_college(raw_name, matched_name)
-      colleges_by_downcased_name[raw_name.to_s.strip.downcase] ||
-        (matched_name.present? && matched_name != UNMATCHED ? colleges_by_name[matched_name] : nil)
-    end
-
     def normalize_class_year(value)
       return value if value.blank?
 
       # DB convention has no space before the redshirt suffix, e.g. "SO(RS)" not "SO (RS)".
       value.gsub(/\s+\(/, "(")
-    end
-
-    def colleges
-      @colleges ||= College.order(:name).to_a
-    end
-
-    def colleges_by_name
-      @colleges_by_name ||= colleges.index_by(&:name)
-    end
-
-    def colleges_by_downcased_name
-      @colleges_by_downcased_name ||= colleges.index_by { |college| college.name.downcase }
-    end
-
-    def college_names
-      @college_names ||= colleges.map(&:name) + [ UNMATCHED ]
-    end
-
-    def colleges_json
-      colleges.map { |college| { id: college.id, name: college.name } }
     end
   end
 end

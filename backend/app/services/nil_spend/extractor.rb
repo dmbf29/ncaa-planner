@@ -16,7 +16,8 @@ module NilSpend
   # match first and the enum field is only a fallback for genuine
   # nicknames where no exact match exists.
   class Extractor
-    UNMATCHED = "Unmatched".freeze
+    include CollegeMatching
+
     POSITIONS = %w[QB RB WR TE OL DL LB DB K/P].freeze
 
     SYSTEM_PROMPT = <<~PROMPT.freeze
@@ -83,33 +84,6 @@ module NilSpend
 
     def position_key(position)
       position == "K/P" ? "kp" : position.downcase
-    end
-
-    # Prefers an exact match on the plain-text raw name over the
-    # enum-constrained field — see the class comment for why.
-    def resolve_college(raw_name, matched_name)
-      colleges_by_downcased_name[raw_name.to_s.strip.downcase] ||
-        (matched_name.present? && matched_name != UNMATCHED ? colleges_by_name[matched_name] : nil)
-    end
-
-    def colleges
-      @colleges ||= College.order(:name).to_a
-    end
-
-    def colleges_by_name
-      @colleges_by_name ||= colleges.index_by(&:name)
-    end
-
-    def colleges_by_downcased_name
-      @colleges_by_downcased_name ||= colleges.index_by { |college| college.name.downcase }
-    end
-
-    def college_names
-      @college_names ||= colleges.map(&:name) + [ UNMATCHED ]
-    end
-
-    def colleges_json
-      colleges.map { |college| { id: college.id, name: college.name } }
     end
   end
 end

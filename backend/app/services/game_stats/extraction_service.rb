@@ -31,7 +31,9 @@ module GameStats
                      player_stats_for(@game.away_college, away_roster, away_blobs)
 
       {
-        screenshot_signed_ids: (box_score_blobs + home_blobs + away_blobs).map(&:signed_id),
+        box_score_screenshot_signed_ids: box_score_blobs.map(&:signed_id),
+        home_screenshot_signed_ids: home_blobs.map(&:signed_id),
+        away_screenshot_signed_ids: away_blobs.map(&:signed_id),
         college_stats: college_stats,
         player_stats: player_stats,
         home_roster: home_roster,

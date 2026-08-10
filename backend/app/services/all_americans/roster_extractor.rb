@@ -20,7 +20,7 @@ module AllAmericans
   # for an exact match first and the enum field is only a fallback for
   # genuine nicknames where no exact match exists.
   class RosterExtractor
-    UNMATCHED = "Unmatched".freeze
+    include CollegeMatching
 
     SYSTEM_PROMPT = <<~PROMPT.freeze
       You are an expert at reading college football video game All-American team screenshots and
@@ -73,34 +73,11 @@ module AllAmericans
       }
     end
 
-    # Prefers an exact match on the plain-text raw name over the
-    # enum-constrained field — see the class comment for why.
-    def resolve_college(raw_name, matched_name)
-      colleges_by_downcased_name[raw_name.to_s.strip.downcase] ||
-        (matched_name.present? && matched_name != UNMATCHED ? colleges_by_name[matched_name] : nil)
-    end
-
     def normalize_class_year(value)
       return value if value.blank?
 
       # DB convention has no space before the redshirt suffix, e.g. "SO(RS)" not "SO (RS)".
       value.gsub(/\s+\(/, "(")
-    end
-
-    def colleges
-      @colleges ||= College.order(:name).to_a
-    end
-
-    def colleges_by_name
-      @colleges_by_name ||= colleges.index_by(&:name)
-    end
-
-    def colleges_by_downcased_name
-      @colleges_by_downcased_name ||= colleges.index_by { |college| college.name.downcase }
-    end
-
-    def college_names
-      @college_names ||= colleges.map(&:name) + [ UNMATCHED ]
     end
   end
 end

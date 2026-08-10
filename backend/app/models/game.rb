@@ -6,7 +6,9 @@ class Game < ApplicationRecord
   has_many :student_game_stats, dependent: :destroy
   belongs_to :offensive_player_of_game, class_name: "StudentSeason", optional: true
   belongs_to :defensive_player_of_game, class_name: "StudentSeason", optional: true
-  has_many_attached :stat_screenshots
+  has_many_attached :box_score_screenshots
+  has_many_attached :home_stat_screenshots
+  has_many_attached :away_stat_screenshots
 
   validate :home_and_away_colleges_differ
   validate :colleges_not_already_scheduled_this_week

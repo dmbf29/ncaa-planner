@@ -9,6 +9,8 @@ module RankingStats
   # keyed by `rank` (always visible, 1-25, unambiguous) rather than by team
   # name, since OCR'd names can drift slightly between separate calls.
   class TopTwentyFiveExtractor
+    include CollegeMatching
+
     SYSTEM_PROMPT = <<~PROMPT.freeze
       You are an expert at reading college football video game Top 25 poll screenshots and transcribing
       the exact values shown. Only report a value if you can actually see it — never guess. A dash ("---")
@@ -135,20 +137,6 @@ module RankingStats
         opponent_rank: row&.fetch("opponent_rank", nil),
         is_away: row&.fetch("is_away", nil) || false
       }
-    end
-
-    def resolve_college(name)
-      return nil if name.blank?
-
-      colleges.find { |college| college.name.casecmp?(name) }
-    end
-
-    def colleges
-      @colleges ||= College.order(:name).to_a
-    end
-
-    def colleges_json
-      colleges.map { |college| { id: college.id, name: college.name } }
     end
   end
 end
