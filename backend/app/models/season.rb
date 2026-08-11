@@ -5,7 +5,22 @@ class Season < ApplicationRecord
   has_many :college_seasons, dependent: :destroy
 
   validates :year, presence: true, uniqueness: { scope: :dynasty }
-  after_create_commit :create_weeks
+  after_create_commit :setup_new_year
+
+  def setup_new_year
+    create_weeks
+    create_college_seasons
+  end
+
+  def create_college_seasons
+    College.find_each do |college|
+      college_season = CollegeSeason.find_or_initialize_by(
+        college:,
+        season: self,
+      )
+      college_season.save
+    end
+  end
 
   def create_weeks
     (0..14).each do |number|
