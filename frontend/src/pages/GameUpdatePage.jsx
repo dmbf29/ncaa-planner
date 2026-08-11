@@ -31,7 +31,7 @@ const PLAYER_CATEGORY_ORDER = ["passing", "rushing", "receiving", "defense"];
 const PLAYER_CATEGORY_LABELS = { passing: "Passing", rushing: "Rushing", receiving: "Receiving", defense: "Defense" };
 
 const inputClass =
-  "w-full rounded-md border border-border bg-white px-2 py-1.5 text-sm text-textPrimary focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface dark:text-white";
+  "w-full rounded-md bg-white pe-2 py-1.5 text-sm text-textPrimary focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface dark:text-white";
 
 // When screenshots get analyzed on top of an already-reviewed game (e.g.
 // a game that already has a final score from a schedule upload but no box
@@ -83,7 +83,7 @@ const mergeAnalysis = (existing, fresh, awayCollege, homeCollege) => ({
 
 function NumberField({ label, value, onChange }) {
   return (
-    <label className="flex flex-col gap-1 text-xs text-textSecondary text-nowrap">
+    <label className="flex flex-col gap-1 text-xs text-textSecondary text-nowrap truncate">
       <span>{label}</span>
       <input
         type="number"
