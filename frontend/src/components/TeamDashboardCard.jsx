@@ -53,7 +53,7 @@ function StatLeaderRow({ label, unit, leader }) {
       </div>
       {leader ? (
         <span className="shrink-0 rounded-full bg-charcoal/5 px-1.5 py-0.5 text-xs font-semibold dark:bg-white/10">
-          {leader.value} {unit}
+          {leader.value} <span className="font-light">{unit}</span>
         </span>
       ) : null}
     </div>
@@ -98,7 +98,7 @@ function TeamStatsGroup({ teamStats }) {
 
   return (
     <div className="space-y-1">
-      <p className="text-xs uppercase tracking-wide text-textSecondary">Team Stats</p>
+      <p className="text-xs uppercase tracking-wide text-textSecondary">Team Stats per Game</p>
       <div className="grid grid-cols-2 gap-x-3 gap-y-1">
         {Object.entries(TEAM_STAT_LABELS).map(([key, meta]) => (
           <TeamStatRow key={key} label={meta.label} unit={meta.unit} value={teamStats[key]} />

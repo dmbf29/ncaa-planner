@@ -438,6 +438,15 @@ function GameUpdatePage() {
   const [commitError, setCommitError] = useState(null);
   const [saved, setSaved] = useState(false);
 
+  // Any edit to the review data means the last save is now stale — used
+  // instead of raw setAnalysis wherever the user (or a fresh AI pass)
+  // changes something, so the "Saved" indicator only shows right after an
+  // actual successful commit, not indefinitely after it.
+  const updateAnalysis = (updater) => {
+    setSaved(false);
+    setAnalysis(updater);
+  };
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -470,7 +479,7 @@ function GameUpdatePage() {
     try {
       const buckets = { boxScore: [], home: [], away: [], [sectionKey]: files };
       const result = await analyzeGameStats(gameId, buckets);
-      setAnalysis((prev) =>
+      updateAnalysis((prev) =>
         prev
           ? mergeAnalysis(prev, result, game.awayCollege, game.homeCollege)
           : {
@@ -495,7 +504,7 @@ function GameUpdatePage() {
         collegeStats: analysis.collegeStats,
         playerStats: analysis.playerStats,
       });
-      setAnalysis((prev) => ({ ...prev, narrative: result.narrative }));
+      updateAnalysis((prev) => ({ ...prev, narrative: result.narrative }));
     } catch (err) {
       setNarrativeError(err.message);
     } finally {
@@ -507,7 +516,8 @@ function GameUpdatePage() {
     setCommitting(true);
     setCommitError(null);
     try {
-      await commitGameStats(gameId, analysis);
+      const updated = await commitGameStats(gameId, analysis);
+      setGame(updated);
       setSaved(true);
     } catch (err) {
       setCommitError(err.message);
@@ -549,17 +559,6 @@ function GameUpdatePage() {
 
       {!authed ? (
         <GameSummary game={game} />
-      ) : saved ? (
-        <Card>
-          <div className="p-5 space-y-2">
-            <p className="text-sm font-semibold text-success">
-              Saved! Stats and screenshots have been recorded for this game.
-            </p>
-            <Link to="/dynasty" className="text-sm text-burnt hover:underline">
-              Back to Dashboard
-            </Link>
-          </div>
-        </Card>
       ) : (
         <>
           {game.played && (
@@ -572,7 +571,7 @@ function GameUpdatePage() {
             {analysis ? (
               <NarrativeBody
                 narrative={analysis.narrative}
-                onChange={(narrative) => setAnalysis({ ...analysis, narrative })}
+                onChange={(narrative) => updateAnalysis({ ...analysis, narrative })}
                 roster={[...analysis.homeRoster, ...analysis.awayRoster]}
                 onRunAnalysis={handleRunNarrative}
                 running={narrativeRunning}
@@ -599,7 +598,7 @@ function GameUpdatePage() {
             {analysis && (
               <TeamStatsBody
                 collegeStats={analysis.collegeStats}
-                onChange={(collegeStats) => setAnalysis({ ...analysis, collegeStats })}
+                onChange={(collegeStats) => updateAnalysis({ ...analysis, collegeStats })}
                 awayCollege={game.awayCollege}
                 homeCollege={game.homeCollege}
               />
@@ -625,7 +624,7 @@ function GameUpdatePage() {
               <TeamPlayerStatsBody
                 team={game.homeCollege.name}
                 playerStats={analysis.playerStats}
-                onChange={(playerStats) => setAnalysis({ ...analysis, playerStats })}
+                onChange={(playerStats) => updateAnalysis({ ...analysis, playerStats })}
                 roster={analysis.homeRoster}
               />
             )}
@@ -650,36 +649,44 @@ function GameUpdatePage() {
               <TeamPlayerStatsBody
                 team={game.awayCollege.name}
                 playerStats={analysis.playerStats}
-                onChange={(playerStats) => setAnalysis({ ...analysis, playerStats })}
+                onChange={(playerStats) => updateAnalysis({ ...analysis, playerStats })}
                 roster={analysis.awayRoster}
               />
             )}
           </AccordionSection>
 
-          {analysis && (
-            <>
-              {commitError && <p className="text-sm text-danger">{commitError}</p>}
-
-              <div className="flex gap-2 pb-8">
-                <button
-                  type="button"
-                  onClick={handleCommit}
-                  disabled={committing}
-                  className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {committing ? "Saving..." : "Save Game Stats"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAnalysis(null)}
-                  className="rounded-md border border-border px-4 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
-                >
-                  Clear Review
-                </button>
-              </div>
-            </>
-          )}
+          {analysis && <div className="h-20" aria-hidden="true" />}
         </>
+      )}
+
+      {authed && analysis && (
+        <div className="sticky bottom-4 z-20">
+          <Card className="shadow-lg">
+            <div className="flex flex-wrap items-center gap-3 p-4">
+              <button
+                type="button"
+                onClick={handleCommit}
+                disabled={committing}
+                className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {committing ? "Saving..." : "Save Game Stats"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setAnalysis(null)}
+                className="rounded-md border border-border px-4 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+              >
+                Clear Review
+              </button>
+              {saved && (
+                <span className="flex items-center gap-1 text-sm font-semibold text-success">
+                  <span aria-hidden="true">✓</span> Saved
+                </span>
+              )}
+              {commitError && <p className="w-full text-sm text-danger">{commitError}</p>}
+            </div>
+          </Card>
+        </div>
       )}
 
       {lightbox && (
