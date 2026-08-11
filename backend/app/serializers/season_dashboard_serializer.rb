@@ -268,6 +268,7 @@ class SeasonDashboardSerializer
       college: {
         id: college_season.college.id,
         name: college_season.college.name,
+        alternate_name: college_season.college.alternate_name,
         conference: college_season.college.conference
       },
       coach: { id: college_season.coach.id, name: college_season.coach.name },

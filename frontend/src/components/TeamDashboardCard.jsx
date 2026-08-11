@@ -85,9 +85,9 @@ const TEAM_STAT_LABELS = {
 function TeamStatRow({ label, unit, value }) {
   return (
     <div className="flex items-center justify-between gap-2 text-sm">
-      <span className="text-xs text-textSecondary">{label}</span>
+      <span className="text-xs text-textSecondary text-nowrap overflow-hidden">{label}</span>
       <span className="shrink-0 rounded-full bg-charcoal/5 px-1.5 py-0.5 text-xs font-semibold dark:bg-white/10">
-        {value ?? "—"} {unit}
+        {value ?? "—"} <span className="font-light">{unit}</span>
       </span>
     </div>
   );
@@ -255,7 +255,7 @@ function TeamDashboardCard({ team, dynastyId, seasonId }) {
           {team.currentRank ? (
             <span className="rounded-full bg-burnt px-2 py-0.5 text-xs">#{team.currentRank}</span>
           ) : null}
-          {team.college.name}
+          {team.college.alternateName ? team.college.alternateName : team.college.name}
           <PrestigeStars value={team.prestige} />
         </h3>
         <p className="text-xs text-white/70">
