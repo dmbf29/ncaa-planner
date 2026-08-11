@@ -205,10 +205,10 @@ function NarrativeBody({ narrative, onChange, roster, onRunAnalysis, running, er
         </button>
       </div>
       {error && <p className="text-sm text-danger">{error}</p>}
-      <label className="flex flex-col gap-1 text-sm">
+      <label className="flex flex-col gap-1 text-sm border p-3 rounded">
         <span className="text-xs uppercase tracking-wide text-textSecondary">Narrative Summary</span>
         <textarea
-          rows={3}
+          rows={7}
           value={narrative.narrativeSummary || ""}
           onChange={(e) => update("narrativeSummary", e.target.value)}
           className={inputClass}
@@ -216,7 +216,7 @@ function NarrativeBody({ narrative, onChange, roster, onRunAnalysis, running, er
       </label>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
+        <div className="space-y-2 border p-3 rounded">
           <p className="text-xs uppercase tracking-wide text-textSecondary">Offense Player of the Game</p>
           <select
             value={narrative.offensePlayerOfGameId || ""}
@@ -238,7 +238,7 @@ function NarrativeBody({ narrative, onChange, roster, onRunAnalysis, running, er
             className={inputClass}
           />
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2 border p-3 rounded">
           <p className="text-xs uppercase tracking-wide text-textSecondary">Defense Player of the Game</p>
           <select
             value={narrative.defensePlayerOfGameId || ""}
