@@ -38,6 +38,8 @@ Rails.application.routes.draw do
             post :commit_nil_spend
             post :analyze_conference_standings
             post :commit_conference_standings
+            post :analyze_players_of_the_week
+            post :commit_players_of_the_week
           end
         end
       end

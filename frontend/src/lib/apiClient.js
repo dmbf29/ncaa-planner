@@ -173,6 +173,21 @@ export const commitAllAmericans = (dynastyId, seasonId, groups) =>
     .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_all_americans`, { groups })
     .then((r) => r.data);
 
+export const analyzePlayersOfTheWeek = (dynastyId, seasonId, files) => {
+  const formData = new FormData();
+  files.forEach((file) => formData.append("images[]", file));
+  return api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/analyze_players_of_the_week`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+    .then((r) => r.data);
+};
+
+export const commitPlayersOfTheWeek = (dynastyId, seasonId, groups) =>
+  api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_players_of_the_week`, { groups })
+    .then((r) => r.data);
+
 export const analyzeNilSpend = (dynastyId, seasonId, files) => {
   const formData = new FormData();
   files.forEach((file) => formData.append("images[]", file));

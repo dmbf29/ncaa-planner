@@ -196,6 +196,7 @@ class SeasonWeeksMarkdownPresenter
       lines << ""
     end
 
+    lines.concat(player_of_the_week_lines(team[:players_of_the_week]))
     lines.concat(top_performers_lines(team[:top_performers]))
 
     lines << "### 📅 Next Up"
@@ -265,6 +266,25 @@ class SeasonWeeksMarkdownPresenter
 
   def scouting_player_line(player)
     "#{player[:name]} (#{player[:position]}, #{player[:overall]} OVR)"
+  end
+
+  # Only rendered when this team actually won a National/Conference Player
+  # of the Week award this week — silent otherwise, same convention as
+  # every other optional section.
+  def player_of_the_week_lines(players_of_the_week)
+    return [] unless players_of_the_week[:offensive] || players_of_the_week[:defensive]
+
+    lines = [ "### 🏅 Player of the Week" ]
+    lines << "- **Offense:** #{player_of_the_week_line(players_of_the_week[:offensive])}" if players_of_the_week[:offensive]
+    lines << "- **Defense:** #{player_of_the_week_line(players_of_the_week[:defensive])}" if players_of_the_week[:defensive]
+    lines << ""
+    lines
+  end
+
+  def player_of_the_week_line(player)
+    scope = player[:national] ? "National" : "#{player[:conference]} Conference"
+    base = "#{scope} Player of the Week — #{player[:name]} (#{player[:position]})"
+    player[:stat_line].present? ? "#{base}: #{player[:stat_line]}" : base
   end
 
   def player_of_game_line(player)

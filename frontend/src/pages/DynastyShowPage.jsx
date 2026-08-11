@@ -5,6 +5,7 @@ import PageHeader from "../components/PageHeader";
 import TeamDashboardCard from "../components/TeamDashboardCard";
 import Top25Snapshot from "../components/Top25Snapshot";
 import HeismanWatch from "../components/HeismanWatch";
+import PlayersOfTheWeek from "../components/PlayersOfTheWeek";
 import AroundTheLeague from "../components/AroundTheLeague";
 import StandingsSnapshot from "../components/StandingsSnapshot";
 import AllAmericansSnapshot from "../components/AllAmericansSnapshot";
@@ -183,6 +184,10 @@ function DynastyShowPage() {
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <HeismanWatch heismanWatch={dashboard.heismanWatch} />
+            <PlayersOfTheWeek playersOfTheWeek={dashboard.playersOfTheWeek} />
+          </div>
+
+          <div className="mt-6">
             <AllAmericansSnapshot
               allAmericans={allAmericans}
               coachedConferences={coachedConferences}

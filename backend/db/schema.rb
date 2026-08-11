@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_10_051719) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_11_064630) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -254,6 +254,20 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_10_051719) do
     t.index ["team_id"], name: "index_players_on_team_id"
   end
 
+  create_table "players_of_the_week", force: :cascade do |t|
+    t.bigint "week_id", null: false
+    t.bigint "student_season_id", null: false
+    t.string "side", null: false
+    t.boolean "national", default: false, null: false
+    t.string "conference"
+    t.string "stat_line"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["student_season_id"], name: "index_players_of_the_week_on_student_season_id"
+    t.index ["week_id", "national", "conference", "side"], name: "index_players_of_the_week_on_slot", unique: true
+    t.index ["week_id"], name: "index_players_of_the_week_on_week_id"
+  end
+
   create_table "position_boards", force: :cascade do |t|
     t.string "name", null: false
     t.integer "slots_count", default: 0, null: false
@@ -425,6 +439,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_10_051719) do
   add_foreign_key "players", "position_boards"
   add_foreign_key "players", "squads"
   add_foreign_key "players", "teams"
+  add_foreign_key "players_of_the_week", "student_seasons"
+  add_foreign_key "players_of_the_week", "weeks"
   add_foreign_key "position_boards", "squads"
   add_foreign_key "position_boards", "teams"
   add_foreign_key "roster_slots", "players"

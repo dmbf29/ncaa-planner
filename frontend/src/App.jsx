@@ -23,6 +23,7 @@ import Top25UpdatePage from "./pages/Top25UpdatePage";
 import ScheduleUpdatePage from "./pages/ScheduleUpdatePage";
 import AllAmericansUpdatePage from "./pages/AllAmericansUpdatePage";
 import HeismanUpdatePage from "./pages/HeismanUpdatePage";
+import PlayersOfTheWeekUpdatePage from "./pages/PlayersOfTheWeekUpdatePage";
 import NilSpendUpdatePage from "./pages/NilSpendUpdatePage";
 import ConferenceStandingsUpdatePage from "./pages/ConferenceStandingsUpdatePage";
 
@@ -57,6 +58,7 @@ function App() {
         <Route path="/dynasty/updates/schedule" element={<ScheduleUpdatePage />} />
         <Route path="/dynasty/updates/all-americans" element={<AllAmericansUpdatePage />} />
         <Route path="/dynasty/updates/heisman" element={<HeismanUpdatePage />} />
+        <Route path="/dynasty/updates/players-of-the-week" element={<PlayersOfTheWeekUpdatePage />} />
         <Route path="/dynasty/updates/nil-spend" element={<NilSpendUpdatePage />} />
         <Route path="/dynasty/updates/standings" element={<ConferenceStandingsUpdatePage />} />
       </Routes>

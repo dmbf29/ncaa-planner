@@ -107,7 +107,34 @@ class SeasonWeeksSerializer
       ranking: ranking_json(college_season.college_id, week),
       game: this_week_game_json(this_week_game, college_season.college_id),
       top_performers: top_performers_json(this_week_game, college_season),
+      players_of_the_week: players_of_the_week_json(college_season, week),
       next_game: next_game && upcoming_game_json(next_game, college_season.college_id)
+    }
+  end
+
+  # This team's National/Conference Player(s) of the Week for this week, if
+  # any — nil-shaped per side, mirroring player_of_game_json.
+  def players_of_the_week_json(college_season, week)
+    awards = week.players_of_the_week
+                 .joins(:student_season)
+                 .where(student_seasons: { college_season_id: college_season.id })
+                 .includes(student_season: :student)
+
+    {
+      offensive: player_of_the_week_json(awards.find { |award| award.side == "offensive" }),
+      defensive: player_of_the_week_json(awards.find { |award| award.side == "defensive" })
+    }
+  end
+
+  def player_of_the_week_json(award)
+    return nil unless award
+
+    {
+      name: award.student_season.student.name,
+      position: award.student_season.position,
+      stat_line: award.stat_line,
+      national: award.national,
+      conference: award.conference
     }
   end
 

@@ -23,6 +23,7 @@ class SeasonDashboardSerializer
       teams: teams,
       top_25: top_25_json,
       heisman_watch: heisman_watch_json,
+      players_of_the_week: players_of_the_week_json,
       around_the_league: around_the_league_json,
       current_week_number: current_week_number
     }
@@ -62,6 +63,19 @@ class SeasonDashboardSerializer
                                     .order(number: :desc)
                                     .limit(3)
                                     .includes(heisman_candidates: [ student_season: [ :student, { college_season: :college } ] ])
+  end
+
+  # The last 3 weeks (most recent first) that actually have Players of the
+  # Week entered, same "recent trend" convention as recent_heisman_weeks.
+  def recent_players_of_the_week_weeks
+    return @recent_players_of_the_week_weeks if defined?(@recent_players_of_the_week_weeks)
+
+    @recent_players_of_the_week_weeks = @season.weeks
+                                                 .joins(:players_of_the_week)
+                                                 .distinct
+                                                 .order(number: :desc)
+                                                 .limit(3)
+                                                 .includes(players_of_the_week: [ student_season: [ :student, { college_season: :college } ] ])
   end
 
   def top_25_json
@@ -165,7 +179,7 @@ class SeasonDashboardSerializer
   end
 
   def heisman_watch_json
-    winner = @season.heisman && player_json(@season.heisman).merge(college: heisman_college_json(@season.heisman))
+    winner = @season.heisman && player_json(@season.heisman).merge(college: student_college_json(@season.heisman))
 
     {
       winner: winner,
@@ -247,12 +261,42 @@ class SeasonDashboardSerializer
 
   def heisman_candidate_json(candidate)
     student_season = candidate.student_season
-    player_json(student_season).merge(college: heisman_college_json(student_season))
+    player_json(student_season).merge(college: student_college_json(student_season))
   end
 
-  def heisman_college_json(student_season)
+  def student_college_json(student_season)
     college = student_season.college_season.college
     { id: college.id, name: college.name, rank: rank_for_college(college.id) }
+  end
+
+  # Grouped the same way heisman_watch_json groups candidates by week — the
+  # frontend section is meant to look and behave like Heisman Watch, just
+  # with up to 4 slots (National/Conference x Offense/Defense) per week
+  # instead of one watch list.
+  def players_of_the_week_json
+    {
+      weeks: recent_players_of_the_week_weeks.map do |week|
+        {
+          week: { id: week.id, number: week.number, name: week.name },
+          honorees: week.players_of_the_week.map { |potw| player_of_the_week_json(potw) }
+        }
+      end
+    }
+  end
+
+  def player_of_the_week_json(potw)
+    student_season = potw.student_season
+
+    {
+      id: potw.id,
+      name: student_season.student.name,
+      position: student_season.position,
+      side: potw.side,
+      national: potw.national,
+      conference: potw.conference,
+      stat_line: potw.stat_line,
+      college: student_college_json(student_season)
+    }
   end
 
   def coached_college_ids

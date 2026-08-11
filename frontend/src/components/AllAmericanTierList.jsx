@@ -58,9 +58,9 @@ function AllAmericanTierList({ tiers }) {
   const tierKeys = Object.keys(tiers || {}).sort();
 
   return (
-    <div className="px-4 py-3">
+    <div className="grid gap-x-6 gap-y-3 px-4 py-3 sm:grid-cols-2">
       {tierKeys.map((tier) => (
-        <div key={tier} className="mb-3 last:mb-0">
+        <div key={tier}>
           <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-textSecondary">
             {TIER_LABELS[tier] || `Tier ${tier}`}
           </p>

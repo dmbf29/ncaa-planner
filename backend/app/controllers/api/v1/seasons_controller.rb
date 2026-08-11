@@ -85,6 +85,22 @@ module Api
         render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
       end
 
+      def analyze_players_of_the_week
+        authorize @season
+        result = PlayersOfTheWeek::Extractor.new.call(Array(params[:images]), season: @season)
+        render json: result
+      rescue RubyLLM::Error => e
+        render json: { error: "AI extraction failed: #{e.message}", code: "extraction_failed" }, status: :unprocessable_entity
+      end
+
+      def commit_players_of_the_week
+        authorize @season
+        warnings = PlayersOfTheWeek::CommitService.new(@season).call(commit_groups)
+        render json: { season_id: @season.id, warnings: warnings }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
+      end
+
       private
 
       def set_dynasty
