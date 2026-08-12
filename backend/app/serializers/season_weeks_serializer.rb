@@ -183,8 +183,34 @@ class SeasonWeeksSerializer
       result: result,
       narrative_summary: result ? game.narrative_summary : nil,
       offensive_player_of_game: result ? player_of_game_json(game.offensive_player_of_game, game.offensive_player_stat_line) : nil,
-      defensive_player_of_game: result ? player_of_game_json(game.defensive_player_of_game, game.defensive_player_stat_line) : nil
+      defensive_player_of_game: result ? player_of_game_json(game.defensive_player_of_game, game.defensive_player_stat_line) : nil,
+      team_stats: result ? team_stats_json(game, college_id, opponent.id) : nil
     }
+  end
+
+  # Full-game box score comparison for both sides — nil when either side is
+  # missing a CollegeGameStat row (shouldn't happen once `result` is
+  # present, since game_result already requires both final_scores, but the
+  # rest of the box score is a separate set of columns that could in theory
+  # lag behind).
+  def team_stats_json(game, college_id, opponent_id)
+    stats = game.college_game_stats.index_by(&:college_id)
+    team_stat = stats[college_id]
+    opponent_stat = stats[opponent_id]
+    return nil unless team_stat && opponent_stat
+
+    { team: box_score_json(team_stat), opponent: box_score_json(opponent_stat) }
+  end
+
+  def box_score_json(stat)
+    stat.attributes.symbolize_keys.slice(*box_score_columns)
+  end
+
+  # Every CollegeGameStat column that isn't a row identifier/timestamp —
+  # the full box score, not a curated subset, so nothing gets left out as
+  # more columns are added to the schema.
+  def box_score_columns
+    @box_score_columns ||= (CollegeGameStat.column_names - %w[id game_id college_id created_at updated_at]).map(&:to_sym)
   end
 
   def player_of_game_json(student_season, stat_line)

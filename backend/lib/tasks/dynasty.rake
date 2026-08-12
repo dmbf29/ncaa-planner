@@ -32,7 +32,7 @@ namespace :dynasty do
 
       next unless college_season.coach
       college_season.save!
-      ScrapeStudentsJob.perform_now(college_season_id: college_season.id) unless Student.count == 340
+      ScrapeStudentsJob.perform_now(college_season_id: college_season.id) unless college_season.student_seasons.count == 85
     end
   end
 
@@ -122,6 +122,12 @@ namespace :dynasty do
         away_college = College.find_by!(name: away_name)
 
         Game.find_or_create_by!(week:, home_college:, away_college:)
+      end
+    end
+    CollegeSeason.where.not(coach: nil).each do |cs|
+      cs.opponent_college_seasons.each do |college_season|
+        ScrapeStudentsJob.perform_now(college_season_id: college_season.id) unless college_season.student_seasons.count == 85
+        sleep(2)
       end
     end
   end

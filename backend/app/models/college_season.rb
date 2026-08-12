@@ -27,6 +27,12 @@ class CollegeSeason < ApplicationRecord
         .where("home_college_id = :id OR away_college_id = :id", id: college_id)
   end
 
+  def opponent_college_seasons
+    opponent_college_ids = games.where(home_college_id: college_id).pluck(:away_college_id) +
+                            games.where(away_college_id: college_id).pluck(:home_college_id)
+    season.college_seasons.where(college_id: opponent_college_ids)
+  end
+
   def best_offensive_players(limit: 3)
     student_seasons.where(position: OFFENSE_POSITIONS).order(overall: :desc).limit(limit)
   end

@@ -179,6 +179,8 @@ class SeasonWeeksMarkdownPresenter
     lines << "- #{game_result_line(team[:game])}"
     lines << ""
 
+    lines.concat(team_stats_lines(team))
+
     if team[:game][:narrative_summary].present?
       lines << "### 📖 Narrative"
       lines << team[:game][:narrative_summary]
@@ -236,6 +238,64 @@ class SeasonWeeksMarkdownPresenter
       outcome = result[:won] ? "W" : "L"
       "#{outcome} #{result[:team_score]}-#{result[:opponent_score]} #{opponent_line(game[:opponent])}"
     end
+  end
+
+  # Only rendered for a played game — silent for a bye/scheduled week, same
+  # convention as narrative/player-of-the-game. Covers every CollegeGameStat
+  # column (grouped into the usual box-score combo rows, e.g. "25/27" for
+  # completions/attempts) rather than a curated subset.
+  def team_stats_lines(team)
+    stats = team[:game][:team_stats]
+    return [] if stats.blank?
+
+    team_name = team[:college][:name]
+    opponent_name = team[:game][:opponent][:name]
+
+    lines = [ "### 📊 Team Stats", "", "| Stat | #{team_name} | #{opponent_name} |", "| --- | --- | --- |" ]
+    team_stats_rows.each do |label, formatter|
+      lines << "| #{label} | #{formatter.call(stats[:team])} | #{formatter.call(stats[:opponent])} |"
+    end
+    lines << ""
+    lines
+  end
+
+  def team_stats_rows
+    [
+      [ "First Downs", ->(s) { s[:first_downs] } ],
+      [ "Total Offense", ->(s) { s[:total_offense] } ],
+      [ "Total Yards (incl. Returns)", ->(s) { s[:total_yards] } ],
+      [ "Total Plays", ->(s) { s[:total_plays] } ],
+      [ "Yards / Play", ->(s) { s[:yards_per_play] } ],
+      [ "Rushing", ->(s) { "#{s[:rushes]}-#{s[:rushing_yards]}-#{s[:rushing_tds]} TD (#{s[:yards_per_rush]} avg)" } ],
+      [ "Passing", ->(s) { "#{s[:passing_completions]}/#{s[:passing_attempts]}-#{s[:passing_yards]}-#{s[:passing_tds]} TD (#{s[:yards_per_pass]} avg)" } ],
+      [ "Turnovers", ->(s) { "#{s[:turnovers]} (#{s[:fumbles_lost]} FUM, #{s[:interceptions_thrown]} INT)" } ],
+      [ "3rd Down", ->(s) { "#{s[:third_down_conversions]}/#{s[:third_down_attempts]}" } ],
+      [ "4th Down", ->(s) { "#{s[:fourth_down_conversions]}/#{s[:fourth_down_attempts]}" } ],
+      [ "Red Zone", ->(s) { "#{s[:red_zone_tds]} TD, #{s[:red_zone_field_goals]} FG (#{percentage_line(s[:red_zone_success_percentage])})" } ],
+      [ "2-Point Conversions", ->(s) { "#{s[:two_point_conversions]}/#{s[:two_point_attempts]}" } ],
+      [ "Punts", ->(s) { s[:punts] } ],
+      [ "Punt Return Yards", ->(s) { s[:punt_return_yards] } ],
+      [ "Kick Return Yards", ->(s) { s[:kick_return_yards] } ],
+      [ "Penalties", ->(s) { "#{s[:penalties]}-#{s[:penalty_yards]} yds" } ],
+      [ "Time of Possession", ->(s) { time_of_possession_line(s[:time_of_possession]) } ],
+      [ "Points by Quarter", ->(s) { points_by_quarter_line(s) } ],
+      [ "Final Score", ->(s) { s[:final_score] } ]
+    ]
+  end
+
+  def percentage_line(value)
+    value.present? ? "#{value}%" : "—"
+  end
+
+  def points_by_quarter_line(side)
+    [ side[:points_in_quarter_1], side[:points_in_quarter_2], side[:points_in_quarter_3], side[:points_in_quarter_4] ]
+      .map { |points| points || 0 }.join("-")
+  end
+
+  def time_of_possession_line(seconds)
+    return "—" if seconds.blank?
+
+    format("%d:%02d", seconds / 60, seconds % 60)
   end
 
   def opponent_line(opponent)
