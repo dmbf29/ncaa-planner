@@ -23,6 +23,14 @@ class Injury < ApplicationRecord
     return_week.nil?
   end
 
+  # Whether this injury happened by the given week and hasn't been
+  # returned from as of that week (or is out for the season) — the shared
+  # "still hurt" predicate used anywhere a week-scoped injury report is
+  # shown (weekly recap, dashboard next-game banner).
+  def active_as_of?(week)
+    game.week.number <= week.number && (out_for_season? || return_week_number > week.number)
+  end
+
   private
 
   def game_matches_college

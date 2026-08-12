@@ -224,22 +224,34 @@ function NextGameBanner({ nextGame }) {
   }
 
   const label = nextGame.week.name || `Week ${nextGame.week.number}`;
+  const injuryCount = nextGame.activeInjuryCount;
 
   return (
-    <div className="border-b border-border bg-burnt/10 px-4 py-2.5 dark:border-darkborder">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-burnt">Next Game — {label}</p>
-      {nextGame.opponent ? (
-        <p className="mt-0.5 flex items-center gap-1.5 text-sm">
-          <span className="text-textSecondary">{nextGame.opponent.home ? "vs" : "@"}</span>
-          {nextGame.opponent.rank && <span className="text-textSecondary">#{nextGame.opponent.rank}</span>}
-          <span className="font-semibold text-textPrimary dark:text-white">{nextGame.opponent.name}</span>
-          {nextGame.opponent.userCoached ? (
-            <i className="fa-solid fa-gamepad text-[11px] text-burnt/80" title="User-coached opponent" />
-          ) : null}
-        </p>
-      ) : (
-        <p className="mt-0.5 text-sm italic text-textSecondary">TBD</p>
-      )}
+    <div className="flex items-start justify-between gap-2 border-b border-border bg-burnt/10 px-4 py-2.5 dark:border-darkborder">
+      <div className="min-w-0">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-burnt">Next Game — {label}</p>
+        {nextGame.opponent ? (
+          <p className="mt-0.5 flex items-center gap-1.5 text-sm">
+            <span className="text-textSecondary">{nextGame.opponent.home ? "vs" : "@"}</span>
+            {nextGame.opponent.rank && <span className="text-textSecondary">#{nextGame.opponent.rank}</span>}
+            <span className="font-semibold text-textPrimary dark:text-white">{nextGame.opponent.name}</span>
+            {nextGame.opponent.userCoached ? (
+              <i className="fa-solid fa-gamepad text-[11px] text-burnt/80" title="User-coached opponent" />
+            ) : null}
+          </p>
+        ) : (
+          <p className="mt-0.5 text-sm italic text-textSecondary">TBD</p>
+        )}
+      </div>
+      {injuryCount > 0 ? (
+        <div
+          className="flex shrink-0 flex-col items-center gap-0.5 rounded-md border border-danger/30 bg-danger/10 px-2 py-1 text-danger"
+          title={`${injuryCount} player${injuryCount === 1 ? "" : "s"} banged up heading into this game`}
+        >
+          <i className="fa-solid fa-square-plus text-xs"></i>
+          <span className="text-xs font-bold leading-none">{injuryCount}</span>
+        </div>
+      ) : null}
     </div>
   );
 }

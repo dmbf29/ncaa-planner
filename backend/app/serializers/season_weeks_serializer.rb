@@ -113,14 +113,12 @@ class SeasonWeeksSerializer
     }
   end
 
-  # Injuries that happened by this week and haven't hit their computed
-  # return week yet (or are out for the season) — "active as of this week".
+  # Injuries active as of this week (see Injury#active_as_of?).
   def injury_report_json(college_season, week)
     college_season.student_seasons
                   .includes(:student, injuries: { game: :week })
                   .flat_map(&:injuries)
-                  .select { |injury| injury.game.week.number <= week.number }
-                  .select { |injury| injury.out_for_season? || injury.return_week_number > week.number }
+                  .select { |injury| injury.active_as_of?(week) }
                   .map { |injury| injury_report_entry_json(injury) }
   end
 

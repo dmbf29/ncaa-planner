@@ -441,8 +441,18 @@ class SeasonDashboardSerializer
 
     {
       week: { id: upcoming.week.id, number: upcoming.week.number, name: upcoming.week.name },
-      opponent: opponent_json(upcoming, college_season.college_id)
+      opponent: opponent_json(upcoming, college_season.college_id),
+      active_injury_count: active_injury_count(college_season, upcoming.week)
     }
+  end
+
+  # How many of this team's players are still banged up heading into their
+  # next game — see Injury#active_as_of?.
+  def active_injury_count(college_season, week)
+    college_season.student_seasons
+                   .includes(:student, injuries: { game: :week })
+                   .flat_map(&:injuries)
+                   .count { |injury| injury.active_as_of?(week) }
   end
 
   def player_json(student_season)
