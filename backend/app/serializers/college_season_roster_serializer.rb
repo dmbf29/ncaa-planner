@@ -21,14 +21,25 @@ class CollegeSeasonRosterSerializer
         season: { id: @college_season.season.id, year: @college_season.season.year }
       },
       class_breakdown: class_breakdown_json,
-      position_groups: CollegeSeason::POSITION_GROUPS.map { |group, positions| group_json(group, positions) }
+      position_groups: CollegeSeason::POSITION_GROUPS.map { |group, positions| group_json(group, positions) },
+      games: games_json
     }
   end
 
   private
 
   def student_seasons
-    @student_seasons ||= @college_season.student_seasons.includes(:student).to_a
+    @student_seasons ||= @college_season.student_seasons.includes(:student, injuries: { game: :week }).to_a
+  end
+
+  # Already-played games only — the game picker for reporting an injury
+  # only makes sense against something that actually happened.
+  def games_json
+    @college_season.games.select(&:played?).sort_by { |g| g.week.number }.map do |game|
+      home = game.home_college_id == @college_season.college_id
+      opponent = home ? game.away_college : game.home_college
+      { id: game.id, week_number: game.week.number, opponent: opponent.name, home: home }
+    end
   end
 
   def class_bucket(class_year)
@@ -77,7 +88,19 @@ class CollegeSeasonRosterSerializer
       overall: student_season.overall,
       dev_trait: student_season.dev_trait,
       speed: student_season.speed,
-      nil_amount: student_season.nil_amount
+      nil_amount: student_season.nil_amount,
+      injuries: student_season.injuries.map { |injury| injury_json(injury) }
+    }
+  end
+
+  def injury_json(injury)
+    {
+      id: injury.id,
+      game_id: injury.game_id,
+      description: injury.description,
+      weeks_out: injury.weeks_out,
+      return_week_number: injury.return_week_number,
+      out_for_season: injury.out_for_season?
     }
   end
 end

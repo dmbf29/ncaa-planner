@@ -61,6 +61,10 @@ Rails.application.routes.draw do
         end
       end
 
+      resources :student_seasons, only: [] do
+        resources :injuries, only: %i[create update destroy]
+      end
+
       # Public, unauthenticated broadcast data for third-party consumption (e.g. podcast generation).
       get "dynasties/:dynasty_id/seasons/:season_id/preview", to: "season_broadcasts#preview"
       get "dynasties/:dynasty_id/seasons/:season_id/weeks", to: "season_broadcasts#weeks"

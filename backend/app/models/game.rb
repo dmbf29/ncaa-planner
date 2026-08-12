@@ -4,6 +4,7 @@ class Game < ApplicationRecord
   belongs_to :away_college, class_name: "College"
   has_many :college_game_stats, dependent: :destroy
   has_many :student_game_stats, dependent: :destroy
+  has_many :injuries, dependent: :destroy
   belongs_to :offensive_player_of_game, class_name: "StudentSeason", optional: true
   belongs_to :defensive_player_of_game, class_name: "StudentSeason", optional: true
   has_many_attached :box_score_screenshots

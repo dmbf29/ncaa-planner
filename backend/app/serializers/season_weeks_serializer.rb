@@ -108,7 +108,30 @@ class SeasonWeeksSerializer
       game: this_week_game_json(this_week_game, college_season.college_id),
       top_performers: top_performers_json(this_week_game, college_season),
       players_of_the_week: players_of_the_week_json(college_season, week),
+      injury_report: injury_report_json(college_season, week),
       next_game: next_game && upcoming_game_json(next_game, college_season.college_id)
+    }
+  end
+
+  # Injuries that happened by this week and haven't hit their computed
+  # return week yet (or are out for the season) — "active as of this week".
+  def injury_report_json(college_season, week)
+    college_season.student_seasons
+                  .includes(:student, injuries: { game: :week })
+                  .flat_map(&:injuries)
+                  .select { |injury| injury.game.week.number <= week.number }
+                  .select { |injury| injury.out_for_season? || injury.return_week_number > week.number }
+                  .map { |injury| injury_report_entry_json(injury) }
+  end
+
+  def injury_report_entry_json(injury)
+    student_season = injury.student_season
+    {
+      name: student_season.student.name,
+      position: student_season.position,
+      description: injury.description,
+      injured_week_number: injury.game.week.number,
+      status: injury.out_for_season? ? "out_for_season" : "expected_back_week_#{injury.return_week_number}"
     }
   end
 

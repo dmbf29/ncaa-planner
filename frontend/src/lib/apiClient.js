@@ -113,6 +113,15 @@ export const updateRosterSlot = (positionBoardId, id, payload) =>
 export const deleteRosterSlot = (positionBoardId, id) =>
   api.delete(`/api/v1/position_boards/${positionBoardId}/roster_slots/${id}`).then((r) => r.data);
 
+export const createInjury = (studentSeasonId, payload) =>
+  api.post(`/api/v1/student_seasons/${studentSeasonId}/injuries`, { injury: payload }).then((r) => r.data);
+
+export const updateInjury = (studentSeasonId, id, payload) =>
+  api.put(`/api/v1/student_seasons/${studentSeasonId}/injuries/${id}`, { injury: payload }).then((r) => r.data);
+
+export const deleteInjury = (studentSeasonId, id) =>
+  api.delete(`/api/v1/student_seasons/${studentSeasonId}/injuries/${id}`).then((r) => r.data);
+
 export const fetchDynasties = () => api.get("/api/v1/dynasties").then((r) => r.data);
 
 export const fetchDynastyPortal = (dynastyId) => api.get(`/api/v1/dynasties/${dynastyId}`).then((r) => r.data);

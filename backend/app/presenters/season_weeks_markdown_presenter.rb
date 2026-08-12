@@ -58,6 +58,7 @@ class SeasonWeeksMarkdownPresenter
       "#{current_label} Kickoff & Headlines",
       "Results Recap & Rival Matchups — Deep dive into the highlighted games.",
       "Around the #{conference_label} — Quick hits on other conference games.",
+      "Injury Report — Who's banged up, who's expected back, and how it affects the depth chart (if any injuries are active).",
       "Winners & Losers - the hosts each pick 1 team/player who won the week, and 1 who los",
       "Top 25 Poll Watch — Discuss rankings and national standing shifts (if focused teams are included)",
       "Week #{next_number} Preview — Look ahead to next week's opponents and the hosts make predictions"
@@ -200,6 +201,7 @@ class SeasonWeeksMarkdownPresenter
 
     lines.concat(player_of_the_week_lines(team[:players_of_the_week]))
     lines.concat(top_performers_lines(team[:top_performers]))
+    lines.concat(injury_report_lines(team[:injury_report]))
 
     lines << "### 📅 Next Up"
     lines.concat(next_up_lines(team[:next_game]))
@@ -345,6 +347,22 @@ class SeasonWeeksMarkdownPresenter
     scope = player[:national] ? "National" : "#{player[:conference]} Conference"
     base = "#{scope} Player of the Week — #{player[:name]} (#{player[:position]})"
     player[:stat_line].present? ? "#{base}: #{player[:stat_line]}" : base
+  end
+
+  # Only rendered when this team has at least one currently-active injury —
+  # silent otherwise, same convention as every other optional section.
+  def injury_report_lines(injury_report)
+    return [] if injury_report.blank?
+
+    lines = [ "### 🚑 Injury Report" ]
+    injury_report.each { |injury| lines << "- #{injury_report_line(injury)}" }
+    lines << ""
+    lines
+  end
+
+  def injury_report_line(injury)
+    status = injury[:status] == "out_for_season" ? "out for the season" : injury[:status].tr("_", " ")
+    "#{injury[:name]} (#{injury[:position]}) — #{injury[:description]} (Week #{injury[:injured_week_number]} injury, #{status})"
   end
 
   def player_of_game_line(player)
