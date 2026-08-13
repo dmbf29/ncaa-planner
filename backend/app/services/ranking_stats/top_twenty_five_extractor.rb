@@ -90,6 +90,15 @@ module RankingStats
       Array(raw["last_week"]).select { |row| row.is_a?(Hash) && row["rank"].is_a?(Integer) }
     end
 
+    # The two score digits are asked for as plain, order-of-appearance values
+    # rather than "team_score"/"opponent_score" — the poll always prints the
+    # winning score first regardless of which team's row it's in (e.g. both
+    # the winner's "W 40-28" row and the loser's "L 40-28" row show "40-28"),
+    # so a field asking the model to attribute one number to "this team" is
+    # answered wrong for every losing team's row (it just echoes first-number
+    # -> team_score without re-deriving from the W/L letter). build_row
+    # derives the actual team/opponent scores from `result` instead, which
+    # is a plain visual read (the W/L letter) the model gets right.
     def fetch_last_week_result(images)
       schema = RubyLLM::Schema.create do
         array :results, description: "One entry per ranked team's LAST WEEK result, up to 25." do
@@ -97,8 +106,12 @@ module RankingStats
             integer :rank, description: "The team's rank (RANK column), 1-25 — matches the standings table"
             string :result, required: false, enum: %w[win loss],
                    description: "Whether this team won or lost last week, if a result is shown"
-            integer :team_score, required: false, description: "This team's own score in last week's result"
-            integer :opponent_score, required: false, description: "The opponent's score in last week's result"
+            integer :first_score, required: false,
+                    description: "The first number shown in the score, e.g. 40 in 'W 40-28' or 'L 40-28' — " \
+                                 "read it exactly as printed, do not guess whose score it is"
+            integer :second_score, required: false,
+                    description: "The second number shown in the score, e.g. 28 in 'W 40-28' or 'L 40-28' — " \
+                                 "read it exactly as printed, do not guess whose score it is"
           end
         end
       end
@@ -123,10 +136,22 @@ module RankingStats
         this_week: opponent_entry(this_week),
         last_week: opponent_entry(last_week_matchup).merge(
           result: last_week_result&.fetch("result", nil),
-          team_score: last_week_result&.fetch("team_score", nil),
-          opponent_score: last_week_result&.fetch("opponent_score", nil)
+          **resolved_scores(last_week_result)
         )
       }
+    end
+
+    # The printed numbers are (winning score, losing score) in that order,
+    # independent of whose row they're printed on — see fetch_last_week_result.
+    def resolved_scores(result_row)
+      result = result_row&.fetch("result", nil)
+      first_score = result_row&.fetch("first_score", nil)
+      second_score = result_row&.fetch("second_score", nil)
+      return { team_score: nil, opponent_score: nil } if result.nil? || first_score.nil? || second_score.nil?
+
+      winning_score, losing_score = [ first_score, second_score ].minmax.reverse
+      result == "win" ? { team_score: winning_score, opponent_score: losing_score } :
+        { team_score: losing_score, opponent_score: winning_score }
     end
 
     def opponent_entry(row)

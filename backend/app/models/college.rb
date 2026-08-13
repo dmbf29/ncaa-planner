@@ -6,6 +6,7 @@ class College < ApplicationRecord
 
   validates :name, presence: true, uniqueness: true
   validates :alternate_name, uniqueness: true, allow_nil: true
+  validates :abbrev, uniqueness: true, allow_nil: true
 
   def scraping_url
     "https://www.teamcrafters.net/rosters/CFB27/launch-6-30-26/#{api_id}"

@@ -290,8 +290,10 @@ class SeasonWeeksMarkdownPresenter
   end
 
   def points_by_quarter_line(side)
-    [ side[:points_in_quarter_1], side[:points_in_quarter_2], side[:points_in_quarter_3], side[:points_in_quarter_4] ]
+    quarters = [ side[:points_in_quarter_1], side[:points_in_quarter_2], side[:points_in_quarter_3], side[:points_in_quarter_4] ]
       .map { |points| points || 0 }.join("-")
+    overtime = side[:points_in_overtime]
+    overtime.present? ? "#{quarters}-#{overtime} (OT)" : quarters
   end
 
   def time_of_possession_line(seconds)

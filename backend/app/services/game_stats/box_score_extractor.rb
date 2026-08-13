@@ -31,12 +31,14 @@ module GameStats
       punts: "First number in 'Punts - Avg'",
       penalties: "First number in 'Penalties - Yards'",
       penalty_yards: "Second number in 'Penalties - Yards'",
-      final_score: "The 'Score' / 'Final' total"
+      final_score: "The 'Score' / 'Final' total",
+      points_in_overtime: "Points scored in overtime periods combined — only present if the game went to OT"
     }.freeze
 
     GROUPS = [
       %i[first_downs total_offense total_plays yards_per_play total_yards
-         points_in_quarter_1 points_in_quarter_2 points_in_quarter_3 points_in_quarter_4 final_score],
+         points_in_quarter_1 points_in_quarter_2 points_in_quarter_3 points_in_quarter_4
+         points_in_overtime final_score],
       %i[rushes rushing_yards rushing_tds yards_per_rush
          passing_completions passing_attempts passing_tds yards_per_pass passing_yards],
       %i[third_down_conversions third_down_attempts fourth_down_conversions fourth_down_attempts

@@ -1,8 +1,10 @@
 # Shared college-name resolution for the screenshot extractors — matches
-# extracted text against both a college's official name and its
-# alternate_name (a shortened/abbreviated form some game screens use, e.g.
-# "App St." for "Appalachian State"), so a raw exact match can succeed
-# before falling back to the LLM's own nickname/abbreviation knowledge.
+# extracted text against a college's official name, its alternate_name (a
+# shortened/abbreviated form some game screens use, e.g. "App St." for
+# "Appalachian State"), and its abbrev (the short code used in schedule/
+# score screens, e.g. "MIZZ" for "Missouri"), so a raw exact match can
+# succeed before falling back to the LLM's own nickname/abbreviation
+# knowledge.
 module CollegeMatching
   UNMATCHED = "Unmatched".freeze
 
@@ -20,12 +22,13 @@ module CollegeMatching
     @colleges ||= College.order(:name).to_a
   end
 
-  # Keyed by both name and alternate_name, so either one resolves straight
-  # back to the college.
+  # Keyed by name, alternate_name, and abbrev, so any of the three resolves
+  # straight back to the college.
   def colleges_by_matchable_name
     @colleges_by_matchable_name ||= colleges.each_with_object({}) do |college, hash|
       hash[college.name] = college
       hash[college.alternate_name] = college if college.alternate_name.present?
+      hash[college.abbrev] = college if college.abbrev.present?
     end
   end
 
@@ -38,7 +41,7 @@ module CollegeMatching
   # can match it directly instead of relying on the model to infer the full
   # name from scratch.
   def college_names
-    @college_names ||= colleges.flat_map { |college| [ college.name, college.alternate_name ].compact } + [ UNMATCHED ]
+    @college_names ||= colleges.flat_map { |college| [ college.name, college.alternate_name, college.abbrev ].compact } + [ UNMATCHED ]
   end
 
   def colleges_json

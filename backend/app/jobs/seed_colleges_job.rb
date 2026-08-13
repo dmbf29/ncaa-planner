@@ -18,7 +18,8 @@ class SeedCollegesJob < ApplicationJob
           nil_total: row[:nil_total]&.delete(",")&.to_i,
           capacity: row[:capacity]&.delete(",")&.to_i,
           pipeline_ranking: row[:pipeline_ranking],
-          alternate_name: row[:alternate_name].presence
+          alternate_name: row[:alternate_name].presence,
+          abbrev: row[:abbrev].presence
         )
       else
         College.create(
@@ -32,7 +33,8 @@ class SeedCollegesJob < ApplicationJob
           nil_total: row[:nil_total]&.delete(",")&.to_i,
           capacity: row[:capacity]&.delete(",")&.to_i,
           pipeline_ranking: row[:pipeline_ranking],
-          alternate_name: row[:alternate_name].presence
+          alternate_name: row[:alternate_name].presence,
+          abbrev: row[:abbrev].presence
         )
       end
     end

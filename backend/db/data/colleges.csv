@@ -1,139 +1,139 @@
-name,alternate_name,conference,prestige,Dynasty Points,DP Grade,NIL Left,nil_total,(5) Pipes,(4) Pipes,(3) Pipes,pipeline_ranking,# of Pipes,overall,offense,defense,capacity,Players (87+),Doug's SBC Rank,Notes,api_id
-Georgia,,SEC,5.0,"11,700",A+,"5,135","12,200",4,1,,,,94,94,94,,10,,,656
-Alabama,,SEC,5.0,"11,000",A+,"5,870","12,500",5,1,,,,92,91,94,,7,,,625
-Ohio State,,Big Ten,5.0,"12,000",A+,"4,875","12,500",1,5,,,,94,94,94,,14,,,701
-Ole Miss,,SEC,4.5,"8,745",A-,"3,160","8,350",1,0,,,,86,86,87,,9,,,705
-Indiana,,Big Ten,4.5,"6,545",B,"2,460","8,900",0,1,,,,86,86,86,,14,,,663
-LSU,,SEC,4.5,"10,395",A+,"3,450","10,100",1,2,,,,89,89,89,,10,,,677
-Miami,,ACC,4.5,"7,965",B+,"4,195","10,225",2,0,,,,87,86,89,,9,,,681
-Oregon,,Big Ten,4.5,"8,635",A-,"2,900","10,280",1,2,,,,91,91,91,,13,,,706
-Texas,,SEC,4.5,"10,515",A-,"3,460","10,630",2,1,,,,89,89,91,,12,,,726
-Oklahoma,,SEC,4.5,"10,790",A+,"6,015","10,930",2,2,,,,86,86,86,,9,,,702
-Notre Dame,,Independent,4.5,"10,075",A+,"4,635","11,275",0,0,,,,91,91,91,,12,,,699
-Michigan,,Big Ten,4.5,"10,185",A+,"6,540","11,630",1,1,,,,89,89,89,,9,,,683
-BYU,,Big 12,4.0,"5,715",C+,"2,250","6,375",0,1,,,,82,84,81,,6,,,639
-Florida,,SEC,4.0,"8,910",A-,"3,420","7,880",2,0,,,,86,86,86,,4,,,653
-Washington,,Big Ten,4.0,"8,415",A-,"5,015","7,880",1,1,,,,82,81,84,,3,,,749
-Texas A&M,,SEC,4.0,"7,850",B+,"2,545","8,180",2,1,,,,89,89,91,,10,,,727
-Nebraska,,Big Ten,4.0,"9,100",A,"4,060","8,300",0,0,,,,84,84,84,,4,,,691
-Clemson,,ACC,4.0,"9,570",A,"4,070","9,105",5,0,,,,84,84,86,,4,,,644
-Tennessee,,SEC,4.0,"8,965",A-,"5,135","9,180",1,2,,,,86,86,86,,7,,,725
-Penn State,,Big Ten,4.0,"10,065",A+,"5,770","9,750",2,1,,,,84,84,84,,6,,,708
-USC,,Big Ten,4.0,"10,920",A+,"5,710","10,400",1,0,,,,84,84,84,,6,,,740
-UCLA,,Big Ten,3.5,"7,060",B,"2,825","5,700",1,0,,,,81,81,81,,3,,,736
-Utah,,Big 12,3.5,"5,265",C+,"3,685","5,975",0,1,,,,79,79,79,,1,,,743
-Georgia Tech,,ACC,3.5,"6,500",B,4315,6035,0,1,,,,76,76,76,,0,,,659
-Minnesota,,Big Ten,3.5,"5,550",C+,3230,6100,0,0,,,,79,79,79,,7,,,686
-TCU,,Big 12,3.5,"6,165",B-,"3,725","6,285",1,1,,,,80,81,79,,1,,,723
-Michigan State,,Big Ten,3.5,"7,095",B,3765,6450,0,1,,,,80,81,79,,1,,,684
-Illinois,,Big Ten,3.5,"6,300",B-,3470,6510,0,0,,,,72,74,71,,2,,,662
-Texas Tech,,Big 12,3.5,"5,380",C+,850,"6,920",0,2,,,,86,86,86,,13,,,729
-Auburn,,SEC,3.5,"8,910",A-,"2,695","6,980",2,1,,,,85,86,84,,5,,,632
-Florida State,Fla State,ACC,3.5,"7,940",B+,"4,185","7,275",1,1,,,,82,84,81,,3,,,654
-Iowa,,Big Ten,3.5,"7,700",B+,4905,7300,0,1,,,,79,81,76,,5,,,664
-Virginia,,ACC,3.0,"4,115",C-,205,3350,0,0,,,,84,84,84,,3,,,746
-Houston,,Big 12,3.0,"4,855",C,685,"3,575",0,1,,,,77,79,76,,4,,,661
-Kentucky,,SEC,3.0,"4,910",C,"1,200","4,260",0,2,,,,81,81,81,,3,,,671
-Louisville,,ACC,3.0,"5,765",C+,975,"4,375",0,0,,,,82,81,84,,5,,,676
-Oklahoma State,,Big 12,3.0,"5,900",B-,935,"4,525",0,2,,,,77,76,79,,4,,,703
-Stanford,,ACC,3.0,"5,340",C+,"3,035","4,625",0,1,,,,76,76,76,,1,,,721
-Virginia Tech,,ACC,3.0,"6,590",B,"1,540","4,625",0,1,,,,81,81,81,,2,,,747
-SMU,,ACC,3.0,"4,950",C,"1,560","4,635",0,1,,,,81,81,81,,4,,,716
-Syracuse,,ACC,3.0,"5,050",C+,2720,4825,0,0,,,,76,76,76,,2,,,722
-NC State,,ACC,3.0,"6,865",B,"2,730","4,925",1,0,,,,76,76,76,,2,,,690
-California,,ACC,3.0,"4,590",C,2650,5025,0,2,,,,79,79,79,,4,,,640
-Missouri,,SEC,3.0,"7,040",B,755,"5,100",0,1,,,,84,86,81,,4,,,688
-South Carolina,,SEC,3.0,"5,600",C+,"1,345","5,135",1,0,,,,85,86,84,,3,,,718
-Wisconsin,,Big Ten,3.0,"7,050",B,"3,065","5,250",0,1,,,,80,81,79,,0,,,754
-Arizona State,,Big 12,3.0,"6,065",B-,"2,295","5,575",1,0,,,,79,79,81,,5,,,628
-Arkansas,,SEC,3.0,"7,100",B,2525,5850,0,1,,,,82,81,84,,1,,,629
-Colorado,,Big 12,3.0,"5,325",C+,2990,5875,0,0,,,,81,81,81,,3,,,646
-Pittsburgh,,ACC,3.0,"5,540",C+,3815,6025,0,0,,,,79,81,76,,1,,,709
-Duke,,ACC,3.0,"4,440",C,1890,6125,0,0,,,,75,76,74,,2,,,648
-Tulane,,AAC,2.5,"2,225",D,1835,2725,0,0,1,69,10,72,71,74,"30,250",0,,,732
-Kansas,,Big 12,2.5,"3,230",D+,130,2800,0,0,,,,76,76,76,,1,,,668
-Cincinnati,,Big 12,2.5,"3,700",C-,1055,2860,1,0,,,,75,76,74,,1,,,643
-UCF,,Big 12,2.5,"3,515",C-,985,2985,0,0,,,,77,79,76,,1,,,735
-Arizona,,Big 12,2.5,"3,390",D+,1080,3200,0,1,,,,79,79,79,,1,,,627
-Boston College,,ACC,2.5,"4,465",C,1660,3300,0,1,,,,79,79,79,,1,,,636
-Baylor,,Big 12,2.5,"4,175",C-,1155,3385,1,0,,,,79,79,79,,0,,,634
-Maryland,,Big Ten,2.5,"5,400",C+,1280,3650,1,0,,,,80,81,79,,2,,,679
-Navy,,AAC,2.5,"3,025",D+,2405,3700,0,0,0,128,10,65,66,64,"34,250",0,,,689
-North Carolina,,ACC,2.5,"5,390",C+,"1,395","3,735",2,0,,,,79,79,79,,1,,,695
-West Virginia,,Big 12,2.5,"5,865",B-,"2,115","4,075",0,0,,,,79,81,76,,1,,,751
-Mississippi State,Mississippi St,SEC,2.5,"5,860",B-,"1,525","4,100",1,0,,,,82,81,84,,2,,,687
-Kansas State,,Big 12,2.5,"4,365",C,2165,4325,0,0,,,,76,76,76,,3,,,669
-Army,,AAC,2.5,"2,640",D,3150,4500,0,0,0,119,10,67,69,64,"38,000",1,,,631
-Vanderbilt,,SEC,2.5,"4,735",C,"2,125","4,640",0,0,,,,79,79,79,,1,,,745
-Boise State,,Pac 12,2.5,"4,305",C,2730,4650,0,1,0,77,10,74,74,74,"36,500",3,,,635
-Iowa State,,Big 12,2.5,"3,550",C-,3170,4700,0,0,,,,74,74,74,,0,,,665
-Memphis,,AAC,2.0,"1,860",D-,610,2200,0,0,1,61,10,77,79,74,"64,000",1,,,680
-Washington State,Washington St.,Pac 12,2.0,"2,350",D,1335,2375,0,0,2,71,10,72,74,71,"32,250",0,,,750
-East Carolina,,AAC,2.0,"2,075",D,1695,2400,0,0,1,75,10,69,69,69,"50,000",0,,,649
-Oregon State,,Pac 12,2.0,"2,540",D,1020,2400,0,0,2,91,10,74,74,74,"35,750",0,,,707
-Wake Forest,,ACC,2.0,"3,905",C-,715,2810,0,0,,,,76,76,76,,1,,,748
-Rutgers,,Big Ten,2.0,"4,005",C-,1240,3285,1,0,,,,76,76,76,,2,,,712
-Northwestern,,Big Ten,2.0,"4,425",C,720,3305,0,0,,,,75,76,74,,1,,,698
-Purdue,,Big Ten,2.0,"4,650",C,1770,3400,0,1,,,,76,76,76,,0,,,710
-James Madison,,Sun Belt,1.5,880,F,5,1005,0,0,0,131,6,70,71,69,"25,000",0,11,"Horrible for recruiting. No NIL to start, only 6 pipelines. But most initial hours in SBC",667
-UCONN,,Independent,1.5,"1,280",D-,100,780,0,0,,,,71,71,71,,0,,,737
-Western Kentucky,W. Kentucky,Conference USA,1.5,"1,195",D-,115,1135,0,0,,,,67,69,66,,0,,,752
-San Jose State,,Mountain West,1.5,"1,320",D-,635,1300,0,0,2,110,8,69,69,69,"30,750",0,,,715
-UNLV,,Mountain West,1.5,"1,100",D-,175,1370,0,0,1,104,10,74,74,74,"65,000",1,,,739
-Hawai'i,,Mountain West,1.5,"1,365",D-,690,1410,0,0,0,126,9,69,69,71,"17,000",0,,,660
-North Dakota State,NDSU,Mountain West,1.5,665,F,450,1425,0,0,0,137,2,67,69,66,"18,700",1,,,76
-USF,,AAC,1.5,"1,670",D-,140,1625,0,1,0,74,9,75,76,74,"66,000",1,,,719
-Rice,,AAC,1.5,"2,240",D,1225,1800,0,0,2,95,10,66,66,66,"47,500",0,,,711
-Colorado State,,Pac 12,1.5,"2,140",D,860,1850,0,0,1,105,10,69,69,69,"41,250",0,,,647
-Utah State,,Pac 12,1.5,"2,075",D,1085,1850,0,0,1,113,10,72,71,71,"25,750",0,,,744
-UTSA,,AAC,1.5,"1,475",D-,795,1860,0,0,2,124,6,72,74,69,"65,000",1,,,742
-North Texas,,AAC,1.5,"2,100",D,935,1875,0,0,2,94,10,74,76,71,"31,000",1,,,696
-Tulsa,,AAC,1.5,"2,960",D+,1270,2125,0,0,1,111,10,71,71,71,"30,000",1,,,733
-Fresno State,,Pac 12,1.5,"2,990",D+,1025,2135,0,0,2,102,10,72,74,71,"41,000",1,,,655
-Appalachian State,App St.,Sun Belt,1.0,"1,385",D-,540,1485,0,0,1,79,10,71,71,71,"30,000",0,1,Best NIL and best team to start (marginally). 3 pipeline and 10 in total,626
-Florida International,FIU,Conference USA,1.0,680,F,215,565,0,0,,,,67,66,69,,0,,,652
-Kennesaw State,Kennesaw St.,Conference USA,1.0,570,F,200,565,0,0,,,,62,61,64,,0,,,26517
-New Mexico State,New Mexico St.,Conference USA,1.0,850,F,170,660,0,0,,,,66,66,66,,0,,,694
-Central Michigan,C. Michigan,MAC,1.0,"1,070",D-,150,685,0,0,,,,67,69,64,,0,,,641
-Louisiana,,Sun Belt,1.0,"1,140",D-,310,1100,0,1,0,55,9,67,69,66,"41,500",1,3,Good NIL and a 4 pipeline. Biggest stadium.,673
-Sacramento State,Sac State,MAC,1.0,515,F,60,735,0,0,,,,71,71,71,,0,,,89
-Marshall,,Sun Belt,1.0,"1,705",D-,115,1100,0,0,0,89,10,67,66,69,"38,250",0,7,"Low NIL to start. Below average team. No high pipes, but 10 decent ones",678
-Jacksonville State,Jax State,Conference USA,1.0,705,F,270,815,0,0,,,,70,71,69,,0,,,666
-Arkansas State,,Sun Belt,1.0,"1,140",D-,5,1035,0,0,0,80,11,70,71,69,"31,000",1,8,No NIL to start. Good team. No high pipelines but decent number of good ones.,630
-Western Michigan,W. Michigan,MAC,1.0,"1,055",D-,160,910,0,0,,,,67,69,66,,0,,,753
-Troy,,Sun Belt,1.0,"1,520",D-,480,1035,0,0,1,129,5,69,69,71,"30,750",1,10,Only 5 pipelines makes recruiting really hard. Need to use that first NIL wisely,731
-Delaware,,Conference USA,1.0,570,D-,100,950,0,0,,,,66,66,66,,1,,,26
-Louisiana Tech,,Sun Belt,1.0,"1,565",D-,510,1010,0,1,0,58,8,67,69,66,"28,500",0,2,Great NIL to start with a 4 pipeline in LA but only 8 pipelines,675
-Georgia Southern,GA Southern,Sun Belt,1.0,965,F,115,960,0,0,1,81,10,71,71,71,"25,250",0,6,"Decent team to start with but not a lot of NIL, 3 pipe in GA",657
-Coastal Carolina,C. Carolina,Sun Belt,1.0,915,F,395,915,0,0,0,118,10,66,66,66,"21,000",0,9,Decent NIL to start but nothing special about pipelines and low overall to start,645
-UAB,,AAC,1.0,"1,340",D-,210,1015,0,0,1,108,10,69,69,71,"47,500",0,,,734
-Old Dominion,,Sun Belt,1.0,740,F,25,760,0,1,0,67,10,67,66,69,"22,500",0,5,No NIL to start but the best pipelines in the SBC,704
-New Mexico,,Mountain West,1.0,"1,035",D-,340,1090,0,0,0,127,10,66,66,66,"39,250",1,,,693
-Ohio,,MAC,1.0,"1,315",D-,595,1095,0,0,,,,67,66,69,,0,,,700
-Toledo,,MAC,1.0,"1,690",D-,755,1105,0,0,,,,69,69,69,,0,,,730
-Northern Illinois,NIU,Mountain West,1.0,"1,175",D-,720,1120,0,0,1,106,10,64,66,61,"24,250",0,,,697
-Miami University,Miami (OH),MAC,1.0,"1,405",D-,600,1125,0,0,,,,70,71,69,,0,,,682
-Liberty,,Conference USA,1.0,905,F,105,1150,0,0,,,,72,74,71,"41,500",0,,,672
-Florida Atlantic,Fla Atlantic,AAC,1.0,"1,230",D-,60,1175,0,0,2,86,8,71,71,71,"30,250",1,,,651
-Nevada,,Mountain West,1.0,"1,330",D-,430,1180,0,0,1,93,10,69,69,69,"27,000",1,,,692
-Air Force,,Mountain West,1.0,"1,850",D-,560,1250,0,0,0,96,10,66,66,66,"47,250",1,,,623
-Temple,,AAC,1.0,"1,340",D-,175,1350,0,0,1,78,10,72,74,71,"69,250",1,,,724
-Wyoming,,Mountain West,1.0,"1,465",D-,1040,1415,0,0,0,117,10,67,69,66,"29,500",0,,,755
-Texas State,,Pac 12,1.0,"1,475",D-,655,1725,0,0,2,112,10,69,69,69,"30,250",1,,,728
-San Diego State,San Diego St.,Pac 12,1.0,"2,240",D,615,1750,0,1,0,70,10,75,76,74,"35,500",1,,,714
-UMass,,MAC,0.5,890,F,175,410,0,0,,,,66,66,66,,0,,,738
-Missouri State,,Conference USA,0.5,570,F,90,475,0,0,,,,64,64,64,,0,,,62
-Sam Houston,,Conference USA,0.5,570,F,25,475,0,0,,,,69,71,66,,0,,,713
-Ball State,,MAC,0.5,810,F,240,595,0,0,,,,65,66,64,,0,,,633
-Middle Tennessee,Middle Tenn,Conference USA,0.5,"1,035",D-,85,690,0,0,,,,67,66,69,,0,,,685
-Eastern Michigan,E. Michigan,MAC,0.5,890,F,75,745,0,0,,,,65,66,64,,0,,,650
-Bowling Green,,MAC,0.5,"1,090",D-,390,840,0,0,,,,67,66,69,,0,,,637
-UTEP,,Mountain West,0.5,"1,105",D-,350,975,0,0,0,125,10,64,64,64,"47,750",0,,,741
-Southern Mississippi,Southern Miss,Sun Belt,0.5,"1,815",D-,565,870,0,1,0,62,10,69,69,69,"36,250",0,4,"Low starting hours, but most NIL to start with. 4 pipeline in MS and 10 in total",720
-South Alabama,,Sun Belt,0.5,605,F,115,690,0,0,1,100,10,69,69,69,"25,500",0,12,"Low hours, low NIL but a 3 pipeline and 10 in total",717
-UL Monroe,,Sun Belt,0.5,695,F,65,505,0,0,0,130,8,64,64,64,"30,750",0,13,No NIL. Low recruiting hours. Only 8 pipelines and the worst team starting.,674
-Charlotte,,AAC,0.5,"1,075",D-,705,1150,0,0,1,83,10,66,66,66,"15,250",0,,,642
-Kent State,,MAC,0.0,515,F,80,410,0,0,,,,64,64,64,,0,,,670
-Buffalo,,MAC,0.0,780,F,65,565,0,0,,,,66,66,66,,0,,,638
-Akron,,MAC,0.0,515,F,70,720,0,0,,,,64,64,64,,0,,,624
-Georgia State,GA State,Sun Belt,0.0,715,F,5,440,0,0,0,82,10,66,66,64,"25,000",0,14,Worst NIL of all teams by far. No recruiting hours. No high ranked pipelines but at least 10 of them.,658
+name,alternate_name,abbrev,conference,prestige,Dynasty Points,DP Grade,NIL Left,nil_total,(5) Pipes,(4) Pipes,(3) Pipes,pipeline_ranking,# of Pipes,overall,offense,defense,capacity,Players (87+),Doug's SBC Rank,Notes,api_id
+Georgia,,UGA,SEC,5.0,"11,700",A+,"5,135","12,200",4,1,,,,94,94,94,,10,,,656
+Alabama,,BAMA,SEC,5.0,"11,000",A+,"5,870","12,500",5,1,,,,92,91,94,,7,,,625
+Ohio State,,OSU,Big Ten,5.0,"12,000",A+,"4,875","12,500",1,5,,,,94,94,94,,14,,,701
+Ole Miss,,MISS,SEC,4.5,"8,745",A-,"3,160","8,350",1,0,,,,86,86,87,,9,,,705
+Indiana,,IU,Big Ten,4.5,"6,545",B,"2,460","8,900",0,1,,,,86,86,86,,14,,,663
+LSU,,LSU,SEC,4.5,"10,395",A+,"3,450","10,100",1,2,,,,89,89,89,,10,,,677
+Miami,,MIA,ACC,4.5,"7,965",B+,"4,195","10,225",2,0,,,,87,86,89,,9,,,681
+Oregon,,ORE,Big Ten,4.5,"8,635",A-,"2,900","10,280",1,2,,,,91,91,91,,13,,,706
+Texas,,TEX,SEC,4.5,"10,515",A-,"3,460","10,630",2,1,,,,89,89,91,,12,,,726
+Oklahoma,,OKLA,SEC,4.5,"10,790",A+,"6,015","10,930",2,2,,,,86,86,86,,9,,,702
+Notre Dame,,ND,Independent,4.5,"10,075",A+,"4,635","11,275",0,0,,,,91,91,91,,12,,,699
+Michigan,,MICH,Big Ten,4.5,"10,185",A+,"6,540","11,630",1,1,,,,89,89,89,,9,,,683
+BYU,,BYU,Big 12,4.0,"5,715",C+,"2,250","6,375",0,1,,,,82,84,81,,6,,,639
+Florida,,UF,SEC,4.0,"8,910",A-,"3,420","7,880",2,0,,,,86,86,86,,4,,,653
+Washington,,WASH,Big Ten,4.0,"8,415",A-,"5,015","7,880",1,1,,,,82,81,84,,3,,,749
+Texas A&M,,TAMU,SEC,4.0,"7,850",B+,"2,545","8,180",2,1,,,,89,89,91,,10,,,727
+Nebraska,,NEB,Big Ten,4.0,"9,100",A,"4,060","8,300",0,0,,,,84,84,84,,4,,,691
+Clemson,,CLEM,ACC,4.0,"9,570",A,"4,070","9,105",5,0,,,,84,84,86,,4,,,644
+Tennessee,,TENN,SEC,4.0,"8,965",A-,"5,135","9,180",1,2,,,,86,86,86,,7,,,725
+Penn State,,PSU,Big Ten,4.0,"10,065",A+,"5,770","9,750",2,1,,,,84,84,84,,6,,,708
+USC,,USC,Big Ten,4.0,"10,920",A+,"5,710","10,400",1,0,,,,84,84,84,,6,,,740
+UCLA,,UCLA,Big Ten,3.5,"7,060",B,"2,825","5,700",1,0,,,,81,81,81,,3,,,736
+Utah,,UTAH,Big 12,3.5,"5,265",C+,"3,685","5,975",0,1,,,,79,79,79,,1,,,743
+Georgia Tech,,GT,ACC,3.5,"6,500",B,4315,6035,0,1,,,,76,76,76,,0,,,659
+Minnesota,,MINN,Big Ten,3.5,"5,550",C+,3230,6100,0,0,,,,79,79,79,,7,,,686
+TCU,,TCU,Big 12,3.5,"6,165",B-,"3,725","6,285",1,1,,,,80,81,79,,1,,,723
+Michigan State,,MSU,Big Ten,3.5,"7,095",B,3765,6450,0,1,,,,80,81,79,,1,,,684
+Illinois,,ILL,Big Ten,3.5,"6,300",B-,3470,6510,0,0,,,,72,74,71,,2,,,662
+Texas Tech,,TTU,Big 12,3.5,"5,380",C+,850,"6,920",0,2,,,,86,86,86,,13,,,729
+Auburn,,AUB,SEC,3.5,"8,910",A-,"2,695","6,980",2,1,,,,85,86,84,,5,,,632
+Florida State,Fla State,FSU,ACC,3.5,"7,940",B+,"4,185","7,275",1,1,,,,82,84,81,,3,,,654
+Iowa,,IOWA,Big Ten,3.5,"7,700",B+,4905,7300,0,1,,,,79,81,76,,5,,,664
+Virginia,,UVA,ACC,3.0,"4,115",C-,205,3350,0,0,,,,84,84,84,,3,,,746
+Houston,,HOU,Big 12,3.0,"4,855",C,685,"3,575",0,1,,,,77,79,76,,4,,,661
+Kentucky,,UK,SEC,3.0,"4,910",C,"1,200","4,260",0,2,,,,81,81,81,,3,,,671
+Louisville,,LOU,ACC,3.0,"5,765",C+,975,"4,375",0,0,,,,82,81,84,,5,,,676
+Oklahoma State,,OKST,Big 12,3.0,"5,900",B-,935,"4,525",0,2,,,,77,76,79,,4,,,703
+Stanford,,STAN,ACC,3.0,"5,340",C+,"3,035","4,625",0,1,,,,76,76,76,,1,,,721
+Virginia Tech,,VT,ACC,3.0,"6,590",B,"1,540","4,625",0,1,,,,81,81,81,,2,,,747
+SMU,,SMU,ACC,3.0,"4,950",C,"1,560","4,635",0,1,,,,81,81,81,,4,,,716
+Syracuse,,CUSE,ACC,3.0,"5,050",C+,2720,4825,0,0,,,,76,76,76,,2,,,722
+NC State,,NCST,ACC,3.0,"6,865",B,"2,730","4,925",1,0,,,,76,76,76,,2,,,690
+California,,CAL,ACC,3.0,"4,590",C,2650,5025,0,2,,,,79,79,79,,4,,,640
+Missouri,,MIZZ,SEC,3.0,"7,040",B,755,"5,100",0,1,,,,84,86,81,,4,,,688
+South Carolina,,SCAR,SEC,3.0,"5,600",C+,"1,345","5,135",1,0,,,,85,86,84,,3,,,718
+Wisconsin,,WISC,Big Ten,3.0,"7,050",B,"3,065","5,250",0,1,,,,80,81,79,,0,,,754
+Arizona State,,ASU,Big 12,3.0,"6,065",B-,"2,295","5,575",1,0,,,,79,79,81,,5,,,628
+Arkansas,,ARK,SEC,3.0,"7,100",B,2525,5850,0,1,,,,82,81,84,,1,,,629
+Colorado,,CU,Big 12,3.0,"5,325",C+,2990,5875,0,0,,,,81,81,81,,3,,,646
+Pittsburgh,,PITT,ACC,3.0,"5,540",C+,3815,6025,0,0,,,,79,81,76,,1,,,709
+Duke,,DUKE,ACC,3.0,"4,440",C,1890,6125,0,0,,,,75,76,74,,2,,,648
+Tulane,,TUL,AAC,2.5,"2,225",D,1835,2725,0,0,1,69,10,72,71,74,"30,250",0,,,732
+Kansas,,KU,Big 12,2.5,"3,230",D+,130,2800,0,0,,,,76,76,76,,1,,,668
+Cincinnati,,CIN,Big 12,2.5,"3,700",C-,1055,2860,1,0,,,,75,76,74,,1,,,643
+UCF,,UCF,Big 12,2.5,"3,515",C-,985,2985,0,0,,,,77,79,76,,1,,,735
+Arizona,,ZONA,Big 12,2.5,"3,390",D+,1080,3200,0,1,,,,79,79,79,,1,,,627
+Boston College,,BC,ACC,2.5,"4,465",C,1660,3300,0,1,,,,79,79,79,,1,,,636
+Baylor,,BAY,Big 12,2.5,"4,175",C-,1155,3385,1,0,,,,79,79,79,,0,,,634
+Maryland,,TERPS,Big Ten,2.5,"5,400",C+,1280,3650,1,0,,,,80,81,79,,2,,,679
+Navy,,NAVY,AAC,2.5,"3,025",D+,2405,3700,0,0,0,128,10,65,66,64,"34,250",0,,,689
+North Carolina,,UNC,ACC,2.5,"5,390",C+,"1,395","3,735",2,0,,,,79,79,79,,1,,,695
+West Virginia,,WVU,Big 12,2.5,"5,865",B-,"2,115","4,075",0,0,,,,79,81,76,,1,,,751
+Mississippi State,Mississippi St,MSST,SEC,2.5,"5,860",B-,"1,525","4,100",1,0,,,,82,81,84,,2,,,687
+Kansas State,,KSU,Big 12,2.5,"4,365",C,2165,4325,0,0,,,,76,76,76,,3,,,669
+Army,,ARMY,AAC,2.5,"2,640",D,3150,4500,0,0,0,119,10,67,69,64,"38,000",1,,,631
+Vanderbilt,,VAND,SEC,2.5,"4,735",C,"2,125","4,640",0,0,,,,79,79,79,,1,,,745
+Boise State,,BOI,Pac 12,2.5,"4,305",C,2730,4650,0,1,0,77,10,74,74,74,"36,500",3,,,635
+Iowa State,,ISU,Big 12,2.5,"3,550",C-,3170,4700,0,0,,,,74,74,74,,0,,,665
+Memphis,,MEM,AAC,2.0,"1,860",D-,610,2200,0,0,1,61,10,77,79,74,"64,000",1,,,680
+Washington State,Washington St.,WSU,Pac 12,2.0,"2,350",D,1335,2375,0,0,2,71,10,72,74,71,"32,250",0,,,750
+East Carolina,,ECU,AAC,2.0,"2,075",D,1695,2400,0,0,1,75,10,69,69,69,"50,000",0,,,649
+Oregon State,,ORST,Pac 12,2.0,"2,540",D,1020,2400,0,0,2,91,10,74,74,74,"35,750",0,,,707
+Wake Forest,,WAKE,ACC,2.0,"3,905",C-,715,2810,0,0,,,,76,76,76,,1,,,748
+Rutgers,,RU,Big Ten,2.0,"4,005",C-,1240,3285,1,0,,,,76,76,76,,2,,,712
+Northwestern,,NW,Big Ten,2.0,"4,425",C,720,3305,0,0,,,,75,76,74,,1,,,698
+Purdue,,PUR,Big Ten,2.0,"4,650",C,1770,3400,0,1,,,,76,76,76,,0,,,710
+James Madison,,JMU,Sun Belt,1.5,880,F,5,1005,0,0,0,131,6,70,71,69,"25,000",0,11,"Horrible for recruiting. No NIL to start, only 6 pipelines. But most initial hours in SBC",667
+UCONN,,CONN,Independent,1.5,"1,280",D-,100,780,0,0,,,,71,71,71,,0,,,737
+Western Kentucky,W. Kentucky,WKU,Conference USA,1.5,"1,195",D-,115,1135,0,0,,,,67,69,66,,0,,,752
+San Jose State,,SJSU,Mountain West,1.5,"1,320",D-,635,1300,0,0,2,110,8,69,69,69,"30,750",0,,,715
+UNLV,,UNLV,Mountain West,1.5,"1,100",D-,175,1370,0,0,1,104,10,74,74,74,"65,000",1,,,739
+Hawai'i,,HAW,Mountain West,1.5,"1,365",D-,690,1410,0,0,0,126,9,69,69,71,"17,000",0,,,660
+North Dakota State,NDSU,NDSU,Mountain West,1.5,665,F,450,1425,0,0,0,137,2,67,69,66,"18,700",1,,,76
+USF,,USF,AAC,1.5,"1,670",D-,140,1625,0,1,0,74,9,75,76,74,"66,000",1,,,719
+Rice,,RICE,AAC,1.5,"2,240",D,1225,1800,0,0,2,95,10,66,66,66,"47,500",0,,,711
+Colorado State,,CSU,Pac 12,1.5,"2,140",D,860,1850,0,0,1,105,10,69,69,69,"41,250",0,,,647
+Utah State,,USU,Pac 12,1.5,"2,075",D,1085,1850,0,0,1,113,10,72,71,71,"25,750",0,,,744
+UTSA,,UTSA,AAC,1.5,"1,475",D-,795,1860,0,0,2,124,6,72,74,69,"65,000",1,,,742
+North Texas,,UNT,AAC,1.5,"2,100",D,935,1875,0,0,2,94,10,74,76,71,"31,000",1,,,696
+Tulsa,,TLSA,AAC,1.5,"2,960",D+,1270,2125,0,0,1,111,10,71,71,71,"30,000",1,,,733
+Fresno State,,FRES,Pac 12,1.5,"2,990",D+,1025,2135,0,0,2,102,10,72,74,71,"41,000",1,,,655
+Appalachian State,App St.,APP,Sun Belt,1.0,"1,385",D-,540,1485,0,0,1,79,10,71,71,71,"30,000",0,1,Best NIL and best team to start (marginally). 3 pipeline and 10 in total,626
+Florida International,FIU,FIU,Conference USA,1.0,680,F,215,565,0,0,,,,67,66,69,,0,,,652
+Kennesaw State,Kennesaw St.,KENN,Conference USA,1.0,570,F,200,565,0,0,,,,62,61,64,,0,,,26517
+New Mexico State,New Mexico St.,NMSU,Conference USA,1.0,850,F,170,660,0,0,,,,66,66,66,,0,,,694
+Central Michigan,C. Michigan,CMU,MAC,1.0,"1,070",D-,150,685,0,0,,,,67,69,64,,0,,,641
+Louisiana,,UL,Sun Belt,1.0,"1,140",D-,310,1100,0,1,0,55,9,67,69,66,"41,500",1,3,Good NIL and a 4 pipeline. Biggest stadium.,673
+Sacramento State,Sac State,SAC,MAC,1.0,515,F,60,735,0,0,,,,71,71,71,,0,,,89
+Marshall,,MRSH,Sun Belt,1.0,"1,705",D-,115,1100,0,0,0,89,10,67,66,69,"38,250",0,7,"Low NIL to start. Below average team. No high pipes, but 10 decent ones",678
+Jacksonville State,Jax State,JXST,Conference USA,1.0,705,F,270,815,0,0,,,,70,71,69,,0,,,666
+Arkansas State,,ARST,Sun Belt,1.0,"1,140",D-,5,1035,0,0,0,80,11,70,71,69,"31,000",1,8,No NIL to start. Good team. No high pipelines but decent number of good ones.,630
+Western Michigan,W. Michigan,WMU,MAC,1.0,"1,055",D-,160,910,0,0,,,,67,69,66,,0,,,753
+Troy,,TROY,Sun Belt,1.0,"1,520",D-,480,1035,0,0,1,129,5,69,69,71,"30,750",1,10,Only 5 pipelines makes recruiting really hard. Need to use that first NIL wisely,731
+Delaware,,DEL,Conference USA,1.0,570,D-,100,950,0,0,,,,66,66,66,,1,,,26
+Louisiana Tech,,LTU,Sun Belt,1.0,"1,565",D-,510,1010,0,1,0,58,8,67,69,66,"28,500",0,2,Great NIL to start with a 4 pipeline in LA but only 8 pipelines,675
+Georgia Southern,GA Southern,GASO,Sun Belt,1.0,965,F,115,960,0,0,1,81,10,71,71,71,"25,250",0,6,"Decent team to start with but not a lot of NIL, 3 pipe in GA",657
+Coastal Carolina,C. Carolina,CCAR,Sun Belt,1.0,915,F,395,915,0,0,0,118,10,66,66,66,"21,000",0,9,Decent NIL to start but nothing special about pipelines and low overall to start,645
+UAB,,UAB,AAC,1.0,"1,340",D-,210,1015,0,0,1,108,10,69,69,71,"47,500",0,,,734
+Old Dominion,,ODU,Sun Belt,1.0,740,F,25,760,0,1,0,67,10,67,66,69,"22,500",0,5,No NIL to start but the best pipelines in the SBC,704
+New Mexico,,UNM,Mountain West,1.0,"1,035",D-,340,1090,0,0,0,127,10,66,66,66,"39,250",1,,,693
+Ohio,,OHIO,MAC,1.0,"1,315",D-,595,1095,0,0,,,,67,66,69,,0,,,700
+Toledo,,TOL,MAC,1.0,"1,690",D-,755,1105,0,0,,,,69,69,69,,0,,,730
+Northern Illinois,NIU,NIU,Mountain West,1.0,"1,175",D-,720,1120,0,0,1,106,10,64,66,61,"24,250",0,,,697
+Miami University,Miami (OH),M-OH,MAC,1.0,"1,405",D-,600,1125,0,0,,,,70,71,69,,0,,,682
+Liberty,,LU,Conference USA,1.0,905,F,105,1150,0,0,,,,72,74,71,"41,500",0,,,672
+Florida Atlantic,Fla Atlantic,FAU,AAC,1.0,"1,230",D-,60,1175,0,0,2,86,8,71,71,71,"30,250",1,,,651
+Nevada,,NEV,Mountain West,1.0,"1,330",D-,430,1180,0,0,1,93,10,69,69,69,"27,000",1,,,692
+Air Force,,AFA,Mountain West,1.0,"1,850",D-,560,1250,0,0,0,96,10,66,66,66,"47,250",1,,,623
+Temple,,TEM,AAC,1.0,"1,340",D-,175,1350,0,0,1,78,10,72,74,71,"69,250",1,,,724
+Wyoming,,WYO,Mountain West,1.0,"1,465",D-,1040,1415,0,0,0,117,10,67,69,66,"29,500",0,,,755
+Texas State,,TXST,Pac 12,1.0,"1,475",D-,655,1725,0,0,2,112,10,69,69,69,"30,250",1,,,728
+San Diego State,San Diego St.,SDSU,Pac 12,1.0,"2,240",D,615,1750,0,1,0,70,10,75,76,74,"35,500",1,,,714
+UMass,,MASS,MAC,0.5,890,F,175,410,0,0,,,,66,66,66,,0,,,738
+Missouri State,,MOST,Conference USA,0.5,570,F,90,475,0,0,,,,64,64,64,,0,,,62
+Sam Houston,,SHSU,Conference USA,0.5,570,F,25,475,0,0,,,,69,71,66,,0,,,713
+Ball State,,BALL,MAC,0.5,810,F,240,595,0,0,,,,65,66,64,,0,,,633
+Middle Tennessee,Middle Tenn,MTSU,Conference USA,0.5,"1,035",D-,85,690,0,0,,,,67,66,69,,0,,,685
+Eastern Michigan,E. Michigan,EMU,MAC,0.5,890,F,75,745,0,0,,,,65,66,64,,0,,,650
+Bowling Green,,BGSU,MAC,0.5,"1,090",D-,390,840,0,0,,,,67,66,69,,0,,,637
+UTEP,,UTEP,Mountain West,0.5,"1,105",D-,350,975,0,0,0,125,10,64,64,64,"47,750",0,,,741
+Southern Mississippi,Southern Miss,USM,Sun Belt,0.5,"1,815",D-,565,870,0,1,0,62,10,69,69,69,"36,250",0,4,"Low starting hours, but most NIL to start with. 4 pipeline in MS and 10 in total",720
+South Alabama,,USA,Sun Belt,0.5,605,F,115,690,0,0,1,100,10,69,69,69,"25,500",0,12,"Low hours, low NIL but a 3 pipeline and 10 in total",717
+UL Monroe,,ULM,Sun Belt,0.5,695,F,65,505,0,0,0,130,8,64,64,64,"30,750",0,13,No NIL. Low recruiting hours. Only 8 pipelines and the worst team starting.,674
+Charlotte,,CLT,AAC,0.5,"1,075",D-,705,1150,0,0,1,83,10,66,66,66,"15,250",0,,,642
+Kent State,,KENT,MAC,0.0,515,F,80,410,0,0,,,,64,64,64,,0,,,670
+Buffalo,,BUFF,MAC,0.0,780,F,65,565,0,0,,,,66,66,66,,0,,,638
+Akron,,AKRN,MAC,0.0,515,F,70,720,0,0,,,,64,64,64,,0,,,624
+Georgia State,GA State,GAST,Sun Belt,0.0,715,F,5,440,0,0,0,82,10,66,66,64,"25,000",0,14,Worst NIL of all teams by far. No recruiting hours. No high ranked pipelines but at least 10 of them.,658

@@ -15,7 +15,7 @@ module GameStats
       punt_return_yards kick_return_yards total_yards
       punts penalties penalty_yards time_of_possession
       points_in_quarter_1 points_in_quarter_2 points_in_quarter_3 points_in_quarter_4
-      final_score
+      points_in_overtime final_score
     ].freeze
 
     PLAYER_FIELDS = %i[

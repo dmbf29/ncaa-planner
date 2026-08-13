@@ -115,7 +115,7 @@ class WeekRankingsSerializer
     return nil unless team_stat&.final_score && opponent_stat&.final_score
 
     {
-      opponent: { id: opponent_college.id, name: opponent_college.name },
+      opponent: { id: opponent_college.id, name: opponent_college.name, abbrev: opponent_college.abbrev },
       team_score: team_stat.final_score,
       opponent_score: opponent_stat.final_score,
       won: team_stat.final_score > opponent_stat.final_score
