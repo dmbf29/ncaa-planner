@@ -26,8 +26,11 @@ function LastResultCell({ lastResult }) {
   if (!lastResult) return <span className="text-textSecondary/50">&mdash;</span>;
 
   return (
-    <span className={clsx("font-semibold", lastResult.won ? "text-success" : "text-danger")}>
-      {lastResult.won ? "W" : "L"} {lastResult.teamScore}-{lastResult.opponentScore}
+    <span className="whitespace-nowrap">
+      <span className={clsx("font-semibold", lastResult.won ? "text-success" : "text-danger")}>
+        {lastResult.won ? "W" : "L"} {lastResult.teamScore}-{lastResult.opponentScore}
+      </span>{" "}
+      <span className="text-textSecondary">{lastResult.opponent.abbrev ?? lastResult.opponent.name}</span>
     </span>
   );
 }

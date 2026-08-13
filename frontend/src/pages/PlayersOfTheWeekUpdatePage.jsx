@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
+import FileDropZone from "../components/FileDropZone";
 import { fetchDynasties, fetchSeason, analyzePlayersOfTheWeek, commitPlayersOfTheWeek } from "../lib/apiClient";
 
 const inputClass =
@@ -15,54 +16,6 @@ const weekLabel = (week) => {
 };
 
 const SIDE_LABEL = { offensive: "Offense", defensive: "Defense" };
-
-function FileDropZone({ files, onFilesChange }) {
-  const handleFileInput = (e) => {
-    onFilesChange([...files, ...Array.from(e.target.files || [])]);
-    e.target.value = "";
-  };
-
-  const removeFile = (index) => onFilesChange(files.filter((_, i) => i !== index));
-
-  return (
-    <div className="space-y-2 rounded-md border border-border p-3 dark:border-darkborder">
-      <div>
-        <p className="text-sm font-semibold text-textPrimary dark:text-white">Player of the Week Screenshots</p>
-        <p className="text-xs text-textSecondary">
-          Upload the National and/or Conference screenshots together — each one&rsquo;s week and scope are
-          detected automatically from its header.
-        </p>
-      </div>
-      <input
-        type="file"
-        accept="image/*"
-        multiple
-        onChange={handleFileInput}
-        className="block w-full text-xs text-textSecondary file:mr-3 file:rounded-md file:border-0 file:bg-burnt file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white"
-      />
-      {files.length > 0 && (
-        <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
-          {files.map((file, index) => (
-            <div key={`${file.name}-${index}`} className="relative">
-              <img
-                src={URL.createObjectURL(file)}
-                alt={file.name}
-                className="h-16 w-full rounded-md border border-border object-cover dark:border-darkborder"
-              />
-              <button
-                type="button"
-                onClick={() => removeFile(index)}
-                className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-danger text-xs text-white"
-              >
-                ✕
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function CollegeSelect({ value, onChange, colleges }) {
   return (
@@ -318,7 +271,12 @@ function PlayersOfTheWeekUpdatePage() {
               when that game is already saved. You can fix either one below if it&rsquo;s not detected.
             </p>
 
-            <FileDropZone files={files} onFilesChange={setFiles} />
+            <FileDropZone
+              title="Player of the Week Screenshots"
+              hint="Upload the National and/or Conference screenshots together — each one's week and scope are detected automatically from its header."
+              files={files}
+              onFilesChange={setFiles}
+            />
 
             {analyzeError && <p className="text-sm text-danger">{analyzeError}</p>}
 

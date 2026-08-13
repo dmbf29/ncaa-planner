@@ -122,6 +122,16 @@ function ScreenshotUploadRow({ hint, existingScreenshots, pendingFiles, onPendin
     e.target.value = "";
   };
 
+  const handlePaste = (e) => {
+    const imageFiles = Array.from(e.clipboardData?.items || [])
+      .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+      .map((item) => item.getAsFile())
+      .filter(Boolean);
+    if (imageFiles.length === 0) return;
+    e.preventDefault();
+    onPendingFilesChange([...pendingFiles, ...imageFiles]);
+  };
+
   const removePending = (index) => onPendingFilesChange(pendingFiles.filter((_, i) => i !== index));
 
   const combined = [
@@ -130,11 +140,16 @@ function ScreenshotUploadRow({ hint, existingScreenshots, pendingFiles, onPendin
   ];
 
   return (
-    <div className="space-y-3 rounded-md border border-border p-3 dark:border-darkborder">
+    <div
+      className="space-y-3 rounded-md border border-border p-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-burnt dark:border-darkborder"
+      tabIndex={0}
+      onPaste={handlePaste}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-textSecondary">Screenshots</p>
           {hint && <p className="text-xs text-textSecondary">{hint}</p>}
+          <p className="text-xs text-textSecondary">Click here, then paste (⌘V / Ctrl+V) a copied screenshot.</p>
         </div>
         <input
           type="file"

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
+import FileDropZone from "../components/FileDropZone";
 import { fetchDynasties, analyzeAllAmericans, commitAllAmericans } from "../lib/apiClient";
 
 const CONFERENCES = [
@@ -10,54 +11,6 @@ const CONFERENCES = [
 
 const inputClass =
   "w-full rounded-md border border-border bg-white px-2 py-1.5 text-sm text-textPrimary focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface dark:text-white";
-
-function FileDropZone({ files, onFilesChange }) {
-  const handleFileInput = (e) => {
-    onFilesChange([...files, ...Array.from(e.target.files || [])]);
-    e.target.value = "";
-  };
-
-  const removeFile = (index) => onFilesChange(files.filter((_, i) => i !== index));
-
-  return (
-    <div className="space-y-2 rounded-md border border-border p-3 dark:border-darkborder">
-      <div>
-        <p className="text-sm font-semibold text-textPrimary dark:text-white">All-American Screenshots</p>
-        <p className="text-xs text-textSecondary">
-          Upload all of them together — National and Conference, 1st and 2nd team, however many you have. Each
-          screenshot&rsquo;s list is detected automatically from its header.
-        </p>
-      </div>
-      <input
-        type="file"
-        accept="image/*"
-        multiple
-        onChange={handleFileInput}
-        className="block w-full text-xs text-textSecondary file:mr-3 file:rounded-md file:border-0 file:bg-burnt file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white"
-      />
-      {files.length > 0 && (
-        <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
-          {files.map((file, index) => (
-            <div key={`${file.name}-${index}`} className="relative">
-              <img
-                src={URL.createObjectURL(file)}
-                alt={file.name}
-                className="h-16 w-full rounded-md border border-border object-cover dark:border-darkborder"
-              />
-              <button
-                type="button"
-                onClick={() => removeFile(index)}
-                className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-danger text-xs text-white"
-              >
-                ✕
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function CollegeSelect({ value, onChange, colleges }) {
   return (
@@ -317,7 +270,12 @@ function AllAmericansUpdatePage() {
               The AI reads each list separately and proposes the tables below for you to review before anything is saved.
             </p>
 
-            <FileDropZone files={files} onFilesChange={setFiles} />
+            <FileDropZone
+              title="All-American Screenshots"
+              hint="Upload all of them together — National and Conference, 1st and 2nd team, however many you have. Each screenshot's list is detected automatically from its header."
+              files={files}
+              onFilesChange={setFiles}
+            />
 
             {analyzeError && <p className="text-sm text-danger">{analyzeError}</p>}
 

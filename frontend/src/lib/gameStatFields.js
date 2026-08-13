@@ -1,5 +1,5 @@
 export const TEAM_STAT_GROUPS = [
-  { label: "Scoring", fields: ["finalScore", "pointsInQuarter1", "pointsInQuarter2", "pointsInQuarter3", "pointsInQuarter4"] },
+  { label: "Scoring", fields: ["finalScore", "pointsInQuarter1", "pointsInQuarter2", "pointsInQuarter3", "pointsInQuarter4", "pointsInOvertime"] },
   { label: "Offense", fields: ["firstDowns", "totalOffense", "totalPlays", "yardsPerPlay", "totalYards"] },
   { label: "Rushing", fields: ["rushes", "rushingYards", "rushingTds", "yardsPerRush"] },
   { label: "Passing", fields: ["passingCompletions", "passingAttempts", "passingTds", "passingYards", "yardsPerPass"] },
@@ -18,6 +18,7 @@ export const TEAM_STAT_GROUPS = [
 
 export const FIELD_LABELS = {
   finalScore: "Final Score", pointsInQuarter1: "Q1", pointsInQuarter2: "Q2", pointsInQuarter3: "Q3", pointsInQuarter4: "Q4",
+  pointsInOvertime: "OT",
   firstDowns: "First Downs", totalOffense: "Total Offense", totalPlays: "Total Plays", yardsPerPlay: "Yards/Play",
   totalYards: "Total Yards", rushes: "Rushes", rushingYards: "Rush Yards", rushingTds: "Rush TDs",
   yardsPerRush: "Yards/Rush", passingCompletions: "Comp", passingAttempts: "Att", passingTds: "Pass TDs",
