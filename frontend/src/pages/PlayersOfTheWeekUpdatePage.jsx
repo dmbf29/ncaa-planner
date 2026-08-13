@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import FileDropZone from "../components/FileDropZone";
+import PlayersOfTheWeek from "../components/PlayersOfTheWeek";
 import { fetchDynasties, fetchSeason, analyzePlayersOfTheWeek, commitPlayersOfTheWeek } from "../lib/apiClient";
 
 const inputClass =
@@ -134,6 +135,7 @@ function PlayersOfTheWeekUpdatePage() {
   const [dynastyId, setDynastyId] = useState(null);
   const [seasonId, setSeasonId] = useState(null);
   const [weeks, setWeeks] = useState([]);
+  const [playersOfTheWeek, setPlayersOfTheWeek] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
@@ -167,6 +169,7 @@ function PlayersOfTheWeekUpdatePage() {
         setSeasonId(latestSeason.id);
         const season = await fetchSeason(dynasty.id, latestSeason.id);
         setWeeks(season.teams?.[0]?.weeks || []);
+        setPlayersOfTheWeek(season.playersOfTheWeek);
       } catch (err) {
         setLoadError(err.message);
         if (err.message?.toLowerCase().includes("unauthorized")) {
@@ -262,34 +265,44 @@ function PlayersOfTheWeekUpdatePage() {
           </div>
         </Card>
       ) : !groups ? (
-        <Card>
-          <div className="p-5 space-y-4">
-            <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">Upload Screenshots</h3>
-            <p className="text-sm text-textSecondary">
-              Upload the National and/or Conference screenshot(s) — the week is read from the badge in the
-              top-right corner, and the player&rsquo;s college is guessed from the opponent and score shown,
-              when that game is already saved. You can fix either one below if it&rsquo;s not detected.
-            </p>
+        <div className="space-y-4">
+          <Card>
+            <div className="p-5 space-y-4">
+              <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">Upload Screenshots</h3>
+              <p className="text-sm text-textSecondary">
+                Upload the National and/or Conference screenshot(s) — the week is read from the badge in the
+                top-right corner, and the player&rsquo;s college is guessed from the opponent and score shown,
+                when that game is already saved. You can fix either one below if it&rsquo;s not detected.
+              </p>
 
-            <FileDropZone
-              title="Player of the Week Screenshots"
-              hint="Upload the National and/or Conference screenshots together — each one's week and scope are detected automatically from its header."
-              files={files}
-              onFilesChange={setFiles}
-            />
+              <FileDropZone
+                title="Player of the Week Screenshots"
+                hint="Upload the National and/or Conference screenshots together — each one's week and scope are detected automatically from its header."
+                files={files}
+                onFilesChange={setFiles}
+              />
 
-            {analyzeError && <p className="text-sm text-danger">{analyzeError}</p>}
+              {analyzeError && <p className="text-sm text-danger">{analyzeError}</p>}
 
-            <button
-              type="button"
-              onClick={handleAnalyze}
-              disabled={files.length === 0 || analyzing}
-              className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {analyzing ? "Analyzing... this can take a minute" : `Analyze ${files.length || ""} Photo${files.length === 1 ? "" : "s"}`}
-            </button>
-          </div>
-        </Card>
+              <button
+                type="button"
+                onClick={handleAnalyze}
+                disabled={files.length === 0 || analyzing}
+                className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {analyzing ? "Analyzing... this can take a minute" : `Analyze ${files.length || ""} Photo${files.length === 1 ? "" : "s"}`}
+              </button>
+            </div>
+          </Card>
+          {playersOfTheWeek?.weeks?.length > 0 && (
+            <div>
+              <p className="mb-2 text-xs uppercase tracking-wide text-textSecondary">
+                Last uploaded: {weekLabel(playersOfTheWeek.weeks[0].week)}
+              </p>
+              <PlayersOfTheWeek playersOfTheWeek={playersOfTheWeek} />
+            </div>
+          )}
+        </div>
       ) : (
         <div className="space-y-4">
           {groups.map((group, index) => (

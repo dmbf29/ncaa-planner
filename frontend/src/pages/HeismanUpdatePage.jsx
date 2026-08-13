@@ -3,7 +3,18 @@ import { Link, useNavigate } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import FileDropZone from "../components/FileDropZone";
+import HeismanWatch from "../components/HeismanWatch";
 import { fetchDynasties, fetchSeason, analyzeHeismanCandidates, commitHeismanCandidates } from "../lib/apiClient";
+
+// The week after the most recent one with candidates entered — that's the
+// watch list you'd logically be uploading next. Falls back to the first
+// week if nothing's been entered yet, or the last week if fully caught up.
+function nextWeekId(weeks, lastEnteredWeekNumber) {
+  if (weeks.length === 0) return "";
+  if (lastEnteredWeekNumber == null) return weeks[0].id;
+  const next = weeks.find((week) => week.number === lastEnteredWeekNumber + 1);
+  return (next || weeks[weeks.length - 1]).id;
+}
 
 const inputClass =
   "w-full rounded-md border border-border bg-white px-2 py-1.5 text-sm text-textPrimary focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface dark:text-white";
@@ -119,6 +130,7 @@ function HeismanUpdatePage() {
 
   const [weeks, setWeeks] = useState([]);
   const [selectedWeekId, setSelectedWeekId] = useState("");
+  const [heismanWatch, setHeismanWatch] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
@@ -151,7 +163,8 @@ function HeismanUpdatePage() {
         const season = await fetchSeason(dynasty.id, latestSeason.id);
         const seasonWeeks = season.teams?.[0]?.weeks || [];
         setWeeks(seasonWeeks);
-        if (seasonWeeks.length > 0) setSelectedWeekId(seasonWeeks[0].id);
+        setHeismanWatch(season.heismanWatch);
+        setSelectedWeekId(nextWeekId(seasonWeeks, season.heismanWatch?.weeks?.[0]?.week?.number));
       } catch (err) {
         setLoadError(err.message);
         if (err.message?.toLowerCase().includes("unauthorized")) {
@@ -245,47 +258,57 @@ function HeismanUpdatePage() {
           </div>
         </Card>
       ) : !rows ? (
-        <Card>
-          <div className="p-5 space-y-4">
-            <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">Upload Screenshot</h3>
-            <p className="text-sm text-textSecondary">
-              Pick the week this watch list belongs to (it isn&rsquo;t visible on screen), then upload the screenshot.
-              The AI reads it and proposes the table below for you to review before anything is saved.
-            </p>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-xs uppercase tracking-wide text-textSecondary">Week</span>
-              <select
-                value={selectedWeekId}
-                onChange={(e) => setSelectedWeekId(Number(e.target.value))}
-                className={`${inputClass} max-w-xs`}
+        <div className="space-y-4">
+          <Card>
+            <div className="p-5 space-y-4">
+              <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">Upload Screenshot</h3>
+              <p className="text-sm text-textSecondary">
+                Pick the week this watch list belongs to (it isn&rsquo;t visible on screen), then upload the screenshot.
+                The AI reads it and proposes the table below for you to review before anything is saved.
+              </p>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs uppercase tracking-wide text-textSecondary">Week</span>
+                <select
+                  value={selectedWeekId}
+                  onChange={(e) => setSelectedWeekId(Number(e.target.value))}
+                  className={`${inputClass} max-w-xs`}
+                >
+                  {weeks.map((week) => (
+                    <option key={week.id} value={week.id}>
+                      {weekLabel(week)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <FileDropZone
+                title="Heisman Watch List Screenshot"
+                hint="Usually just one shot — all 4 candidates fit on screen."
+                files={files}
+                onFilesChange={setFiles}
+              />
+
+              {analyzeError && <p className="text-sm text-danger">{analyzeError}</p>}
+
+              <button
+                type="button"
+                onClick={handleAnalyze}
+                disabled={files.length === 0 || !selectedWeekId || analyzing}
+                className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {weeks.map((week) => (
-                  <option key={week.id} value={week.id}>
-                    {weekLabel(week)}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <FileDropZone
-              title="Heisman Watch List Screenshot"
-              hint="Usually just one shot — all 4 candidates fit on screen."
-              files={files}
-              onFilesChange={setFiles}
-            />
-
-            {analyzeError && <p className="text-sm text-danger">{analyzeError}</p>}
-
-            <button
-              type="button"
-              onClick={handleAnalyze}
-              disabled={files.length === 0 || !selectedWeekId || analyzing}
-              className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {analyzing ? "Analyzing... this can take a minute" : `Analyze ${files.length || ""} Photo${files.length === 1 ? "" : "s"}`}
-            </button>
-          </div>
-        </Card>
+                {analyzing ? "Analyzing... this can take a minute" : `Analyze ${files.length || ""} Photo${files.length === 1 ? "" : "s"}`}
+              </button>
+            </div>
+          </Card>
+          {heismanWatch && (heismanWatch.winner || heismanWatch.weeks?.length > 0) && (
+            <div>
+              <p className="mb-2 text-xs uppercase tracking-wide text-textSecondary">
+                Last uploaded: {heismanWatch.weeks?.[0] ? weekLabel(heismanWatch.weeks[0].week) : "—"}
+              </p>
+              <HeismanWatch heismanWatch={heismanWatch} />
+            </div>
+          )}
+        </div>
       ) : (
         <CandidatesReview
           rows={rows}

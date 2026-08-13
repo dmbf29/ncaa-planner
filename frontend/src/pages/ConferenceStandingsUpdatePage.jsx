@@ -3,7 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import FileDropZone from "../components/FileDropZone";
-import { fetchDynasties, analyzeConferenceStandings, commitConferenceStandings } from "../lib/apiClient";
+import StandingsTable from "../components/StandingsTable";
+import { fetchDynasties, fetchStandings, analyzeConferenceStandings, commitConferenceStandings } from "../lib/apiClient";
 
 const inputClass =
   "w-full rounded-md border border-border bg-white px-2 py-1.5 text-sm text-textPrimary focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface dark:text-white";
@@ -139,6 +140,7 @@ function ConferenceStandingsUpdatePage() {
 
   const [dynastyId, setDynastyId] = useState(null);
   const [seasonId, setSeasonId] = useState(null);
+  const [standings, setStandings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
@@ -170,6 +172,11 @@ function ConferenceStandingsUpdatePage() {
         }
         setDynastyId(dynasty.id);
         setSeasonId(latestSeason.id);
+        try {
+          setStandings(await fetchStandings(dynasty.id, latestSeason.id));
+        } catch {
+          // Non-fatal — the upload flow works fine without the "current standings" context.
+        }
       } catch (err) {
         setLoadError(err.message);
         if (err.message?.toLowerCase().includes("unauthorized")) {
@@ -263,34 +270,46 @@ function ConferenceStandingsUpdatePage() {
           </div>
         </Card>
       ) : !rows ? (
-        <Card>
-          <div className="p-5 space-y-4">
-            <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">Upload Screenshots</h3>
-            <p className="text-sm text-textSecondary">
-              Upload the conference standings screenshot(s). This applies to your current season — the AI reads
-              every team&rsquo;s conference and overall records and proposes the table below for you to review
-              before anything is saved.
-            </p>
+        <div className="space-y-4">
+          <Card>
+            <div className="p-5 space-y-4">
+              <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">Upload Screenshots</h3>
+              <p className="text-sm text-textSecondary">
+                Upload the conference standings screenshot(s). This applies to your current season — the AI reads
+                every team&rsquo;s conference and overall records and proposes the table below for you to review
+                before anything is saved.
+              </p>
 
-            <FileDropZone
-              title="Conference Standings Screenshots"
-              hint="Upload as many screenshots as it takes to cover the whole conference."
-              files={files}
-              onFilesChange={setFiles}
-            />
+              <FileDropZone
+                title="Conference Standings Screenshots"
+                hint="Upload as many screenshots as it takes to cover the whole conference."
+                files={files}
+                onFilesChange={setFiles}
+              />
 
-            {analyzeError && <p className="text-sm text-danger">{analyzeError}</p>}
+              {analyzeError && <p className="text-sm text-danger">{analyzeError}</p>}
 
-            <button
-              type="button"
-              onClick={handleAnalyze}
-              disabled={files.length === 0 || analyzing}
-              className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {analyzing ? "Analyzing... this can take a minute" : `Analyze ${files.length || ""} Photo${files.length === 1 ? "" : "s"}`}
-            </button>
-          </div>
-        </Card>
+              <button
+                type="button"
+                onClick={handleAnalyze}
+                disabled={files.length === 0 || analyzing}
+                className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {analyzing ? "Analyzing... this can take a minute" : `Analyze ${files.length || ""} Photo${files.length === 1 ? "" : "s"}`}
+              </button>
+            </div>
+          </Card>
+          {standings?.conferences?.some((c) => c.teams.some((team) => team.conferenceWins != null)) && (
+            <div>
+              <p className="mb-2 text-xs uppercase tracking-wide text-textSecondary">Current standings</p>
+              <div className="grid gap-4 md:grid-cols-2">
+                {standings.conferences.map((conference) => (
+                  <StandingsTable key={conference.conference} conference={conference} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       ) : (
         <StandingsReview
           rows={rows}

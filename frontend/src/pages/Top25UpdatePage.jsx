@@ -3,7 +3,18 @@ import { Link, useNavigate } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import FileDropZone from "../components/FileDropZone";
+import Top25Snapshot from "../components/Top25Snapshot";
 import { fetchDynasties, fetchSeason, analyzeTop25Rankings, commitTop25Rankings } from "../lib/apiClient";
+
+// The week after the most recently-ranked one — that's the poll you'd
+// logically be uploading next. Falls back to the first week if nothing's
+// been ranked yet, or the last week if the season's already fully ranked.
+function nextWeekId(weeks, lastRankedWeekNumber) {
+  if (weeks.length === 0) return "";
+  if (lastRankedWeekNumber == null) return weeks[0].id;
+  const next = weeks.find((week) => week.number === lastRankedWeekNumber + 1);
+  return (next || weeks[weeks.length - 1]).id;
+}
 
 const inputClass =
   "w-full rounded-md border border-border bg-white px-2 py-1.5 text-sm text-textPrimary focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface dark:text-white";
@@ -171,8 +182,11 @@ function RankingsReview({ rows, colleges, onChange, onCommit, committing, error 
 function Top25UpdatePage() {
   const navigate = useNavigate();
 
+  const [dynastyId, setDynastyId] = useState(null);
+  const [seasonId, setSeasonId] = useState(null);
   const [weeks, setWeeks] = useState([]);
   const [selectedWeekId, setSelectedWeekId] = useState("");
+  const [top25, setTop25] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
@@ -202,10 +216,13 @@ function Top25UpdatePage() {
           setLoadError("This dynasty doesn't have a season yet.");
           return;
         }
+        setDynastyId(dynasty.id);
+        setSeasonId(latestSeason.id);
         const season = await fetchSeason(dynasty.id, latestSeason.id);
         const seasonWeeks = season.teams?.[0]?.weeks || [];
         setWeeks(seasonWeeks);
-        if (seasonWeeks.length > 0) setSelectedWeekId(seasonWeeks[0].id);
+        setTop25(season.top25);
+        setSelectedWeekId(nextWeekId(seasonWeeks, season.top25?.week?.number));
       } catch (err) {
         setLoadError(err.message);
         if (err.message?.toLowerCase().includes("unauthorized")) {
@@ -299,47 +316,55 @@ function Top25UpdatePage() {
           </div>
         </Card>
       ) : !rows ? (
-        <Card>
-          <div className="p-5 space-y-4">
-            <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">Upload Screenshots</h3>
-            <p className="text-sm text-textSecondary">
-              Pick the week these rankings belong to (it isn&rsquo;t visible on screen), then upload the poll
-              screenshots. The AI reads them and proposes the table below for you to review before anything is saved.
-            </p>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-xs uppercase tracking-wide text-textSecondary">Week</span>
-              <select
-                value={selectedWeekId}
-                onChange={(e) => setSelectedWeekId(Number(e.target.value))}
-                className={inputClass}
+        <div className="space-y-4">
+          <Card>
+            <div className="p-5 space-y-4">
+              <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">Upload Screenshots</h3>
+              <p className="text-sm text-textSecondary">
+                Pick the week these rankings belong to (it isn&rsquo;t visible on screen), then upload the poll
+                screenshots. The AI reads them and proposes the table below for you to review before anything is saved.
+              </p>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs uppercase tracking-wide text-textSecondary">Week</span>
+                <select
+                  value={selectedWeekId}
+                  onChange={(e) => setSelectedWeekId(Number(e.target.value))}
+                  className={inputClass}
+                >
+                  {weeks.map((week) => (
+                    <option key={week.id} value={week.id}>
+                      {weekLabel(week)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <FileDropZone
+                title="Top 25 Screenshots"
+                hint="Upload as many screenshots as it takes to cover all 25 teams."
+                files={files}
+                onFilesChange={setFiles}
+              />
+
+              {analyzeError && <p className="text-sm text-danger">{analyzeError}</p>}
+
+              <button
+                type="button"
+                onClick={handleAnalyze}
+                disabled={files.length === 0 || !selectedWeekId || analyzing}
+                className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {weeks.map((week) => (
-                  <option key={week.id} value={week.id}>
-                    {weekLabel(week)}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <FileDropZone
-              title="Top 25 Screenshots"
-              hint="Upload as many screenshots as it takes to cover all 25 teams."
-              files={files}
-              onFilesChange={setFiles}
-            />
-
-            {analyzeError && <p className="text-sm text-danger">{analyzeError}</p>}
-
-            <button
-              type="button"
-              onClick={handleAnalyze}
-              disabled={files.length === 0 || !selectedWeekId || analyzing}
-              className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {analyzing ? "Analyzing... this can take a minute" : `Analyze ${files.length || ""} Photo${files.length === 1 ? "" : "s"}`}
-            </button>
-          </div>
-        </Card>
+                {analyzing ? "Analyzing... this can take a minute" : `Analyze ${files.length || ""} Photo${files.length === 1 ? "" : "s"}`}
+              </button>
+            </div>
+          </Card>
+          {top25?.week && (
+            <div>
+              <p className="mb-2 text-xs uppercase tracking-wide text-textSecondary">Last uploaded: {weekLabel(top25.week)}</p>
+              <Top25Snapshot top25={top25} dynastyId={dynastyId} seasonId={seasonId} />
+            </div>
+          )}
+        </div>
       ) : (
         <RankingsReview
           rows={rows}

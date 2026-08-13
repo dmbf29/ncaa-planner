@@ -69,7 +69,7 @@ function Top25Page() {
           </div>
           {data.rankings.length > 0 ? (
             <div className="overflow-x-auto">
-              <Top25TableBody rankings={data.rankings} />
+              <Top25TableBody rankings={data.rankings} fullOpponentNames />
             </div>
           ) : (
             <p className="px-4 py-3 text-sm text-textSecondary">No rankings entered for this week.</p>

@@ -25,7 +25,8 @@ class SeasonDashboardSerializer
       heisman_watch: heisman_watch_json,
       players_of_the_week: players_of_the_week_json,
       around_the_league: around_the_league_json,
-      current_week_number: current_week_number
+      current_week_number: current_week_number,
+      last_played_week_number: last_played_week_number
     }
   end
 
@@ -171,7 +172,7 @@ class SeasonDashboardSerializer
     return nil unless team_stat&.final_score && opponent_stat&.final_score
 
     {
-      opponent: { id: opponent_college.id, name: opponent_college.name },
+      opponent: { id: opponent_college.id, name: opponent_college.name, abbrev: opponent_college.abbrev },
       team_score: team_stat.final_score,
       opponent_score: opponent_stat.final_score,
       won: team_stat.final_score > opponent_stat.final_score

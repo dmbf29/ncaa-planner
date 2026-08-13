@@ -22,20 +22,24 @@ function MatchupCell({ matchup }) {
   );
 }
 
-function LastResultCell({ lastResult }) {
+function LastResultCell({ lastResult, fullOpponentNames }) {
   if (!lastResult) return <span className="text-textSecondary/50">&mdash;</span>;
+
+  const opponentLabel = fullOpponentNames
+    ? lastResult.opponent.name
+    : (lastResult.opponent.abbrev ?? lastResult.opponent.name);
 
   return (
     <span className="whitespace-nowrap">
       <span className={clsx("font-semibold", lastResult.won ? "text-success" : "text-danger")}>
         {lastResult.won ? "W" : "L"} {lastResult.teamScore}-{lastResult.opponentScore}
       </span>{" "}
-      <span className="text-textSecondary">{lastResult.opponent.abbrev ?? lastResult.opponent.name}</span>
+      <span className="text-textSecondary">{opponentLabel}</span>
     </span>
   );
 }
 
-function RankingRow({ entry }) {
+function RankingRow({ entry, fullOpponentNames }) {
   return (
     <tr
       className={clsx(
@@ -59,7 +63,7 @@ function RankingRow({ entry }) {
         </span>
       </td>
       <td className="px-2 py-1.5 text-right text-textSecondary">
-        <LastResultCell lastResult={entry.lastResult} />
+        <LastResultCell lastResult={entry.lastResult} fullOpponentNames={fullOpponentNames} />
       </td>
       <td className="px-3 py-1.5 text-right text-textSecondary">
         <MatchupCell matchup={entry.thisWeek} />
@@ -68,7 +72,7 @@ function RankingRow({ entry }) {
   );
 }
 
-function Top25TableBody({ rankings }) {
+function Top25TableBody({ rankings, fullOpponentNames = false }) {
   return (
     <table className="w-full text-xs">
       <thead>
@@ -82,7 +86,7 @@ function Top25TableBody({ rankings }) {
       </thead>
       <tbody>
         {rankings.map((entry) => (
-          <RankingRow key={entry.rank} entry={entry} />
+          <RankingRow key={entry.rank} entry={entry} fullOpponentNames={fullOpponentNames} />
         ))}
       </tbody>
     </table>

@@ -157,6 +157,7 @@ function ScheduleUpdatePage() {
   const [dynastyId, setDynastyId] = useState(null);
   const [seasonId, setSeasonId] = useState(null);
   const [weeks, setWeeks] = useState([]);
+  const [lastPlayedWeekNumber, setLastPlayedWeekNumber] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
@@ -192,6 +193,7 @@ function ScheduleUpdatePage() {
         setSeasonId(latestSeason.id);
         const season = await fetchSeason(dynasty.id, latestSeason.id);
         setWeeks(season.teams?.[0]?.weeks || []);
+        setLastPlayedWeekNumber(season.lastPlayedWeekNumber ?? null);
       } catch (err) {
         setLoadError(err.message);
         if (err.message?.toLowerCase().includes("unauthorized")) {
@@ -213,7 +215,8 @@ function ScheduleUpdatePage() {
       setRows(result.rows);
       setColleges(result.colleges);
       const matched = weeks.find((week) => week.number === result.weekNumber);
-      setSelectedWeekId(matched?.id || "");
+      const fallback = lastPlayedWeekNumber == null ? weeks[0] : weeks.find((week) => week.number === lastPlayedWeekNumber + 1);
+      setSelectedWeekId(matched?.id || fallback?.id || "");
     } catch (err) {
       setAnalyzeError(err.message);
     } finally {
@@ -292,6 +295,9 @@ function ScheduleUpdatePage() {
           <div className="p-5 space-y-4">
             <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">Upload Screenshots</h3>
             <p className="text-sm text-textSecondary">
+              {lastPlayedWeekNumber != null
+                ? `Results are entered through Week ${lastPlayedWeekNumber}. `
+                : "No results entered yet this season. "}
               Upload the weekly schedule screenshot(s). The week number is read directly from the screenshot — you&rsquo;ll
               get a chance to confirm it, along with every matchup, before anything is saved.
             </p>
