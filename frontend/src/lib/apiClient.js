@@ -271,6 +271,25 @@ export const analyzeHeismanCandidates = (weekId, files) => {
 export const commitHeismanCandidates = (weekId, rows) =>
   api.post(`/api/v1/weeks/${weekId}/commit_heisman_candidates`, { rows }).then((r) => r.data);
 
+export const analyzeTeamSchedule = (dynastyId, seasonId, files) => {
+  const formData = new FormData();
+  files.forEach((file) => formData.append("images[]", file));
+  return api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/analyze_team_schedule`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+    .then((r) => r.data);
+};
+
+export const commitTeamSchedule = (dynastyId, seasonId, collegeId, teamStats, rows) =>
+  api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_team_schedule`, {
+      collegeId,
+      teamStats,
+      rows,
+    })
+    .then((r) => r.data);
+
 export const login = ({ email, password }) =>
   api.post("/users/sign_in", { user: { email, password } }).then((r) => r.data);
 

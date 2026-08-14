@@ -47,6 +47,14 @@ class SeasonPolicy < ApplicationPolicy
     owner?
   end
 
+  def analyze_team_schedule?
+    owner?
+  end
+
+  def commit_team_schedule?
+    owner?
+  end
+
   def owner?
     record.dynasty.user == user
   end

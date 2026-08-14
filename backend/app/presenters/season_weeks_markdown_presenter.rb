@@ -311,9 +311,22 @@ class SeasonWeeksMarkdownPresenter
   def next_up_lines(next_game)
     return [ "- Nothing scheduled beyond this point yet." ] unless next_game
 
-    lines = [ "- Week #{next_game[:week_number]} — #{opponent_line(next_game[:opponent])}" ]
+    record = next_game[:opponent_record]
+    record_str = record && record[:wins] && record[:losses] ? " (#{record[:wins]}-#{record[:losses]})" : ""
+    lines = [ "- Week #{next_game[:week_number]} — #{opponent_line(next_game[:opponent])}#{record_str}" ]
+    lines << "  - Last: #{opponent_last_result_line(next_game[:opponent_last_result])}"
     lines.concat(scouting_report_lines(next_game[:scouting_report]))
     lines
+  end
+
+  def opponent_last_result_line(last_result)
+    return "Season opener — no games played yet." unless last_result
+    return "Bye (Week #{last_result[:week_number]})." if last_result[:status] == "bye"
+    return "Not yet uploaded (Week #{last_result[:week_number]})." if last_result[:status] == "missing"
+
+    result = last_result[:result]
+    outcome = result[:won] ? "W" : "L"
+    "#{outcome} #{result[:team_score]}-#{result[:opponent_score]} #{opponent_line(last_result[:opponent])} (Week #{last_result[:week_number]})"
   end
 
   def scouting_report_lines(report)

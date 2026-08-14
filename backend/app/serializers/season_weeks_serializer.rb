@@ -251,8 +251,37 @@ class SeasonWeeksSerializer
     {
       week_number: game.week.number,
       opponent: opponent_json(opponent, home),
+      opponent_record: record_before(opponent.id, games_for_college(opponent.id), game.week.number),
+      opponent_last_result: opponent_last_result_json(opponent.id, game.week.number),
       scouting_report: scouting_report_json(opponent.id)
     }
+  end
+
+  # What happened for this opponent the single week before before_week_number
+  # — not a multi-week backward scan, since the point of this is to surface
+  # a gap ("missing") rather than quietly search past it for an older
+  # result. A week with no game is only reported as "bye" if it's in
+  # CollegeSeason#bye_week_ids (the only place that fact is ever recorded —
+  # see TeamSchedule::CommitService); otherwise it's "missing" — that
+  # team's data for that week just hasn't been uploaded yet. nil when
+  # before_week_number is the season's first week (nothing came before it).
+  def opponent_last_result_json(opponent_id, before_week_number)
+    week = @season.weeks.find_by(number: before_week_number - 1)
+    return nil unless week
+
+    game = games_for_college(opponent_id).find { |g| g.week_id == week.id }
+    result = game && game_result(game, opponent_id)
+
+    if result
+      home = game.home_college_id == opponent_id
+      versus = home ? game.away_college : game.home_college
+      return { status: "final", week_number: week.number, opponent: opponent_json(versus, home), result: result }
+    end
+
+    bye_week_ids = college_seasons_by_college_id[opponent_id]&.bye_week_ids || []
+    return { status: "bye", week_number: week.number } if bye_week_ids.include?(week.id)
+
+    { status: "missing", week_number: week.number }
   end
 
   # Overall/offense/defense ratings plus the one player to watch on each

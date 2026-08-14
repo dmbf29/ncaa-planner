@@ -40,6 +40,8 @@ Rails.application.routes.draw do
             post :commit_conference_standings
             post :analyze_players_of_the_week
             post :commit_players_of_the_week
+            post :analyze_team_schedule
+            post :commit_team_schedule
           end
         end
       end

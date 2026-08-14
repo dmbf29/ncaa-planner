@@ -30,6 +30,11 @@ const EMPTY_SECTION_STATUS = { boxScore: {}, home: {}, away: {} };
 const PLAYER_CATEGORY_ORDER = ["passing", "rushing", "receiving", "defense"];
 const PLAYER_CATEGORY_LABELS = { passing: "Passing", rushing: "Rushing", receiving: "Receiving", defense: "Defense" };
 
+// Roster dropdowns list players by last name, since that's how a coach
+// scans for a name mid-review — "Bullard" not "Latrell".
+const lastNameOf = (name) => (name || "").trim().split(/\s+/).pop() || "";
+const sortRosterByLastName = (roster) => [...roster].sort((a, b) => lastNameOf(a.name).localeCompare(lastNameOf(b.name)));
+
 const inputClass =
   "w-full rounded-md bg-white pe-2 py-1.5 text-sm text-textPrimary focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface dark:text-white";
 
@@ -106,7 +111,7 @@ function AccordionSection({ title, subtitle, expanded, onToggle, children }) {
         </div>
         <span className="shrink-0 text-sm text-textSecondary">{expanded ? "Collapse" : "Expand"}</span>
       </button>
-      {expanded && <div className="space-y-4 border-t border-border px-5 py-4 dark:border-darkborder">{children}</div>}
+      {expanded && <div className="space-y-2 border-t border-border px-5 py-4 dark:border-darkborder">{children}</div>}
     </Card>
   );
 }
@@ -239,7 +244,7 @@ function NarrativeBody({ narrative, onChange, roster, onRunAnalysis, running, er
             className={inputClass}
           >
             <option value="">— none —</option>
-            {roster.map((p) => (
+            {sortRosterByLastName(roster).map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name} ({p.position})
               </option>
@@ -261,7 +266,7 @@ function NarrativeBody({ narrative, onChange, roster, onRunAnalysis, running, er
             className={inputClass}
           >
             <option value="">— none —</option>
-            {roster.map((p) => (
+            {sortRosterByLastName(roster).map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name} ({p.position})
               </option>
@@ -290,13 +295,13 @@ function TeamStatsBody({ collegeStats, onChange, awayCollege, homeCollege }) {
   return (
     <>
       {TEAM_STAT_GROUPS.map((group) => (
-        <div key={group.label} className="space-y-2">
+        <div key={group.label} className="space-y-0">
           <p className="text-xs uppercase tracking-wide text-textSecondary">{group.label}</p>
           <div className="grid gap-3 sm:grid-cols-2">
             {[awayCollege, homeCollege].map((college) => {
               const entry = findEntry(college.name);
               return (
-                <div key={college.id} className="space-y-2 rounded-md border border-border p-3 dark:border-darkborder">
+                <div key={college.id} className="space-y-1 rounded-md p-3 dark:border-darkborder">
                   <p className="text-xs font-semibold text-textPrimary dark:text-white">{college.name}</p>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-6">
                     {group.fields.map((field) => (
@@ -320,13 +325,13 @@ function TeamStatsBody({ collegeStats, onChange, awayCollege, homeCollege }) {
 
 function PlayerStatRowEditor({ row, index, roster, updateRow, updateField, removeRow }) {
   return (
-    <div className="rounded-md border border-border p-3 dark:border-darkborder">
+    <div className="rounded-md py-1 px-3 dark:border-darkborder">
       <div className="flex flex-wrap items-center gap-2">
         <input
           type="text"
           value={row.displayName || ""}
           onChange={(e) => updateRow(index, { displayName: e.target.value })}
-          className="w-40 rounded-md border border-border bg-white px-2 py-1.5 text-sm font-semibold text-textPrimary dark:border-darkborder dark:bg-darksurface dark:text-white"
+          className="w-40 rounded-md border border-border bg-white px-2 py-1.5 text-xs font-semibold text-textPrimary dark:border-darkborder dark:bg-darksurface dark:text-white"
         />
         <select
           value={row.studentSeasonId || ""}
@@ -334,7 +339,7 @@ function PlayerStatRowEditor({ row, index, roster, updateRow, updateField, remov
           className="rounded-md border border-border bg-white px-2 py-1.5 text-xs dark:border-darkborder dark:bg-darksurface"
         >
           <option value="">New player (will be created)</option>
-          {roster.map((p) => (
+          {sortRosterByLastName(roster).map((p) => (
             <option key={p.id} value={p.id}>
               {p.name} ({p.position})
             </option>
@@ -371,7 +376,7 @@ function PlayerStatRowEditor({ row, index, roster, updateRow, updateField, remov
           </select>
         </div>
       )}
-      <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-9">
+      <div className="mt-1 grid grid-cols-3 gap-2 sm:grid-cols-9">
         {(CATEGORY_FIELDS[row.category] || []).map((field) => (
           <NumberField
             key={field}
@@ -393,35 +398,52 @@ function TeamPlayerStatsBody({ team, playerStats, onChange, roster }) {
   const updateField = (index, key, value) =>
     onChange(playerStats.map((row, i) => (i === index ? { ...row, fields: { ...row.fields, [key]: value } } : row)));
   const removeRow = (index) => onChange(playerStats.filter((_, i) => i !== index));
+  const addRow = (category) =>
+    onChange([
+      ...playerStats,
+      {
+        team,
+        category,
+        displayName: "",
+        studentSeasonId: null,
+        position: DEFAULT_POSITION_BY_CATEGORY[category] || POSITIONS[0],
+        classYear: "FR",
+        fields: {},
+      },
+    ]);
 
   const teamRows = playerStats.map((row, index) => ({ row, index })).filter(({ row }) => row.team === team);
-
-  if (teamRows.length === 0) {
-    return <p className="text-sm text-textSecondary">No player stat rows extracted from these screenshots yet.</p>;
-  }
 
   return (
     <>
       {PLAYER_CATEGORY_ORDER.map((category) => {
         const categoryRows = teamRows.filter(({ row }) => row.category === category);
-        if (categoryRows.length === 0) return null;
 
         return (
           <div key={category} className="space-y-2">
-            <p className="text-xs uppercase tracking-wide text-burnt">{PLAYER_CATEGORY_LABELS[category]}</p>
-            <div className="space-y-3">
-              {categoryRows.map(({ row, index }) => (
-                <PlayerStatRowEditor
-                  key={index}
-                  row={row}
-                  index={index}
-                  roster={roster}
-                  updateRow={updateRow}
-                  updateField={updateField}
-                  removeRow={removeRow}
-                />
-              ))}
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs uppercase tracking-wide text-burnt">{PLAYER_CATEGORY_LABELS[category]}</p>
+              <button type="button" onClick={() => addRow(category)} className="text-xs font-semibold text-burnt hover:underline">
+                + Add Player
+              </button>
             </div>
+            {categoryRows.length === 0 ? (
+              <p className="text-sm text-textSecondary">No {PLAYER_CATEGORY_LABELS[category].toLowerCase()} rows yet.</p>
+            ) : (
+              <div className="space-y-0">
+                {categoryRows.map(({ row, index }) => (
+                  <PlayerStatRowEditor
+                    key={index}
+                    row={row}
+                    index={index}
+                    roster={roster}
+                    updateRow={updateRow}
+                    updateField={updateField}
+                    removeRow={removeRow}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         );
       })}

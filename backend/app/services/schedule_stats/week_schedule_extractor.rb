@@ -18,22 +18,16 @@ module ScheduleStats
   # (that's about combinatorial grammar branching across independently
   # optional fields, not closed-vocabulary constraints).
   #
-  # Both calls also extract the plain-text raw name and it's THAT — not the
-  # enum-matched name — that's used both as the join key between the two
-  # calls and as the primary college-resolution signal. Empirically, the
-  # enum-constrained field truncates a correct longer answer down to a
-  # shorter college name that also happens to be a valid enum value and an
-  # exact prefix of the right one — "Arkansas State" -> "Arkansas", "Ohio
-  # State" -> "Ohio", "Georgia Tech" -> "Georgia" — even with an
-  # explicit exact match available. It's consistently wrong for that
-  # narrow case, not merely occasionally noisy, so college_raw_name (a
-  # plain unconstrained string, unaffected) is checked for an exact match
-  # first and the enum field is only trusted as a fallback for genuine
-  # nicknames/abbreviations where no exact match exists (e.g.
-  # "Appalachian State" -> "App St.", which this same fallback handles
-  # correctly). The enum field being independently wrong on separate calls
-  # is also why it's unsafe as a join key — two calls can each mis-resolve
-  # the same team to a *different* wrong value.
+  # Rows are matched between the two calls by row_number — each row's
+  # top-to-bottom position, reported explicitly by the model in both calls
+  # — rather than by re-transcribed team name text. An earlier version
+  # joined on (away_raw_name, home_raw_name); that's fragile because the two
+  # calls transcribe those names independently, and any drift between them
+  # (whitespace, abbreviation choice, or just more transcription errors
+  # creeping in on later rows of a long list) makes the join silently miss
+  # for that one row — its time/score data is quietly dropped with no
+  # error. row_number doesn't have that failure mode since it's just "which
+  # row is this," not free-text transcription.
   class WeekScheduleExtractor
     include CollegeMatching
 
@@ -47,9 +41,9 @@ module ScheduleStats
 
       week_number = fetch_week_number(images)
       matchups = fetch_matchups(images)
-      results_by_key = fetch_results(images).index_by { |row| key_for(row) }
+      results_by_row_number = fetch_results(images).index_by { |row| row["row_number"] }
 
-      rows = matchups.map { |row| build_row(row, results_by_key[key_for(row)]) }
+      rows = matchups.map { |row| build_row(row, results_by_row_number[row["row_number"]]) }
 
       { week_number: week_number, rows: rows, colleges: colleges_json }
     end
@@ -73,6 +67,7 @@ module ScheduleStats
       schema = RubyLLM::Schema.create do
         array :games, description: "One entry per row in the MATCHUP column, in the order shown." do
           object do
+            integer :row_number, description: "This row's position counting from 1 at the top, top to bottom across all images — must line up with the same row's position in the TIME(ET)/RESULT reading."
             string :away_raw_name, description: "The team on the left of 'at' in the MATCHUP column, exactly as shown"
             string :away_college_name, enum: names,
                    description: "The database college that away_raw_name refers to — use your knowledge of team " \
@@ -87,32 +82,41 @@ module ScheduleStats
         end
       end
       raw = chat.with_schema(schema).ask(matchup_prompt, with: images).content
-      Array(raw["games"]).select { |row| row.is_a?(Hash) }
+      Array(raw["games"]).select { |row| row.is_a?(Hash) && row["row_number"].is_a?(Integer) }
     end
 
+    # first_score/second_score and first_score_is_away are read as plain
+    # printed values, not "away_score"/"home_score" — the two numbers in
+    # TIME(ET)/RESULT are printed in *winning* order (e.g. both "MIA 41,
+    # FCSSE 0" and, from the loser's side of a different row, "PITT 31, UCF
+    # 19" put the winner's abbreviation-and-score first), not fixed
+    # away-then-home order, confirmed against real screenshots. Asking the
+    # model which side the first number belongs to (rather than assuming a
+    # fixed order) is what actually resolves it correctly either way.
     def fetch_results(images)
-      names = college_names
       schema = RubyLLM::Schema.create do
-        array :games, description: "One entry per row — match rows up by the same away/home team names." do
+        array :games, description: "One entry per row in the TIME(ET)/RESULT column, in the same top-to-bottom order as the matchup table." do
           object do
-            string :away_raw_name, description: "The team on the left of 'at' in the MATCHUP column, exactly as shown — used to line this row up"
-            string :home_raw_name, description: "The team on the right of 'at' in the MATCHUP column, exactly as shown — used to line this row up"
-            string :away_college_name, enum: names, description: "Same matching rules as in the matchup table"
-            string :home_college_name, enum: names, description: "Same matching rules as in the matchup table"
+            integer :row_number, description: "This row's position counting from 1 at the top — must match the same row's position in the matchup table."
             string :time_of_day, required: false,
                    description: "Exactly as shown in TIME(ET)/RESULT when it's a kickoff time, e.g. '4:00 PM'. " \
                                 "Leave unset if that column shows a final score instead."
-            integer :away_score, required: false,
-                    description: "First number in TIME(ET)/RESULT when it shows a final score " \
-                                 "(e.g. 38 in 'LTU 38, M-OH 6' — the away team's number always comes first). " \
-                                 "Leave unset if a kickoff time is shown instead."
-            integer :home_score, required: false,
-                    description: "Second number in TIME(ET)/RESULT when it shows a final score. Leave unset if a kickoff time is shown instead."
+            integer :first_score, required: false,
+                    description: "The first number shown in TIME(ET)/RESULT when it shows a final score, e.g. " \
+                                 "38 in 'LTU 38, M-OH 6' — read it exactly as printed, do not guess whose score " \
+                                 "it is. Leave unset if a kickoff time is shown instead."
+            integer :second_score, required: false,
+                    description: "The second number shown in TIME(ET)/RESULT when it shows a final score, e.g. " \
+                                 "6 in 'LTU 38, M-OH 6'. Leave unset if a kickoff time is shown instead."
+            boolean :first_score_is_away, required: false,
+                    description: "True if the first team abbreviation/score shown in TIME(ET)/RESULT is the AWAY " \
+                                 "team (the one on the left of 'at' in this row's matchup), false if it's the HOME " \
+                                 "team. Leave unset if a kickoff time is shown instead."
           end
         end
       end
       raw = chat.with_schema(schema).ask(result_prompt, with: images).content
-      Array(raw["games"]).select { |row| row.is_a?(Hash) }
+      Array(raw["games"]).select { |row| row.is_a?(Hash) && row["row_number"].is_a?(Integer) }
     end
 
     def matchup_prompt
@@ -123,20 +127,13 @@ module ScheduleStats
     def result_prompt
       "These screenshots together show one week's full schedule. For each row, read the TIME(ET)/RESULT " \
         "column: it shows a kickoff time if the game hasn't been played, or a final score (two team " \
-        "abbreviations each with a number, away team's number first) if it has."
-    end
-
-    def key_for(row)
-      [ normalize(row["away_raw_name"]), normalize(row["home_raw_name"]) ]
-    end
-
-    def normalize(name)
-      name.to_s.strip.downcase
+        "abbreviations each with a number) if it has."
     end
 
     def build_row(matchup, result)
       away_raw = matchup["away_raw_name"]
       home_raw = matchup["home_raw_name"]
+      scores = resolved_scores(result)
 
       {
         away_raw_name: away_raw,
@@ -146,9 +143,18 @@ module ScheduleStats
         month: matchup["month"],
         day: matchup["day"],
         time_of_day: result&.fetch("time_of_day", nil),
-        away_score: result&.fetch("away_score", nil),
-        home_score: result&.fetch("home_score", nil)
+        away_score: scores[:away_score],
+        home_score: scores[:home_score]
       }
+    end
+
+    def resolved_scores(result)
+      first_score = result&.fetch("first_score", nil)
+      second_score = result&.fetch("second_score", nil)
+      first_is_away = result&.fetch("first_score_is_away", nil)
+      return { away_score: nil, home_score: nil } if first_score.nil? || second_score.nil? || first_is_away.nil?
+
+      first_is_away ? { away_score: first_score, home_score: second_score } : { away_score: second_score, home_score: first_score }
     end
   end
 end

@@ -2,25 +2,51 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
-import { fetchDynasties, createSeason } from "../lib/apiClient";
+import { fetchDynasties, fetchSeason, fetchStandings, createSeason } from "../lib/apiClient";
 
-const UPDATE_TYPES = [
-  { key: "season", label: "Start a New Season", description: "Create the next season for your dynasty." },
-  { key: "top25", label: "Update Top 25", description: "Upload the weekly AP-style poll screenshots.", to: "/dynasty/updates/top25" },
+const WEEKLY_UPDATES = [
   { key: "games", label: "Add Games/Results", description: "Upload the weekly schedule screenshots.", to: "/dynasty/updates/schedule" },
-  { key: "heisman", label: "Add Heisman Candidates", description: "Upload the weekly Heisman Watch List screenshot.", to: "/dynasty/updates/heisman" },
-  { key: "players-of-the-week", label: "Add Players of the Week", description: "Upload the weekly National/Conference Players of the Week screenshots.", to: "/dynasty/updates/players-of-the-week" },
+  { key: "top25", label: "Update Top 25", description: "Upload the weekly AP-style poll screenshots.", to: "/dynasty/updates/top25" },
   { key: "standings", label: "Update Conference Standings", description: "Upload the conference standings screenshots.", to: "/dynasty/updates/standings" },
-  { key: "team-stats", label: "Update Team Stats", description: "Coming soon." },
-  { key: "player-stats", label: "Update Player Stats", description: "Coming soon." },
-  { key: "all-americans", label: "Add All-Americans", description: "Upload the National/Conference All-American screenshots.", to: "/dynasty/updates/all-americans" },
-  { key: "nil-spend", label: "Update NIL Spend", description: "Upload the conference NIL spend screenshots.", to: "/dynasty/updates/nil-spend" },
+  { key: "players-of-the-week", label: "Add Players of the Week", description: "Upload the weekly National/Conference Players of the Week screenshots.", to: "/dynasty/updates/players-of-the-week" },
+  { key: "heisman", label: "Add Heisman Candidates", description: "Upload the weekly Heisman Watch List screenshot.", to: "/dynasty/updates/heisman" },
+  { key: "team-schedule", label: "Update Team Schedule", description: "Upload a team's full-season schedule screenshots.", to: "/dynasty/updates/team-schedule" },
 ];
 
-function UpdateCard({ update, onClick }) {
+const OCCASIONAL_UPDATES = [
+  { key: "all-americans", label: "Add All-Americans", description: "Upload the National/Conference All-American screenshots.", to: "/dynasty/updates/all-americans" },
+  { key: "nil-spend", label: "Update NIL Spend", description: "Upload the conference NIL spend screenshots.", to: "/dynasty/updates/nil-spend" },
+  { key: "season", label: "Start a New Season", description: "Create the next season for your dynasty." },
+];
+
+const COMING_SOON_UPDATES = [
+  { key: "team-stats", label: "Update Team Stats", description: "Coming soon." },
+  { key: "player-stats", label: "Update Player Stats", description: "Coming soon." },
+];
+
+const BADGE_TONE_CLASSES = {
+  good: "bg-success/10 text-success",
+  warn: "bg-warning/10 text-warning",
+  neutral: "bg-textSecondary/10 text-textSecondary",
+};
+
+function WeeklyBadge({ status }) {
+  if (!status) return null;
+
+  return (
+    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${BADGE_TONE_CLASSES[status.tone]}`}>
+      {status.label}
+    </span>
+  );
+}
+
+function UpdateCard({ update, status, onClick }) {
   const content = (
-    <div className="p-5 space-y-1">
-      <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">{update.label}</h3>
+    <div className="p-5 space-y-1.5">
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">{update.label}</h3>
+        <WeeklyBadge status={status} />
+      </div>
       <p className="text-sm text-textSecondary">{update.description}</p>
     </div>
   );
@@ -42,6 +68,45 @@ function UpdateCard({ update, onClick }) {
   }
 
   return <Card className="opacity-50">{content}</Card>;
+}
+
+function UpdateSection({ title, hint, updates, statuses, onSeasonClick }) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <h2 className="font-varsity text-xl uppercase tracking-[0.06em] text-charcoal dark:text-white">{title}</h2>
+        {hint && <p className="text-xs text-textSecondary">{hint}</p>}
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {updates.map((update) => (
+          <UpdateCard
+            key={update.key}
+            update={update}
+            status={statuses?.[update.key]}
+            onClick={update.key === "season" ? onSeasonClick : undefined}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// "Caught up" means data covers through dueWeekNumber (the week the dynasty
+// is currently in the middle of, for most weekly uploads — or the week
+// before it for results, which can't exist until that week's games finish).
+function weeklyStatus(lastWeekNumber, dueWeekNumber) {
+  if (dueWeekNumber == null) return null;
+  if (lastWeekNumber == null) return { label: "Not started", tone: "neutral" };
+  if (lastWeekNumber >= dueWeekNumber) return { label: `Up to date · Week ${lastWeekNumber}`, tone: "good" };
+  return { label: `Needs Week ${dueWeekNumber}`, tone: "warn" };
+}
+
+// Conference standings are a season-wide overwrite with no week attached to
+// them, so there's no "which week is this current through" to check —
+// just whether anything's been entered at all.
+function standingsStatus(standings) {
+  const hasData = standings?.conferences?.some((conference) => conference.teams.some((team) => team.conferenceWins != null));
+  return { label: hasData ? "Data entered" : "Not started", tone: "neutral" };
 }
 
 function NewSeasonModal({ year, onYearChange, onClose, onSubmit, submitting, error, disabled }) {
@@ -92,6 +157,7 @@ function DynastyUpdatesPage() {
 
   const [dynastyId, setDynastyId] = useState(null);
   const [nextYear, setNextYear] = useState("");
+  const [weeklyStatuses, setWeeklyStatuses] = useState({});
 
   const [showSeasonModal, setShowSeasonModal] = useState(false);
   const [year, setYear] = useState("");
@@ -107,8 +173,28 @@ function DynastyUpdatesPage() {
         setDynastyId(dynasty.id);
         const latestYear = Math.max(0, ...(dynasty.seasons || []).map((s) => s.year));
         setNextYear(latestYear + 1);
+
+        const latestSeason = [...(dynasty.seasons || [])].sort((a, b) => b.year - a.year)[0];
+        if (!latestSeason) return;
+        const [season, standings] = await Promise.all([
+          fetchSeason(dynasty.id, latestSeason.id),
+          fetchStandings(dynasty.id, latestSeason.id).catch(() => null),
+        ]);
+        const currentWeekNumber = season.currentWeekNumber ?? null;
+        const previousWeekNumber = currentWeekNumber == null ? null : currentWeekNumber - 1;
+        setWeeklyStatuses({
+          // Results and Players of the Week both cover a week only once it's been played,
+          // so they're "due" for the week before the current one — not the current week itself.
+          games: weeklyStatus(season.lastPlayedWeekNumber, previousWeekNumber),
+          "players-of-the-week": weeklyStatus(season.playersOfTheWeek?.weeks?.[0]?.week?.number, previousWeekNumber),
+          // Top 25 and Heisman polls are published going into the current week (they show its
+          // upcoming matchups), so they're due as soon as the current week starts.
+          top25: weeklyStatus(season.top25?.week?.number, currentWeekNumber),
+          heisman: weeklyStatus(season.heismanWatch?.weeks?.[0]?.week?.number, currentWeekNumber),
+          standings: standingsStatus(standings),
+        });
       } catch {
-        // Non-fatal here — the "Start a New Season" card will just be missing a default year.
+        // Non-fatal here — cards just render without their status badges.
       }
     };
     load();
@@ -147,10 +233,20 @@ function DynastyUpdatesPage() {
           </Link>
         }
       />
-      <div className="grid gap-4 pb-8 sm:grid-cols-2">
-        {UPDATE_TYPES.map((update) => (
-          <UpdateCard key={update.key} update={update} onClick={update.key === "season" ? openSeasonModal : undefined} />
-        ))}
+      <div className="space-y-8 pb-8">
+        <UpdateSection
+          title="Weekly"
+          hint="Upload each of these once for every week you play."
+          updates={WEEKLY_UPDATES}
+          statuses={weeklyStatuses}
+        />
+        <UpdateSection
+          title="Occasional"
+          hint="Update these as needed — not tied to a specific week."
+          updates={OCCASIONAL_UPDATES}
+          onSeasonClick={openSeasonModal}
+        />
+        <UpdateSection title="Coming Soon" updates={COMING_SOON_UPDATES} />
       </div>
 
       {showSeasonModal && (

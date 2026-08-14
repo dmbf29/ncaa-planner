@@ -440,11 +440,40 @@ class SeasonDashboardSerializer
                               .find { |g| !g.played? }
     return nil unless upcoming
 
+    opponent_id = upcoming.home_college_id == college_season.college_id ? upcoming.away_college_id : upcoming.home_college_id
+    opponent_season = college_seasons_by_college_id[opponent_id]
+
     {
       week: { id: upcoming.week.id, number: upcoming.week.number, name: upcoming.week.name },
       opponent: opponent_json(upcoming, college_season.college_id),
-      active_injury_count: active_injury_count(college_season, upcoming.week)
+      active_injury_count: active_injury_count(college_season, upcoming.week),
+      opponent_record: opponent_season && effective_record(opponent_season, played_games_with_stats(opponent_season)),
+      opponent_last_result: opponent_season && opponent_last_result_json(opponent_season, upcoming.week.number)
     }
+  end
+
+  # What happened for this opponent the single week before before_week_number
+  # — not a multi-week backward scan, since the point of this is to surface
+  # a gap ("missing") rather than quietly search past it for an older
+  # result. A week with no Game is only reported as "bye" if it's in
+  # CollegeSeason#bye_week_ids (the only place that fact is ever recorded —
+  # see TeamSchedule::CommitService); otherwise it's "missing" — that
+  # team's data for that week just hasn't been uploaded yet. nil when
+  # before_week_number is the season's first week (nothing came before it).
+  def opponent_last_result_json(opponent_season, before_week_number)
+    week = @season.weeks.find_by(number: before_week_number - 1)
+    return nil unless week
+
+    game = opponent_season.games
+                           .includes(:home_college, :away_college, :college_game_stats)
+                           .find { |g| g.week_id == week.id }
+    result = game && result_json(game, opponent_season.college_id)
+    week_json = { id: week.id, number: week.number, name: week.name }
+
+    return { status: "final", week: week_json, opponent: opponent_json(game, opponent_season.college_id), result: result } if result
+    return { status: "bye", week: week_json } if opponent_season.bye_week_ids.include?(week.id)
+
+    { status: "missing", week: week_json }
   end
 
   # How many of this team's players are still banged up heading into their
