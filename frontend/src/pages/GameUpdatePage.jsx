@@ -70,6 +70,36 @@ const withUnmatchedDefaults = (playerStats) =>
         },
   );
 
+// A screenshot re-analyzed to catch a player the first pass missed (or
+// just re-uploaded by habit) re-extracts everyone else in it too, and the
+// AI re-matches them against the roster independently each time — so the
+// same real player comes back with the same studentSeasonId in both
+// passes. Merge fresh values onto their existing row instead of appending
+// a duplicate. Unmatched rows (no studentSeasonId) always get appended:
+// there's no reliable way to tell a re-scan of the same unrecognized
+// player from an actually-different one.
+const mergePlayerStats = (existingRows, freshRows) => {
+  const merged = [...existingRows];
+  freshRows.forEach((freshRow) => {
+    const matchIndex = freshRow.studentSeasonId
+      ? merged.findIndex(
+          (row) =>
+            row.studentSeasonId === freshRow.studentSeasonId && row.team === freshRow.team && row.category === freshRow.category,
+        )
+      : -1;
+    if (matchIndex === -1) {
+      merged.push(freshRow);
+      return;
+    }
+    const mergedFields = { ...merged[matchIndex].fields };
+    Object.entries(freshRow.fields || {}).forEach(([key, value]) => {
+      if (value != null) mergedFields[key] = value;
+    });
+    merged[matchIndex] = { ...merged[matchIndex], fields: mergedFields };
+  });
+  return merged;
+};
+
 // Each of Box Score / Home / Away is analyzed independently (its own
 // request, its own loading state) so one section processing doesn't block
 // another. Every merge below uses the functional setState form, so two
@@ -81,7 +111,7 @@ const mergeAnalysis = (existing, fresh, awayCollege, homeCollege) => ({
   homeScreenshotSignedIds: [...(existing.homeScreenshotSignedIds || []), ...(fresh.homeScreenshotSignedIds || [])],
   awayScreenshotSignedIds: [...(existing.awayScreenshotSignedIds || []), ...(fresh.awayScreenshotSignedIds || [])],
   collegeStats: mergeCollegeStats(existing.collegeStats, normalizeCollegeStats(fresh.collegeStats, awayCollege, homeCollege)),
-  playerStats: [...existing.playerStats, ...withUnmatchedDefaults(fresh.playerStats)],
+  playerStats: mergePlayerStats(existing.playerStats, withUnmatchedDefaults(fresh.playerStats || [])),
   homeRoster: existing.homeRoster?.length ? existing.homeRoster : fresh.homeRoster,
   awayRoster: existing.awayRoster?.length ? existing.awayRoster : fresh.awayRoster,
 });
@@ -294,6 +324,13 @@ function TeamStatsBody({ collegeStats, onChange, awayCollege, homeCollege }) {
 
   return (
     <>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {[awayCollege, homeCollege].map((college) => (
+          <p key={college.id} className="text-sm font-semibold text-textPrimary dark:text-white">
+            {college.name}
+          </p>
+        ))}
+      </div>
       {TEAM_STAT_GROUPS.map((group) => (
         <div key={group.label} className="space-y-0">
           <p className="text-xs uppercase tracking-wide text-textSecondary">{group.label}</p>
@@ -301,18 +338,15 @@ function TeamStatsBody({ collegeStats, onChange, awayCollege, homeCollege }) {
             {[awayCollege, homeCollege].map((college) => {
               const entry = findEntry(college.name);
               return (
-                <div key={college.id} className="space-y-1 rounded-md p-3 dark:border-darkborder">
-                  <p className="text-xs font-semibold text-textPrimary dark:text-white">{college.name}</p>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-6">
-                    {group.fields.map((field) => (
-                      <NumberField
-                        key={field}
-                        label={FIELD_LABELS[field]}
-                        value={entry?.fields?.[field]}
-                        onChange={(value) => updateField(college.name, field, value)}
-                      />
-                    ))}
-                  </div>
+                <div key={college.id} className="grid grid-cols-2 gap-2 rounded-md p-3 dark:border-darkborder sm:grid-cols-6">
+                  {group.fields.map((field) => (
+                    <NumberField
+                      key={field}
+                      label={FIELD_LABELS[field]}
+                      value={entry?.fields?.[field]}
+                      onChange={(value) => updateField(college.name, field, value)}
+                    />
+                  ))}
                 </div>
               );
             })}
@@ -498,6 +532,9 @@ function GameUpdatePage() {
             homeScreenshotSignedIds: [],
             awayScreenshotSignedIds: [],
           });
+          // This is exactly what's in the DB — nothing to save until the
+          // user edits something, so the button shouldn't open in "unsaved" state.
+          setSaved(true);
         }
       } catch (err) {
         setLoadError(err.message);
@@ -704,9 +741,13 @@ function GameUpdatePage() {
                 type="button"
                 onClick={handleCommit}
                 disabled={committing}
-                className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                className={
+                  saved
+                    ? "rounded-md border border-border bg-transparent px-4 py-2 text-sm font-semibold text-textSecondary transition hover:bg-border/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-darkborder dark:hover:bg-white/10"
+                    : "rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                }
               >
-                {committing ? "Saving..." : "Save Game Stats"}
+                {committing ? "Saving..." : saved ? "✓ Saved" : "Save Game Stats — unsaved changes"}
               </button>
               <button
                 type="button"
@@ -715,11 +756,6 @@ function GameUpdatePage() {
               >
                 Clear Review
               </button>
-              {saved && (
-                <span className="flex items-center gap-1 text-sm font-semibold text-success">
-                  <span aria-hidden="true">✓</span> Saved
-                </span>
-              )}
               {commitError && <p className="w-full text-sm text-danger">{commitError}</p>}
             </div>
           </Card>
