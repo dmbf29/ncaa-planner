@@ -4,7 +4,7 @@ import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import GameSummary from "../components/GameSummary";
 import ScreenshotLightbox from "../components/ScreenshotLightbox";
-import { analyzeGameNarrative, analyzeGameStats, commitGameStats, fetchGame, API_BASE_URL } from "../lib/apiClient";
+import { analyzeGameNarrative, analyzeGameStats, reanalyzeGameStats, commitGameStats, fetchGame, API_BASE_URL } from "../lib/apiClient";
 import {
   TEAM_STAT_GROUPS,
   FIELD_LABELS,
@@ -116,7 +116,12 @@ const mergeAnalysis = (existing, fresh, awayCollege, homeCollege) => ({
   awayRoster: existing.awayRoster?.length ? existing.awayRoster : fresh.awayRoster,
 });
 
+// Blank fields are otherwise invisible in this borderless layout — a gap
+// the AI missed (e.g. a final score) looked identical to blank space, which
+// is exactly how one slipped past review and into a narrative write-up.
+// A visible outline on anything still empty makes gaps impossible to miss.
 function NumberField({ label, value, onChange }) {
+  const isMissing = value === null || value === undefined;
   return (
     <label className="flex flex-col gap-1 text-xs text-textSecondary text-nowrap truncate">
       <span>{label}</span>
@@ -125,7 +130,7 @@ function NumberField({ label, value, onChange }) {
         step="any"
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
-        className={inputClass}
+        className={isMissing ? `${inputClass} border border-warning bg-warning/10` : inputClass}
       />
     </label>
   );
@@ -151,7 +156,17 @@ function AccordionSection({ title, subtitle, expanded, onToggle, children }) {
 // screenshots and newly-staged local files render side by side — only the
 // local ones can be removed before they're analyzed. Clicking any
 // thumbnail opens the shared lightbox.
-function ScreenshotUploadRow({ hint, existingScreenshots, pendingFiles, onPendingFilesChange, onAnalyze, analyzing, error, onOpenLightbox }) {
+function ScreenshotUploadRow({
+  hint,
+  existingScreenshots,
+  pendingFiles,
+  onPendingFilesChange,
+  onAnalyze,
+  analyzing,
+  error,
+  onOpenLightbox,
+  onReanalyze,
+}) {
   const handleFileInput = (e) => {
     onPendingFilesChange([...pendingFiles, ...Array.from(e.target.files || [])]);
     e.target.value = "";
@@ -222,14 +237,27 @@ function ScreenshotUploadRow({ hint, existingScreenshots, pendingFiles, onPendin
 
       {error && <p className="text-sm text-danger">{error}</p>}
 
-      <button
-        type="button"
-        onClick={onAnalyze}
-        disabled={pendingFiles.length === 0 || analyzing}
-        className="rounded-md bg-burnt px-3 py-1.5 text-xs font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {analyzing ? "Analyzing..." : `Analyze ${pendingFiles.length || ""} Photo${pendingFiles.length === 1 ? "" : "s"}`}
-      </button>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={onAnalyze}
+          disabled={pendingFiles.length === 0 || analyzing}
+          className="rounded-md bg-burnt px-3 py-1.5 text-xs font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {analyzing ? "Analyzing..." : `Analyze ${pendingFiles.length || ""} Photo${pendingFiles.length === 1 ? "" : "s"}`}
+        </button>
+        {existingScreenshots.length > 0 && (
+          <button
+            type="button"
+            onClick={onReanalyze}
+            disabled={analyzing}
+            title="Re-run AI extraction on the screenshots already uploaded above, without re-selecting files"
+            className="rounded-md border border-burnt px-3 py-1.5 text-xs font-semibold text-burnt transition hover:bg-burnt/10 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {analyzing ? "Analyzing..." : "Re-analyze Existing"}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -570,6 +598,32 @@ function GameUpdatePage() {
     }
   };
 
+  // Re-runs extraction on screenshots already attached to the game — for
+  // when the first pass missed a field and re-selecting the same files from
+  // disk would just be busywork. The re-extracted signed ids are stripped
+  // before merging since these screenshots are already attached; re-sending
+  // them at commit would attach a second, duplicate copy.
+  const handleReanalyzeSection = async (sectionKey) => {
+    setSectionStatus((prev) => ({ ...prev, [sectionKey]: { analyzing: true, error: null } }));
+    try {
+      const result = await reanalyzeGameStats(gameId, sectionKey);
+      const freshStats = { ...result, boxScoreScreenshotSignedIds: [], homeScreenshotSignedIds: [], awayScreenshotSignedIds: [] };
+      updateAnalysis((prev) =>
+        prev
+          ? mergeAnalysis(prev, freshStats, game.awayCollege, game.homeCollege)
+          : {
+              ...freshStats,
+              narrative: EMPTY_NARRATIVE,
+              collegeStats: normalizeCollegeStats(freshStats.collegeStats, game.awayCollege, game.homeCollege),
+              playerStats: withUnmatchedDefaults(freshStats.playerStats),
+            },
+      );
+      setSectionStatus((prev) => ({ ...prev, [sectionKey]: { analyzing: false, error: null } }));
+    } catch (err) {
+      setSectionStatus((prev) => ({ ...prev, [sectionKey]: { analyzing: false, error: err.message } }));
+    }
+  };
+
   const handleRunNarrative = async () => {
     setNarrativeRunning(true);
     setNarrativeError(null);
@@ -665,6 +719,7 @@ function GameUpdatePage() {
               pendingFiles={pendingFiles.boxScore}
               onPendingFilesChange={(files) => setPendingFiles((prev) => ({ ...prev, boxScore: files }))}
               onAnalyze={() => handleAnalyzeSection("boxScore")}
+              onReanalyze={() => handleReanalyzeSection("boxScore")}
               analyzing={Boolean(sectionStatus.boxScore.analyzing)}
               error={sectionStatus.boxScore.error}
               onOpenLightbox={openLightbox}
@@ -690,6 +745,7 @@ function GameUpdatePage() {
               pendingFiles={pendingFiles.home}
               onPendingFilesChange={(files) => setPendingFiles((prev) => ({ ...prev, home: files }))}
               onAnalyze={() => handleAnalyzeSection("home")}
+              onReanalyze={() => handleReanalyzeSection("home")}
               analyzing={Boolean(sectionStatus.home.analyzing)}
               error={sectionStatus.home.error}
               onOpenLightbox={openLightbox}
@@ -715,6 +771,7 @@ function GameUpdatePage() {
               pendingFiles={pendingFiles.away}
               onPendingFilesChange={(files) => setPendingFiles((prev) => ({ ...prev, away: files }))}
               onAnalyze={() => handleAnalyzeSection("away")}
+              onReanalyze={() => handleReanalyzeSection("away")}
               analyzing={Boolean(sectionStatus.away.analyzing)}
               error={sectionStatus.away.error}
               onOpenLightbox={openLightbox}

@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 const TIER_LABELS = { 1: "First Team", 2: "Second Team" };
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 10;
 
 function HonoreeRow({ honoree }) {
   return (
@@ -9,9 +9,11 @@ function HonoreeRow({ honoree }) {
       <div className="flex min-w-0 items-center gap-1.5">
         <span className="w-8 shrink-0 text-xs text-textSecondary">{honoree.position}</span>
         <span className="truncate text-textPrimary dark:text-white">{honoree.name}</span>
-        {honoree.coachedByUs && <i className="fa-solid fa-gamepad shrink-0 text-[10px] text-burnt/80" title="User-coached" />}
       </div>
-      <span className="shrink-0 truncate text-xs text-textSecondary">{honoree.college.name}</span>
+      <span className="flex shrink-0 items-center gap-1 truncate text-xs text-textSecondary">
+        {honoree.coachedByUs && <i className="fa-solid fa-gamepad shrink-0 text-[10px] text-burnt/80" title="User-coached" />}
+        {honoree.college.name}
+      </span>
     </div>
   );
 }

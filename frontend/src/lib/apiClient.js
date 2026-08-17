@@ -239,6 +239,11 @@ export const analyzeGameStats = (id, buckets) => {
     .then((r) => r.data);
 };
 
+// section is "boxScore" | "home" | "away" — re-runs extraction on that
+// section's already-attached screenshots instead of requiring a re-upload.
+export const reanalyzeGameStats = (id, section) =>
+  api.post(`/api/v1/games/${id}/reanalyze`, { section: section === "boxScore" ? "box_score" : section }).then((r) => r.data);
+
 export const analyzeGameNarrative = (id, { collegeStats, playerStats }) =>
   api.post(`/api/v1/games/${id}/analyze_narrative`, { analysis: { collegeStats, playerStats } }).then((r) => r.data);
 

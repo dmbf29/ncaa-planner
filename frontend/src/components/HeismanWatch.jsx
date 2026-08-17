@@ -8,7 +8,8 @@ function HeismanCandidateRow({ candidate }) {
         <span className="text-xs text-textSecondary">{candidate.position}</span>
         <span className="truncate text-textPrimary dark:text-white">{candidate.name}</span>
       </div>
-      <span className="shrink-0 truncate text-xs text-textSecondary">
+      <span className="flex shrink-0 items-center gap-1 truncate text-xs text-textSecondary">
+        {candidate.coachedByUs && <i className="fa-solid fa-gamepad shrink-0 text-[10px] text-burnt/80" title="User-coached" />}
         {candidate.college.rank ? `#${candidate.college.rank} ` : ""}
         {candidate.college.name}
       </span>
@@ -43,7 +44,8 @@ function HeismanWatch({ heismanWatch }) {
               <i className="fa-solid fa-trophy text-burnt" />
               <span className="truncate font-semibold text-textPrimary dark:text-white">{winner.name}</span>
             </div>
-            <span className="shrink-0 text-xs text-textSecondary">
+            <span className="flex shrink-0 items-center gap-1 text-xs text-textSecondary">
+              {winner.coachedByUs && <i className="fa-solid fa-gamepad shrink-0 text-[10px] text-burnt/80" title="User-coached" />}
               {winner.college.rank ? `#${winner.college.rank} ` : ""}
               {winner.college.name}
             </span>

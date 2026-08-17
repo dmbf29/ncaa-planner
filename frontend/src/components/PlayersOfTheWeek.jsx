@@ -1,3 +1,4 @@
+import { clsx } from "clsx";
 import Card from "./Card";
 import { weekLabel } from "./LeagueGameRow";
 
@@ -9,13 +10,19 @@ function PlayerOfTheWeekRow({ honoree }) {
   return (
     <div className="flex items-center justify-between gap-2 border-b border-border/60 py-1.5 text-sm last:border-0 dark:border-darkborder/60">
       <div className="flex min-w-0 items-center gap-1.5">
-        <span className="shrink-0 rounded-full bg-burnt/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-burnt">
+        <span
+          className={clsx(
+            "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+            honoree.national ? "bg-charcoal/5 text-textSecondary dark:bg-white/10" : "bg-burnt/10 text-burnt",
+          )}
+        >
           {scopeLabel(honoree)} {honoree.side === "offensive" ? "Off" : "Def"}
         </span>
         <span className="text-xs text-textSecondary">{honoree.position}</span>
         <span className="truncate text-textPrimary dark:text-white">{honoree.name}</span>
       </div>
-      <span className="shrink-0 truncate text-xs text-textSecondary">
+      <span className="flex shrink-0 items-center gap-1 truncate text-xs text-textSecondary">
+        {honoree.coachedByUs && <i className="fa-solid fa-gamepad shrink-0 text-[10px] text-burnt/80" title="User-coached" />}
         {honoree.college.rank ? `#${honoree.college.rank} ` : ""}
         {honoree.college.name}
       </span>
