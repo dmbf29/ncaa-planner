@@ -2,6 +2,10 @@
 # to coached teams, since these are league-wide honors. Split into the
 # national team and each conference's team, tier 1/2 within each.
 class SeasonAllAmericansSerializer
+  POSITION_ORDER = %w[
+    QB HB WR TE LT LG C RG RT LE RE DT LOLB MLB ROLB CB FS SS K P
+  ].freeze
+
   def initialize(season)
     @season = season
   end
@@ -38,7 +42,18 @@ class SeasonAllAmericansSerializer
   end
 
   def tiered(honorees)
-    AllAmerican::TIERS.index_with { |tier| honorees.select { |aa| aa.tier == tier }.map { |aa| honoree_json(aa) } }
+    AllAmerican::TIERS.index_with do |tier|
+      honorees.select { |aa| aa.tier == tier }
+              .sort_by { |aa| [ position_rank(aa.student_season.position), aa.student_season.student.name ] }
+              .map { |aa| honoree_json(aa) }
+    end
+  end
+
+  # Unrecognized positions sort after every known one rather than raising,
+  # so a data-entry typo doesn't break the whole list.
+  def position_rank(position)
+    rank = POSITION_ORDER.index(position)
+    rank || POSITION_ORDER.length
   end
 
   def honoree_json(all_american)

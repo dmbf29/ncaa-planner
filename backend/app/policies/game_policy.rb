@@ -7,6 +7,10 @@ class GamePolicy < ApplicationPolicy
     owner?
   end
 
+  def reanalyze?
+    owner?
+  end
+
   def analyze_narrative?
     owner?
   end

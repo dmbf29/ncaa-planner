@@ -180,7 +180,10 @@ class SeasonDashboardSerializer
   end
 
   def heisman_watch_json
-    winner = @season.heisman && player_json(@season.heisman).merge(college: student_college_json(@season.heisman))
+    winner = @season.heisman && player_json(@season.heisman).merge(
+      college: student_college_json(@season.heisman),
+      coached_by_us: coached_by_us?(@season.heisman)
+    )
 
     {
       winner: winner,
@@ -262,7 +265,10 @@ class SeasonDashboardSerializer
 
   def heisman_candidate_json(candidate)
     student_season = candidate.student_season
-    player_json(student_season).merge(college: student_college_json(student_season))
+    player_json(student_season).merge(
+      college: student_college_json(student_season),
+      coached_by_us: coached_by_us?(student_season)
+    )
   end
 
   def student_college_json(student_season)
@@ -279,10 +285,20 @@ class SeasonDashboardSerializer
       weeks: recent_players_of_the_week_weeks.map do |week|
         {
           week: { id: week.id, number: week.number, name: week.name },
-          honorees: week.players_of_the_week.map { |potw| player_of_the_week_json(potw) }
+          honorees: sorted_players_of_the_week(week).map { |potw| player_of_the_week_json(potw) }
         }
       end
     }
+  end
+
+  # National honorees before conference ones, otherwise preserving whatever
+  # order they were entered in (each_with_index tiebreak — sort_by alone
+  # isn't guaranteed stable).
+  def sorted_players_of_the_week(week)
+    week.players_of_the_week
+        .each_with_index
+        .sort_by { |potw, i| [ potw.national ? 0 : 1, i ] }
+        .map(&:first)
   end
 
   def player_of_the_week_json(potw)
@@ -296,12 +312,17 @@ class SeasonDashboardSerializer
       national: potw.national,
       conference: potw.conference,
       stat_line: potw.stat_line,
-      college: student_college_json(student_season)
+      college: student_college_json(student_season),
+      coached_by_us: coached_by_us?(student_season)
     }
   end
 
   def coached_college_ids
     @coached_college_ids ||= @season.college_seasons.where.not(coach_id: nil).pluck(:college_id).to_set
+  end
+
+  def coached_by_us?(student_season)
+    coached_college_ids.include?(student_season.college_season.college_id)
   end
 
   def team_json(college_season)

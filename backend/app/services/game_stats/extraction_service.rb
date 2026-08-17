@@ -47,8 +47,13 @@ module GameStats
       @game.week.season
     end
 
-    def attach_transient_blobs(uploaded_files)
-      Array(uploaded_files).map do |file|
+    # A reanalyze request passes already-attached blobs (see GamesController#reanalyze)
+    # instead of freshly uploaded files — reuse those as-is rather than
+    # re-uploading a duplicate copy of the same image.
+    def attach_transient_blobs(files_or_blobs)
+      Array(files_or_blobs).map do |file|
+        next file if file.is_a?(ActiveStorage::Blob)
+
         ActiveStorage::Blob.create_and_upload!(io: file, filename: file.original_filename, content_type: file.content_type)
       end
     end

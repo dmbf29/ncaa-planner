@@ -6,6 +6,12 @@ module Api
       skip_before_action :authenticate_user!, only: :show
       before_action :set_game
 
+      SECTION_ATTACHMENTS = {
+        "box_score" => :box_score_screenshots,
+        "home" => :home_stat_screenshots,
+        "away" => :away_stat_screenshots
+      }.freeze
+
       # Public, unauthenticated — the game show page is part of the shareable
       # dynasty portal, same reasoning as DynastyPortalsController. Uploading
       # or editing (analyze/commit below) still requires being the dynasty's
@@ -20,6 +26,28 @@ module Api
           box_score_files: Array(params[:box_score_images]),
           home_files: Array(params[:home_images]),
           away_files: Array(params[:away_images])
+        )
+        render json: analysis_json(result)
+      rescue RubyLLM::Error => e
+        render json: { error: "AI extraction failed: #{e.message}", code: "extraction_failed" }, status: :unprocessable_entity
+      end
+
+      # Re-runs extraction on a section's already-attached screenshots — no
+      # new upload needed — for when the first pass missed something and a
+      # retry is worth trying before resorting to manual entry. Reuses the
+      # existing blobs (ExtractionService#attach_transient_blobs skips
+      # re-uploading anything that's already a Blob), so this never creates
+      # duplicate screenshot attachments on commit.
+      def reanalyze
+        authorize @game
+        attachment_name = SECTION_ATTACHMENTS[params[:section]]
+        return render json: { error: "invalid section" }, status: :unprocessable_entity unless attachment_name
+
+        blobs = @game.public_send(attachment_name).map(&:blob)
+        result = GameStats::ExtractionService.new(@game).call(
+          box_score_files: attachment_name == :box_score_screenshots ? blobs : [],
+          home_files: attachment_name == :home_stat_screenshots ? blobs : [],
+          away_files: attachment_name == :away_stat_screenshots ? blobs : []
         )
         render json: analysis_json(result)
       rescue RubyLLM::Error => e

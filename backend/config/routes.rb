@@ -49,6 +49,7 @@ Rails.application.routes.draw do
       resources :games, only: %i[show] do
         member do
           post :analyze
+          post :reanalyze
           post :analyze_narrative
           post :commit
         end
