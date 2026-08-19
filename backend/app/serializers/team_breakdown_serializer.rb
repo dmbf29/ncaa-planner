@@ -7,6 +7,11 @@
 # only have for colleges with a scraped roster. See data_coverage in the
 # output for exactly which colleges that is.
 class TeamBreakdownSerializer
+  # The game tracks NIL spend as abstract "points" (it can't use real money
+  # since it's rated for all ages). We convert to a dollar figure for the
+  # broadcast output since that reads far more naturally in a podcast script.
+  DOLLARS_PER_NIL_POINT = 10_000
+
   # Screen labels used by NilSpend::Extractor differ from
   # CollegeSeason::POSITION_GROUPS' keys, so this bridges the two.
   POSITION_GROUP_NIL_KEYS = {
@@ -169,9 +174,16 @@ class TeamBreakdownSerializer
       average_rating: average_rating(college_season, group),
       conference_rank: conference_rank(college_season, group),
       player_count: players.size,
-      nil_spend: college_season.nil_spend_by_position[nil_key],
+      nil_spend: nil_spend_dollars(college_season, nil_key),
       all_americans: all_americans_for_college(college_season.college_id, group).map { |aa| all_american_json(aa) }
     }
+  end
+
+  def nil_spend_dollars(college_season, nil_key)
+    points = college_season.nil_spend_by_position[nil_key]
+    return nil if points.blank?
+
+    points * DOLLARS_PER_NIL_POINT
   end
 
   def conference_position_json(group, nil_key)
@@ -195,7 +207,7 @@ class TeamBreakdownSerializer
 
   def nil_spend_leaderboard(nil_key)
     conference_college_seasons.filter_map do |cs|
-      amount = cs.nil_spend_by_position[nil_key]
+      amount = nil_spend_dollars(cs, nil_key)
       next if amount.blank?
 
       { college: { id: cs.college.id, name: cs.college.name }, amount: amount, coached_by_us: cs.coach_id.present? }

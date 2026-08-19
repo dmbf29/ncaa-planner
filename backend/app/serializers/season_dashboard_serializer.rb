@@ -1,14 +1,4 @@
 class SeasonDashboardSerializer
-  # category => primary StudentGameStat column that decides that category's leader
-  STAT_LEADER_CATEGORIES = {
-    passing: :passing_yards,
-    rushing: :rushing_yards,
-    receiving: :receiving_yards,
-    sacks: :defense_sacks,
-    tackles: :defense_tackles,
-    interceptions: :defense_interceptions
-  }.freeze
-
   def initialize(season)
     @season = season
   end
@@ -326,7 +316,8 @@ class SeasonDashboardSerializer
   end
 
   def team_json(college_season)
-    played_games = played_games_with_stats(college_season)
+    season_stats = TeamSeasonStats.new(college_season)
+    played_games = season_stats.played_games
     record = effective_record(college_season, played_games)
 
     {
@@ -350,31 +341,11 @@ class SeasonDashboardSerializer
       next_game: next_game_json(college_season),
       best_offensive_players: college_season.best_offensive_players.map { |ss| player_json(ss) },
       best_defensive_players: college_season.best_defensive_players.map { |ss| player_json(ss) },
-      stat_leaders: team_stat_leaders_json(college_season),
-      team_stats: team_stats_json(played_games),
+      stat_leaders: stat_leaders_json(season_stats.stat_leaders),
+      team_stats: season_stats.team_stats,
       position_group_averages: college_season.position_group_averages,
       weeks: weeks_json(college_season)
     }
-  end
-
-  # Every played game for this team, paired with both sides' box score —
-  # shared by effective_record (games-played tiebreak against the manually
-  # entered college_season.wins/losses) and team_stats_json (per-game
-  # offense/defense averages).
-  def played_games_with_stats(college_season)
-    college_season.games
-                   .includes(:college_game_stats)
-                   .map { |g| game_stat_pair(g, college_season.college_id) }
-                   .compact
-  end
-
-  def game_stat_pair(game, college_id)
-    stats = game.college_game_stats.index_by(&:college_id)
-    team_stat = stats[college_id]
-    opponent_stat = stats.values.find { |s| s.college_id != college_id }
-    return nil unless team_stat&.final_score && opponent_stat&.final_score
-
-    { team_stat: team_stat, opponent_stat: opponent_stat, won: team_stat.final_score > opponent_stat.final_score }
   end
 
   # college_season.wins/losses is a manually entered snapshot that can lag
@@ -390,51 +361,14 @@ class SeasonDashboardSerializer
     { wins: wins, losses: computed_count - wins }
   end
 
-  # Team-level box score averages (yards/points per game), once this team
-  # has any played games — nil until then, same convention as stat_leaders.
-  def team_stats_json(played_games)
-    return nil if played_games.empty?
+  # Wraps TeamSeasonStats#stat_leaders' { student_season:, value: } shape into
+  # this serializer's standard player_json, once it has any recorded game
+  # stats — nil until then, so the frontend can keep showing the
+  # rating-based best_offensive/defensive_players instead.
+  def stat_leaders_json(leaders)
+    return nil unless leaders
 
-    {
-      passing_offense: avg_stat(played_games) { |g| g[:team_stat].passing_yards },
-      rushing_offense: avg_stat(played_games) { |g| g[:team_stat].rushing_yards },
-      passing_defense: avg_stat(played_games) { |g| g[:opponent_stat].passing_yards },
-      rushing_defense: avg_stat(played_games) { |g| g[:opponent_stat].rushing_yards },
-      points_per_game: avg_stat(played_games) { |g| g[:team_stat].final_score },
-      points_against_per_game: avg_stat(played_games) { |g| g[:opponent_stat].final_score }
-    }
-  end
-
-  def avg_stat(played_games)
-    values = played_games.filter_map { |g| yield(g) }
-    return nil if values.empty?
-
-    (values.sum.to_f / values.size).round(1)
-  end
-
-  # Passing/rushing/receiving/sack leaders for this team specifically, once
-  # it has any recorded game stats — nil until then, so the frontend can
-  # keep showing the rating-based best_offensive/defensive_players instead.
-  def team_stat_leaders_json(college_season)
-    game_stats = StudentGameStat.joins(:student_season)
-                                 .where(student_seasons: { college_season_id: college_season.id })
-                                 .includes(student_season: :student)
-                                 .to_a
-    return nil if game_stats.empty?
-
-    totals_by_student_season = game_stats.group_by(&:student_season).transform_values do |rows|
-      STAT_LEADER_CATEGORIES.values.index_with { |column| rows.sum { |r| r.public_send(column) || 0 } }
-    end
-
-    STAT_LEADER_CATEGORIES.transform_values { |column| team_category_leader_json(totals_by_student_season, column) }
-  end
-
-  def team_category_leader_json(totals_by_student_season, column)
-    student_season, totals = totals_by_student_season.select { |_ss, totals| totals[column].positive? }
-                                                       .max_by { |_ss, totals| totals[column] }
-    return nil unless student_season
-
-    player_json(student_season).merge(value: totals[column])
+    leaders.transform_values { |leader| leader && player_json(leader[:student_season]).merge(value: leader[:value]) }
   end
 
   def current_rank(college_season)
@@ -468,7 +402,7 @@ class SeasonDashboardSerializer
       week: { id: upcoming.week.id, number: upcoming.week.number, name: upcoming.week.name },
       opponent: opponent_json(upcoming, college_season.college_id),
       active_injury_count: active_injury_count(college_season, upcoming.week),
-      opponent_record: opponent_season && effective_record(opponent_season, played_games_with_stats(opponent_season)),
+      opponent_record: opponent_season && effective_record(opponent_season, TeamSeasonStats.new(opponent_season).played_games),
       opponent_last_result: opponent_season && opponent_last_result_json(opponent_season, upcoming.week.number)
     }
   end

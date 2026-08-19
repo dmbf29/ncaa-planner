@@ -74,6 +74,7 @@ class SeasonWeeksMarkdownPresenter
     week = week_data[:week]
     lines = [ "---", "", "# 🏈 #{week_label(week).upcase}#{primary ? ' (CURRENT)' : ''}", "" ]
     lines.concat(at_a_glance_table(week_data[:teams]))
+    lines.concat(top_25_poll_lines(week_data[:top_25]))
 
     week_data[:teams].each { |team| lines.concat(team_week_section(team)) }
 
@@ -89,10 +90,53 @@ class SeasonWeeksMarkdownPresenter
       lines.concat(conference_scoreboard_lines(week_data[:conference_results]))
     end
 
+    lines.concat(conference_standings_lines(week_data[:conference_standings]))
     lines.concat(conference_top_25_lines(week_data[:conference_top_25]))
     lines.concat(conference_heisman_lines(week_data[:conference_heisman_watch]))
 
     lines
+  end
+
+  # Only present from Week 4 on (see
+  # SeasonWeeksSerializer::MIN_WEEK_NUMBER_FOR_SEASON_STATS), and only for
+  # the conference(s) our coached teams play in — one table per conference,
+  # in case our coached teams span more than one.
+  def conference_standings_lines(conferences)
+    return [] if conferences.blank?
+
+    lines = []
+    conferences.each do |conference_data|
+      lines << "## 🏟️ #{conference_data[:conference]} STANDINGS"
+      lines << ""
+      lines.concat(conference_standings_table(conference_data[:teams]))
+    end
+    lines
+  end
+
+  def conference_standings_table(teams)
+    lines = [ "| Team | Conf | Overall | Conf PF-PA | Overall PF-PA |", "| --- | --- | --- | --- | --- |" ]
+    teams.each { |team| lines << conference_standings_row(team) }
+    lines << ""
+    lines
+  end
+
+  def conference_standings_row(team)
+    name = "#{team[:rank] ? "##{team[:rank]} " : ''}#{team[:college][:name]}#{team[:coached_by_us] ? ' ⭐' : ''}"
+    "| #{name} | #{record_str(team[:conference_wins], team[:conference_losses])} | " \
+      "#{record_str(team[:wins], team[:losses])} | #{pf_pa_str(team[:conference_points_for], team[:conference_points_against])} | " \
+      "#{pf_pa_str(team[:points_for], team[:points_against])} |"
+  end
+
+  def record_str(wins, losses)
+    return "—" if wins.nil? && losses.nil?
+
+    "#{wins || 0}-#{losses || 0}"
+  end
+
+  def pf_pa_str(points_for, points_against)
+    return "—" if points_for.nil? && points_against.nil?
+
+    "#{points_for || 0}-#{points_against || 0}"
   end
 
   def conference_scoreboard_lines(results)
@@ -157,6 +201,36 @@ class SeasonWeeksMarkdownPresenter
     lines
   end
 
+  # The full national Top 25 poll released after this week's games (not just
+  # conference rivals — see conference_top_25_lines) — silent when that next
+  # poll hasn't been entered yet, same convention as every other optional
+  # section.
+  def top_25_poll_lines(rankings)
+    return [] if rankings.blank?
+
+    lines = [ "## 🏆 TOP 25 (LATEST POLL)", "" ]
+    lines << "| Rank | Team | Record | Trend |"
+    lines << "| --- | --- | --- | --- |"
+    rankings.each { |ranking| lines << top_25_poll_row(ranking) }
+    lines << ""
+    lines
+  end
+
+  def top_25_poll_row(ranking)
+    record = ranking[:record]
+    name = "#{ranking[:college][:name]}#{ranking[:coached_by_us] ? ' ⭐' : ''}"
+    "| ##{ranking[:rank]} | #{name} | #{record[:wins]}-#{record[:losses]} | #{top_25_trend(ranking)} |"
+  end
+
+  def top_25_trend(ranking)
+    case ranking[:status]
+    when "entered_top_25" then "NEW"
+    when "moved_up" then "↑#{ranking[:previous_rank] - ranking[:rank]}"
+    when "moved_down" then "↓#{ranking[:rank] - ranking[:previous_rank]}"
+    else "—"
+    end
+  end
+
   def glance_result(game)
     case game[:status]
     when "bye" then "Bye"
@@ -202,6 +276,7 @@ class SeasonWeeksMarkdownPresenter
     lines.concat(player_of_the_week_lines(team[:players_of_the_week]))
     lines.concat(top_performers_lines(team[:top_performers]))
     lines.concat(injury_report_lines(team[:injury_report]))
+    lines.concat(season_stats_lines(team[:season_stats]))
 
     lines << "### 📅 Next Up"
     lines.concat(next_up_lines(team[:next_game]))
@@ -283,6 +358,95 @@ class SeasonWeeksMarkdownPresenter
       [ "Points by Quarter", ->(s) { points_by_quarter_line(s) } ],
       [ "Final Score", ->(s) { s[:final_score] } ]
     ]
+  end
+
+  # Mirrors TeamDashboardCard.jsx's STAT_LEADER_LABELS so the podcast notes
+  # read the same way the dashboard card does.
+  SEASON_STAT_LEADER_LABELS = {
+    passing: [ "Passing", "Yds" ], rushing: [ "Rushing", "Yds" ], receiving: [ "Receiving", "Yds" ],
+    sacks: [ "Sacks", "Sck" ], tackles: [ "Tackles", "Tkl" ], interceptions: [ "INT (Def)", "Int" ]
+  }.freeze
+
+  SEASON_TEAM_STAT_LABELS = {
+    passing_offense: "Pass Offense", rushing_offense: "Rush Offense",
+    passing_defense: "Pass Defense", rushing_defense: "Rush Defense",
+    points_per_game: "Points/Game", points_against_per_game: "Points Allowed/Game"
+  }.freeze
+
+  SEASON_TEAM_TOTAL_LABELS = {
+    passing_offense: "Pass Offense", rushing_offense: "Rush Offense",
+    passing_defense: "Pass Defense", rushing_defense: "Rush Defense",
+    points_for: "Points For", points_against: "Points Against",
+    turnovers: "Turnovers", takeaways: "Takeaways", turnover_margin: "Turnover Margin",
+    fumbles_lost: "Fumbles Lost", fumbles_recovered: "Fumbles Recovered",
+    sacks: "Sacks", defensive_interceptions: "Interceptions (Taken Away)"
+  }.freeze
+
+  # Same season-to-date numbers shown on the dashboard's team card, expanded
+  # with multiple leaders per category and season totals — only present from
+  # Week 4 on (see SeasonWeeksSerializer::MIN_WEEK_NUMBER_FOR_SEASON_STATS),
+  # and silent before either side has any data yet, same convention as the
+  # rest of these optional sections.
+  def season_stats_lines(season_stats)
+    return [] if season_stats.blank?
+
+    lines = season_leaders_lines(season_stats[:stat_leaders])
+    lines.concat(season_team_stats_lines(season_stats[:team_stats]))
+    lines.concat(season_team_totals_lines(season_stats[:team_totals]))
+    lines
+  end
+
+  def season_leaders_lines(leaders)
+    return [] if leaders.blank?
+
+    lines = [ "### 📈 Season Stat Leaders", "" ]
+    SEASON_STAT_LEADER_LABELS.each do |category, (label, unit)|
+      entries = leaders[category]
+      next if entries.blank?
+
+      lines << "- #{label}: #{entries.map { |entry| season_leader_entry_line(entry, unit) }.join('; ')}"
+    end
+    lines << ""
+    lines
+  end
+
+  def season_leader_entry_line(entry, unit)
+    "#{entry[:name]} (#{entry[:position]}) — #{entry[:value]} #{unit}"
+  end
+
+  def season_team_stats_lines(stats)
+    return [] if stats.blank?
+
+    lines = [ "### 📊 Season Team Stats (Per Game)", "" ]
+    SEASON_TEAM_STAT_LABELS.each do |key, label|
+      lines << "- #{label}: #{stats[key]}" if stats[key]
+    end
+    lines << ""
+    lines
+  end
+
+  def season_team_totals_lines(totals)
+    return [] if totals.blank?
+
+    lines = [ "### 📋 Season Team Totals", "" ]
+    SEASON_TEAM_TOTAL_LABELS.each do |key, label|
+      value = totals[key]
+      next if value.nil?
+
+      value = format("%+d", value) if key == :turnover_margin
+      lines << "- #{label}: #{value}"
+    end
+    lines << "- Third Down %: #{percentage_line(totals[:third_down_percentage])}" if totals[:third_down_percentage]
+    lines << "- Points by Quarter: #{season_points_by_quarter_line(totals[:points_by_quarter])}" if totals[:points_by_quarter]
+    lines << ""
+    lines
+  end
+
+  def season_points_by_quarter_line(quarters)
+    parts = [ quarters[:quarter_1], quarters[:quarter_2], quarters[:quarter_3], quarters[:quarter_4] ]
+      .map { |points| points || 0 }.join("-")
+    overtime = quarters[:overtime]
+    overtime.present? && overtime != 0 ? "#{parts}-#{overtime} (OT)" : parts
   end
 
   def percentage_line(value)

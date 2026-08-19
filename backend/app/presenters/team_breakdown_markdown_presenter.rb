@@ -64,7 +64,7 @@ class TeamBreakdownMarkdownPresenter
     teams.each do |team|
       lines << "| #{team[:college][:name]} | #{team[:coach][:name]} | #{player_line(team[:best_player])} | " \
                "#{team[:average_rating] || '—'} | #{conference_rank_line(team[:conference_rank])} | " \
-               "#{team[:nil_spend] || '—'} | #{all_americans_line(team[:all_americans])} |"
+               "#{currency(team[:nil_spend])} | #{all_americans_line(team[:all_americans])} |"
     end
     lines << ""
     lines
@@ -106,7 +106,7 @@ class TeamBreakdownMarkdownPresenter
   end
 
   def extreme_line(extreme, unit: nil)
-    label = unit == "NIL" ? "#{extreme[:value]} NIL" : "#{extreme[:value]} avg"
+    label = unit == "NIL" ? currency(extreme[:value]) : "#{extreme[:value]} avg"
     "#{extreme[:college][:name]} (#{label})"
   end
 
@@ -137,10 +137,16 @@ class TeamBreakdownMarkdownPresenter
   end
 
   def nil_leaderboard_line(leaderboard)
-    leaderboard.first(5).map { |entry| "#{entry[:college][:name]} (#{entry[:amount]})" }.join(", ")
+    leaderboard.first(5).map { |entry| "#{entry[:college][:name]} (#{currency(entry[:amount])})" }.join(", ")
   end
 
   def rating_leaderboard_line(leaderboard)
     leaderboard.first(5).map { |entry| "#{entry[:college][:name]} (#{entry[:average]})" }.join(", ")
+  end
+
+  def currency(amount)
+    return "—" if amount.blank?
+
+    ActiveSupport::NumberHelper.number_to_currency(amount, precision: 0)
   end
 end

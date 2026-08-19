@@ -1,4 +1,9 @@
 class SeasonWeeksSerializer
+  # Season-to-date stat leaders/team stats are noisy over a tiny sample, so
+  # they only start showing up in the recap once a team has a few games of
+  # data behind it.
+  MIN_WEEK_NUMBER_FOR_SEASON_STATS = 4
+
   def initialize(season, week_numbers)
     @season = season
     @week_numbers = week_numbers
@@ -88,11 +93,58 @@ class SeasonWeeksSerializer
         post_season: week.post_season
       },
       teams: coached_college_seasons.map { |cs| team_week_json(cs, week) },
+      top_25: top_25_for_week(week),
       coached_matchups: coached_matchups_for_week(week),
       conference_results: conference_results_for_week(week),
       conference_top_25: conference_top_25_for_week(week),
-      conference_heisman_watch: conference_heisman_watch_for_week(week)
+      conference_heisman_watch: conference_heisman_watch_for_week(week),
+      conference_standings: week.number >= MIN_WEEK_NUMBER_FOR_SEASON_STATS ? conference_standings_json : nil
     }
+  end
+
+  # The full national Top 25 poll released AFTER this week's games — every
+  # currently-ranked team, not just conference rivals (see
+  # conference_top_25_for_week, which only reports conference movement). A
+  # given Week's own CollegeWeekRankings are the poll entering that week
+  # (before its games), same convention as ranking_json/record_entering_week
+  # elsewhere in this file — so recapping week N's results wants week N+1's
+  # poll, the freshest one that actually reflects those results. Absent
+  # entirely (not falling back to an older poll) if that next poll hasn't
+  # been entered yet.
+  def top_25_for_week(week)
+    poll_week = @season.weeks.find_by(number: week.number + 1)
+    return [] unless poll_week
+
+    rankings = poll_week.college_week_rankings.includes(:college).order(:ranking).to_a
+    return [] if rankings.empty?
+
+    previous_by_college = week.college_week_rankings.index_by(&:college_id)
+
+    rankings.map { |cwr| top_25_ranking_json(cwr, poll_week, previous_by_college[cwr.college_id]) }
+  end
+
+  def top_25_ranking_json(cwr, poll_week, previous)
+    college = cwr.college
+    {
+      rank: cwr.ranking,
+      previous_rank: previous&.ranking,
+      status: ranking_status(cwr, previous),
+      college: { id: college.id, name: college.name, conference: college.conference },
+      coached_by_us: coached_college_ids.include?(college.id),
+      record: record_before(college.id, games_for_college(college.id), poll_week.number)
+    }
+  end
+
+  # The full standings table (same numbers as the public Conference
+  # Standings page) for only the conference(s) our coached teams play in —
+  # not every conference in the league. It's a current snapshot, not
+  # week-specific data (see ConferenceStandings::CommitService), so it's the
+  # same for every week in this response — memoized rather than recomputed
+  # per week.
+  def conference_standings_json
+    @conference_standings_json ||= ConferenceStandingsSerializer.new(@season)
+                                                                  .as_json[:conferences]
+                                                                  .select { |c| coached_conferences.include?(c[:conference]) }
   end
 
   def team_week_json(college_season, week)
@@ -109,8 +161,34 @@ class SeasonWeeksSerializer
       top_performers: top_performers_json(this_week_game, college_season),
       players_of_the_week: players_of_the_week_json(college_season, week),
       injury_report: injury_report_json(college_season, week),
-      next_game: next_game && upcoming_game_json(next_game, college_season.college_id)
+      next_game: next_game && upcoming_game_json(next_game, college_season.college_id),
+      season_stats: week.number >= MIN_WEEK_NUMBER_FOR_SEASON_STATS ? season_stats_json(college_season) : nil
     }
+  end
+
+  # Same season-to-date numbers as the dashboard's team card ("Stat Leaders"
+  # and "Team Stats per Game"), plus a broadcast-only expanded view: multiple
+  # leaders per category and season totals (not just per-game averages) —
+  # see TeamSeasonStats.
+  def season_stats_json(college_season)
+    stats = TeamSeasonStats.new(college_season)
+
+    {
+      stat_leaders: stat_leaders_json(stats.top_stat_leaders),
+      team_stats: stats.team_stats,
+      team_totals: stats.team_totals
+    }
+  end
+
+  def stat_leaders_json(leaders)
+    return nil unless leaders
+
+    leaders.transform_values { |list| list.map { |leader| stat_leader_json(leader) } }
+  end
+
+  def stat_leader_json(leader)
+    student_season = leader[:student_season]
+    { name: student_season.student.name, position: student_season.position, value: leader[:value] }
   end
 
   # Injuries active as of this week (see Injury#active_as_of?).
