@@ -331,8 +331,40 @@ class SeasonWeeksSerializer
       opponent: opponent_json(opponent, home),
       opponent_record: record_before(opponent.id, games_for_college(opponent.id), game.week.number),
       opponent_last_result: opponent_last_result_json(opponent.id, game.week.number),
+      opponent_schedule: opponent_schedule_json(opponent.id, game.week.number),
       scouting_report: scouting_report_json(opponent.id)
     }
+  end
+
+  # The opponent's full schedule for every week before before_week_number,
+  # in order — same per-week final/bye/missing logic as
+  # opponent_last_result_json, just for the whole season so far instead of
+  # one week, so a recap can give real context on how the opponent's been
+  # playing rather than just their most recent score. Empty for a Week 1
+  # opponent (nothing came before it).
+  def opponent_schedule_json(opponent_id, before_week_number)
+    games = games_for_college(opponent_id)
+    bye_week_ids = college_seasons_by_college_id[opponent_id]&.bye_week_ids || []
+
+    @season.weeks.where("number < ?", before_week_number).order(:number).map do |week|
+      opponent_schedule_week_json(opponent_id, week, games, bye_week_ids)
+    end
+  end
+
+  def opponent_schedule_week_json(opponent_id, week, games, bye_week_ids)
+    week_json = { id: week.id, number: week.number, name: week.name }
+    game = games.find { |g| g.week_id == week.id }
+    result = game && game_result(game, opponent_id)
+
+    if result
+      home = game.home_college_id == opponent_id
+      versus = home ? game.away_college : game.home_college
+      return { status: "final", week: week_json, opponent: opponent_json(versus, home), result: result }
+    end
+
+    return { status: "bye", week: week_json } if bye_week_ids.include?(week.id)
+
+    { status: "missing", week: week_json }
   end
 
   # What happened for this opponent the single week before before_week_number

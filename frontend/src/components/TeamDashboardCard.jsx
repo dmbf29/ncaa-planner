@@ -235,6 +235,11 @@ function NextGameBanner({ nextGame }) {
             <span className="text-textSecondary">{nextGame.opponent.home ? "vs" : "@"}</span>
             {nextGame.opponent.rank && <span className="text-textSecondary">#{nextGame.opponent.rank}</span>}
             <span className="font-semibold text-textPrimary dark:text-white">{nextGame.opponent.name}</span>
+            {nextGame.opponentRecord && (
+              <span className="text-textSecondary">
+                ({nextGame.opponentRecord.wins ?? 0}-{nextGame.opponentRecord.losses ?? 0})
+              </span>
+            )}
             {nextGame.opponent.userCoached ? (
               <i className="fa-solid fa-gamepad text-[11px] text-burnt/80" title="User-coached opponent" />
             ) : null}

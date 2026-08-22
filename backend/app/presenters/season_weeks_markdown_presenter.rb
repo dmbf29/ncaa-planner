@@ -479,6 +479,7 @@ class SeasonWeeksMarkdownPresenter
     record_str = record && record[:wins] && record[:losses] ? " (#{record[:wins]}-#{record[:losses]})" : ""
     lines = [ "- Week #{next_game[:week_number]} — #{opponent_line(next_game[:opponent])}#{record_str}" ]
     lines << "  - Last: #{opponent_last_result_line(next_game[:opponent_last_result])}"
+    lines.concat(opponent_schedule_lines(next_game[:opponent_schedule]))
     lines.concat(scouting_report_lines(next_game[:scouting_report]))
     lines
   end
@@ -491,6 +492,30 @@ class SeasonWeeksMarkdownPresenter
     result = last_result[:result]
     outcome = result[:won] ? "W" : "L"
     "#{outcome} #{result[:team_score]}-#{result[:opponent_score]} #{opponent_line(last_result[:opponent])} (Week #{last_result[:week_number]})"
+  end
+
+  # The opponent's full schedule so far this season — every week already
+  # covered by the single "Last:" line above, plus everything before it, so
+  # a recap can talk about their season arc, not just their most recent
+  # result. Silent for a Week 1 opponent (nothing came before it).
+  def opponent_schedule_lines(schedule)
+    return [] if schedule.blank?
+
+    lines = [ "  - Schedule so far:" ]
+    schedule.each { |entry| lines << "    - #{opponent_schedule_entry_line(entry)}" }
+    lines
+  end
+
+  def opponent_schedule_entry_line(entry)
+    week_label = "Week #{entry[:week][:number]}"
+    case entry[:status]
+    when "bye" then "#{week_label} — Bye"
+    when "missing" then "#{week_label} — Not yet uploaded"
+    else
+      result = entry[:result]
+      outcome = result[:won] ? "W" : "L"
+      "#{week_label} — #{outcome} #{result[:team_score]}-#{result[:opponent_score]} #{opponent_line(entry[:opponent])}"
+    end
   end
 
   def scouting_report_lines(report)
