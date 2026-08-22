@@ -16,6 +16,7 @@ const WEEKLY_UPDATES = [
 const OCCASIONAL_UPDATES = [
   { key: "all-americans", label: "Add All-Americans", description: "Upload the National/Conference All-American screenshots.", to: "/dynasty/updates/all-americans" },
   { key: "nil-spend", label: "Update NIL Spend", description: "Upload the conference NIL spend screenshots.", to: "/dynasty/updates/nil-spend" },
+  { key: "recruiting", label: "Update Recruiting", description: "Upload the national recruiting class rankings screenshots.", to: "/dynasty/updates/recruiting" },
   { key: "season", label: "Start a New Season", description: "Create the next season for your dynasty." },
 ];
 
@@ -210,8 +211,8 @@ function DynastyUpdatesPage() {
     setSubmitting(true);
     setError(null);
     try {
-      await createSeason(dynastyId, { year });
-      navigate("/dynasty");
+      const result = await createSeason(dynastyId, { year });
+      navigate(`/dynasty/updates/season/coaches?dynastyId=${dynastyId}&seasonId=${result.id}`);
     } catch (err) {
       setError(err.message);
     } finally {

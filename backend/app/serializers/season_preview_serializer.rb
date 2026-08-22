@@ -23,7 +23,7 @@ class SeasonPreviewSerializer
 
   def coached_college_seasons
     @coached_college_seasons ||= @season.college_seasons
-                                         .includes(:college, :coach, :student_seasons)
+                                         .includes(:college, :coach, :student_seasons, :recruiting_season)
                                          .where.not(coach_id: nil)
                                          .joins(:college)
                                          .order("colleges.name")
@@ -59,7 +59,7 @@ class SeasonPreviewSerializer
         defense: college_season.defense,
         prestige: college_season.prestige
       },
-      recruiting_rank: college_season.recruiting_rank,
+      recruiting: recruiting_json(college_season),
       national_context: national_context_json(college_season),
       key_players: {
         offense: college_season.best_offensive_players.map { |ss| player_json(ss) },
@@ -87,6 +87,23 @@ class SeasonPreviewSerializer
     @conference_ranked ||= {}
     @conference_ranked[conference] ||= all_college_seasons.select { |cs| cs.college.conference == conference }
                                                             .sort_by { |cs| -(cs.overall || -1) }
+  end
+
+  def recruiting_json(college_season)
+    recruiting_season = college_season.recruiting_season
+    return nil unless recruiting_season
+
+    {
+      ranking: recruiting_season.ranking,
+      points: recruiting_season.points,
+      total_signed: recruiting_season.total_signed,
+      nil_spent: recruiting_season.nil_spent,
+      five_stars: recruiting_season.five_stars,
+      four_stars: recruiting_season.four_stars,
+      three_stars: recruiting_season.three_stars,
+      two_stars: recruiting_season.two_stars,
+      one_stars: recruiting_season.one_stars
+    }
   end
 
   def player_to_watch_json(college_season)

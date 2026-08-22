@@ -83,6 +83,8 @@ class CollegeSeasonRosterSerializer
     {
       id: student_season.id,
       name: student_season.student.name,
+      first_name: student_season.student.first_name,
+      last_name: student_season.student.last_name,
       position: student_season.position,
       class_year: student_season.class_year,
       overall: student_season.overall,

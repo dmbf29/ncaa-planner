@@ -27,6 +27,8 @@ import PlayersOfTheWeekUpdatePage from "./pages/PlayersOfTheWeekUpdatePage";
 import NilSpendUpdatePage from "./pages/NilSpendUpdatePage";
 import ConferenceStandingsUpdatePage from "./pages/ConferenceStandingsUpdatePage";
 import TeamScheduleUpdatePage from "./pages/TeamScheduleUpdatePage";
+import RecruitingUpdatePage from "./pages/RecruitingUpdatePage";
+import SeasonCoachesPage from "./pages/SeasonCoachesPage";
 
 function App() {
   return (
@@ -63,6 +65,8 @@ function App() {
         <Route path="/dynasty/updates/nil-spend" element={<NilSpendUpdatePage />} />
         <Route path="/dynasty/updates/standings" element={<ConferenceStandingsUpdatePage />} />
         <Route path="/dynasty/updates/team-schedule" element={<TeamScheduleUpdatePage />} />
+        <Route path="/dynasty/updates/recruiting" element={<RecruitingUpdatePage />} />
+        <Route path="/dynasty/updates/season/coaches" element={<SeasonCoachesPage />} />
       </Routes>
     </Layout>
   );

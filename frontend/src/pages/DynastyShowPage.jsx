@@ -9,7 +9,7 @@ import PlayersOfTheWeek from "../components/PlayersOfTheWeek";
 import AroundTheLeague from "../components/AroundTheLeague";
 import StandingsSnapshot from "../components/StandingsSnapshot";
 import AllAmericansSnapshot from "../components/AllAmericansSnapshot";
-import { fetchDynastyPortal, fetchDynastyDashboard, fetchStandings, fetchAllAmericans } from "../lib/apiClient";
+import { fetchDynastyPortal, fetchDynastyDashboard, fetchStandings, fetchAllAmericans, deleteSeason } from "../lib/apiClient";
 
 function TeamTabs({ teams, activeTeamId, onSelect }) {
   if (teams.length < 2) return null;
@@ -68,6 +68,7 @@ function DynastyShowPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTeamId, setActiveTeamId] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const authed = Boolean(localStorage.getItem("jwt"));
 
   useEffect(() => {
@@ -115,6 +116,20 @@ function DynastyShowPage() {
   }, [dynastyId, seasonId, navigate]);
 
   const coachedConferences = dashboard ? [...new Set(dashboard.teams.map((team) => team.college.conference))] : [];
+
+  const handleDeleteSeason = async () => {
+    const message = `Delete the ${dashboard?.year} season? This permanently removes its weeks, games, stats, standings, and rosters for every team. This cannot be undone.`;
+    if (!window.confirm(message)) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await deleteSeason(dynastyId, seasonId);
+      navigate(`/dynasty/${dynastyId}`);
+    } catch (err) {
+      setError(err.message);
+      setDeleting(false);
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4">
@@ -196,6 +211,24 @@ function DynastyShowPage() {
             />
           </div>
         </>
+      )}
+
+      {authed && dashboard && (
+        <div className="mt-10 mb-8 rounded-md border border-danger/30 p-4">
+          <h3 className="text-sm font-semibold text-danger">Danger Zone</h3>
+          <p className="mt-1 text-sm text-textSecondary">
+            Permanently delete the {dashboard.year} season, including its weeks, games, stats, standings, and
+            rosters for every team. This cannot be undone.
+          </p>
+          <button
+            type="button"
+            onClick={handleDeleteSeason}
+            disabled={deleting}
+            className="mt-3 rounded-md border border-danger/40 px-4 py-2 text-sm font-semibold text-danger transition hover:bg-danger/10 disabled:opacity-60"
+          >
+            {deleting ? "Deleting..." : "Delete Season"}
+          </button>
+        </div>
       )}
     </div>
   );

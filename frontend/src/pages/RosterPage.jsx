@@ -1,8 +1,18 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
-import { fetchRoster, createInjury, updateInjury, deleteInjury } from "../lib/apiClient";
+import {
+  fetchRoster,
+  createInjury,
+  updateInjury,
+  deleteInjury,
+  updateStudentSeasonName,
+  commitRosterImport,
+} from "../lib/apiClient";
+
+const nameInputClass =
+  "w-20 rounded border border-transparent bg-transparent px-1 py-0.5 text-textPrimary focus:border-burnt focus:bg-white focus:outline-none dark:text-white dark:focus:bg-darksurface";
 
 function ClassBreakdownChart({ classBreakdown }) {
   if (!classBreakdown) return null;
@@ -42,6 +52,53 @@ function latestInjury(injuries) {
 function injuryTooltip(injury) {
   const status = injury.outForSeason ? "Out for the season" : `Expected back Week ${injury.returnWeekNumber}`;
   return `${injury.description} — ${status}`;
+}
+
+function PlayerNameCell({ player }) {
+  const [firstName, setFirstName] = useState(player.firstName || "");
+  const [lastName, setLastName] = useState(player.lastName || "");
+  const [error, setError] = useState(null);
+  const saveTimer = useRef(null);
+
+  const scheduleSave = (nextFirstName, nextLastName) => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      try {
+        setError(null);
+        await updateStudentSeasonName(player.id, { firstName: nextFirstName, lastName: nextLastName });
+      } catch (err) {
+        setError(err.message);
+      }
+    }, 600);
+  };
+
+  useEffect(() => () => saveTimer.current && clearTimeout(saveTimer.current), []);
+
+  return (
+    <div>
+      <div className="flex gap-1">
+        <input
+          value={firstName}
+          onChange={(e) => {
+            setFirstName(e.target.value);
+            scheduleSave(e.target.value, lastName);
+          }}
+          className={nameInputClass}
+          aria-label="First name"
+        />
+        <input
+          value={lastName}
+          onChange={(e) => {
+            setLastName(e.target.value);
+            scheduleSave(firstName, e.target.value);
+          }}
+          className={`${nameInputClass} w-28`}
+          aria-label="Last name"
+        />
+      </div>
+      {error && <p className="text-xs text-danger">{error}</p>}
+    </div>
+  );
 }
 
 function PositionGroupTable({ group, authed, onReportInjury }) {
@@ -84,7 +141,9 @@ function PositionGroupTable({ group, authed, onReportInjury }) {
               const currentInjury = latestInjury(player.injuries);
               return (
                 <tr key={player.id} className="border-b border-border/60 last:border-0 dark:border-darkborder/60">
-                  <td className="px-4 py-1.5 text-textPrimary dark:text-white">{player.name}</td>
+                  <td className="px-1 py-1.5 text-textPrimary dark:text-white">
+                    {authed ? <PlayerNameCell player={player} /> : player.name}
+                  </td>
                   <td className="px-2 py-1.5 text-textSecondary">{player.position}</td>
                   <td className="px-2 py-1.5 text-textSecondary">{player.classYear}</td>
                   <td className="px-2 py-1.5 text-right font-semibold">{player.overall ?? "—"}</td>
@@ -243,12 +302,99 @@ function InjuryModal({ player, injury, games, onClose, onSaved }) {
   );
 }
 
+function ImportRosterForm({ dynastyId, seasonId, collegeSeasonId, onClose, onImported }) {
+  const [text, setText] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [error, setError] = useState(null);
+  const [warnings, setWarnings] = useState(null);
+
+  const handleImport = async () => {
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      setError("That's not valid JSON.");
+      return;
+    }
+    if (!Array.isArray(parsed.players)) {
+      setError('Expected an object with a "players" array.');
+      return;
+    }
+
+    setImporting(true);
+    setError(null);
+    setWarnings(null);
+    try {
+      const result = await commitRosterImport(dynastyId, seasonId, collegeSeasonId, parsed.players);
+      setWarnings(result.warnings || []);
+      onImported();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <Card>
+      <div className="p-5 space-y-3">
+        <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">Import Roster</h3>
+        <p className="text-sm text-textSecondary">
+          Paste a JSON object with a &ldquo;players&rdquo; array. Returning players are matched to last season&rsquo;s
+          roster automatically.
+        </p>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={10}
+          placeholder='{"players": [...]}'
+          className="w-full rounded-md border border-border bg-white px-3 py-2 font-mono text-xs text-textPrimary focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface dark:text-white"
+        />
+
+        {error && <p className="text-sm text-danger">{error}</p>}
+        {warnings && warnings.length > 0 && (
+          <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-textPrimary dark:text-white">
+            <p className="font-semibold">{warnings.length} player{warnings.length === 1 ? "" : "s"} couldn&rsquo;t be saved:</p>
+            <ul className="mt-1 list-disc pl-5">
+              {warnings.map((warning, index) => (
+                <li key={index}>
+                  {warning.player}: {warning.error}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {warnings && warnings.length === 0 && <p className="text-sm font-semibold text-success">Imported successfully.</p>}
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handleImport}
+            disabled={importing || !text.trim()}
+            className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {importing ? "Importing..." : "Import Roster"}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-textSecondary hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function RosterPage() {
   const { dynastyId, seasonId, collegeSeasonId } = useParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [injuryModal, setInjuryModal] = useState(null);
+  const [showImport, setShowImport] = useState(false);
   const authed = Boolean(localStorage.getItem("jwt"));
 
   const reload = useCallback(() => {
@@ -270,17 +416,40 @@ function RosterPage() {
         eyebrow={data ? `${data.collegeSeason.season.year} Season` : undefined}
         title={data ? `${data.collegeSeason.college.name} Roster` : "Roster"}
         actions={
-          <Link
-            to={`/dynasty/${dynastyId}/seasons/${seasonId}`}
-            className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
-          >
-            &larr; Back to Dashboard
-          </Link>
+          <>
+            {authed && (
+              <button
+                type="button"
+                onClick={() => setShowImport((prev) => !prev)}
+                className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+              >
+                Import
+              </button>
+            )}
+            <Link
+              to={`/dynasty/${dynastyId}/seasons/${seasonId}`}
+              className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+            >
+              &larr; Back to Dashboard
+            </Link>
+          </>
         }
       />
 
       {loading && <p className="text-sm text-textSecondary">Loading roster...</p>}
       {error && <p className="text-sm text-danger">{error}</p>}
+
+      {showImport && (
+        <div className="mb-4">
+          <ImportRosterForm
+            dynastyId={dynastyId}
+            seasonId={seasonId}
+            collegeSeasonId={collegeSeasonId}
+            onClose={() => setShowImport(false)}
+            onImported={reload}
+          />
+        </div>
+      )}
 
       {data && (
         <div className="space-y-4">

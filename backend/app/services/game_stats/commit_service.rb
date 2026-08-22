@@ -114,17 +114,14 @@ module GameStats
 
     # AI-extracted names come as "H.Crandall" (first-initial + last name,
     # per PlayerCategoryExtractor's prompt) unless the user edited the
-    # review field to a full name — handle both. Full-name splitting
-    # matches ScrapeStudentsJob#split_name (last word = last name) so the
-    # same person resolves to the same Student either way.
+    # review field to a full name — handle both. Full-name splitting uses
+    # Student.split_full_name so the same person resolves to the same
+    # Student regardless of which path produced their record.
     def split_display_name(name)
       match = name.match(/\A([A-Za-z])\.\s*(.+)\z/)
       return [ match[1], match[2].strip ] if match
 
-      parts = name.split(/\s+/)
-      return [ parts.first, "" ] if parts.size == 1
-
-      [ parts[0..-2].join(" "), parts[-1] ]
+      Student.split_full_name(name)
     end
 
     def resolve_college(team_name)

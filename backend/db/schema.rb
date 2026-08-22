@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_13_072430) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_22_061946) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -120,7 +120,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_13_072430) do
     t.integer "offense"
     t.integer "defense"
     t.float "prestige"
-    t.integer "recruiting_rank"
     t.bigint "college_id", null: false
     t.bigint "coach_id"
     t.bigint "season_id", null: false
@@ -303,6 +302,22 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_13_072430) do
     t.index ["team_id"], name: "index_position_boards_on_team_id"
   end
 
+  create_table "recruiting_seasons", force: :cascade do |t|
+    t.bigint "college_season_id", null: false
+    t.integer "ranking"
+    t.float "points"
+    t.integer "total_signed"
+    t.integer "nil_spent"
+    t.integer "five_stars"
+    t.integer "four_stars"
+    t.integer "three_stars"
+    t.integer "two_stars"
+    t.integer "one_stars"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["college_season_id"], name: "index_recruiting_seasons_on_college_season_id", unique: true
+  end
+
   create_table "roster_slots", force: :cascade do |t|
     t.bigint "position_board_id", null: false
     t.bigint "player_id", null: false
@@ -463,6 +478,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_13_072430) do
   add_foreign_key "players_of_the_week", "weeks"
   add_foreign_key "position_boards", "squads"
   add_foreign_key "position_boards", "teams"
+  add_foreign_key "recruiting_seasons", "college_seasons"
   add_foreign_key "roster_slots", "players"
   add_foreign_key "roster_slots", "position_boards"
   add_foreign_key "seasons", "dynasties"

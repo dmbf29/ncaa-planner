@@ -73,7 +73,7 @@ class ScrapeStudentsJob < ApplicationJob
   def upsert_student(college_season, attrs)
     return if attrs[:name].blank?
 
-    first_name, last_name = split_name(attrs[:name])
+    first_name, last_name = Student.split_full_name(attrs[:name])
     student = Student.find_or_create_for_college(first_name: first_name, last_name: last_name, college: college_season.college)
 
     student_season = student.student_seasons.find_or_initialize_by(college_season: college_season)
@@ -84,12 +84,5 @@ class ScrapeStudentsJob < ApplicationJob
     student_season.dev_trait = attrs[:dev_trait]
     student_season.speed = attrs[:attribute_values]["speed"]
     student_season.save
-  end
-
-  def split_name(name)
-    parts = name.strip.split(/\s+/)
-    return [ parts.first, "" ] if parts.size == 1
-
-    [ parts[0..-2].join(" "), parts[-1] ]
   end
 end

@@ -1,6 +1,6 @@
 class CollegeSeason < ApplicationRecord
   OFFENSE_POSITIONS = %w[QB HB FB WR TE LT LG C RG RT].freeze
-  DEFENSE_POSITIONS = %w[CB DT FS LE RE LOLB MLB ROLB SS].freeze
+  DEFENSE_POSITIONS = %w[CB DT FS LE RE LOLB MLB ROLB SS MIKE WILL SAM].freeze
   UNDERCLASS_YEARS = %w[FR FR(RS) SO SO(RS)].freeze
   BREAKOUT_DEV_TRAITS = %w[star elite].freeze
 
@@ -11,7 +11,7 @@ class CollegeSeason < ApplicationRecord
     "Tight Ends" => %w[TE],
     "Offensive Line" => %w[LT LG C RG RT],
     "Defensive Line" => %w[LE RE DT],
-    "Linebackers" => %w[MLB LOLB ROLB],
+    "Linebackers" => %w[MLB LOLB ROLB MIKE WILL SAM],
     "Secondary" => %w[CB FS SS],
     "Kickers/Punters" => %w[K P]
   }.freeze
@@ -20,7 +20,9 @@ class CollegeSeason < ApplicationRecord
   belongs_to :coach, optional: true
   belongs_to :season
   has_many :student_seasons, dependent: :destroy
+  has_one :recruiting_season, dependent: :destroy
   validates :season, uniqueness: { scope: :college }
+  validates :coach_id, uniqueness: { scope: :season_id }, allow_nil: true
 
   def games
     Game.where(week_id: season.week_ids)

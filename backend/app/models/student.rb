@@ -1,4 +1,8 @@
 class Student < ApplicationRecord
+  # Name suffixes that belong with the last name, not treated as the last
+  # name on their own — see split_full_name.
+  NAME_SUFFIXES = %w[Jr. Sr. Jr Sr II III IV V].freeze
+
   has_many :student_seasons, dependent: :destroy
 
   validates :first_name, presence: true
@@ -6,6 +10,24 @@ class Student < ApplicationRecord
 
   def name
     "#{first_name} #{last_name}".strip
+  end
+
+  # Naively splits a full display name ("Quentis Griffin Jr.") into
+  # first/last on the assumption that the last word is the last name —
+  # except when that last word is a generational suffix (Jr., III, ...),
+  # in which case it's folded into the last name instead ("Quentis" /
+  # "Griffin Jr."), since a bare "Jr."/"III" as a last name is never
+  # correct and breaks any matching that compares last names directly
+  # (e.g. RosterImport::CommitService).
+  def self.split_full_name(name)
+    parts = name.to_s.strip.split(/\s+/)
+    return [ parts.first || "", "" ] if parts.size <= 1
+
+    if parts.size > 2 && NAME_SUFFIXES.include?(parts[-1])
+      [ parts[0..-3].join(" "), parts[-2..].join(" ") ]
+    else
+      [ parts[0..-2].join(" "), parts[-1] ]
+    end
   end
 
   # Matching by name alone risks merging two different real people who

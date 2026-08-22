@@ -12,6 +12,10 @@ class Season < ApplicationRecord
     create_college_seasons
   end
 
+  def previous_season
+    dynasty.seasons.where("year < ?", year).order(year: :desc).first
+  end
+
   def create_college_seasons
     College.find_each do |college|
       college_season = CollegeSeason.find_or_initialize_by(

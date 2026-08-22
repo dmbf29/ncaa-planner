@@ -101,6 +101,22 @@ module Api
         render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
       end
 
+      def analyze_recruiting
+        authorize @season
+        result = Recruiting::Extractor.new.call(Array(params[:images]))
+        render json: result
+      rescue RubyLLM::Error => e
+        render json: { error: "AI extraction failed: #{e.message}", code: "extraction_failed" }, status: :unprocessable_entity
+      end
+
+      def commit_recruiting
+        authorize @season
+        warnings = Recruiting::CommitService.new(@season).call(commit_rows)
+        render json: { season_id: @season.id, warnings: warnings }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
+      end
+
       def analyze_team_schedule
         authorize @season
         result = TeamSchedule::ScheduleExtractor.new.call(Array(params[:images]), season: @season)
@@ -114,6 +130,34 @@ module Api
         college_season = @season.college_seasons.find_by!(college_id: params[:college_id])
         warnings = TeamSchedule::CommitService.new(college_season).call(team_stats_params, commit_rows)
         render json: { college_season_id: college_season.id, warnings: warnings }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
+      end
+
+      def destroy
+        authorize @season
+        @season.destroy
+        head :no_content
+      end
+
+      def commit_roster_import
+        authorize @season
+        college_season = @season.college_seasons.find_by!(id: params[:college_season_id])
+        warnings = RosterImport::CommitService.new(college_season).call(commit_players)
+        render json: { college_season_id: college_season.id, warnings: warnings }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
+      end
+
+      def coach_assignments
+        authorize @season
+        render json: SeasonCoachAssignmentsSerializer.new(@season).as_json
+      end
+
+      def commit_coach_assignments
+        authorize @season
+        warnings = CoachContinuity::CommitService.new(@season).call(commit_assignments)
+        render json: { season_id: @season.id, warnings: warnings }
       rescue ActiveRecord::RecordInvalid => e
         render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
       end
@@ -140,6 +184,16 @@ module Api
       def commit_groups
         params.require(:groups)
         params[:groups].map { |group| group.to_unsafe_h.deep_symbolize_keys }
+      end
+
+      def commit_assignments
+        params.require(:assignments)
+        params[:assignments].map { |assignment| assignment.to_unsafe_h.deep_symbolize_keys }
+      end
+
+      def commit_players
+        params.require(:players)
+        params[:players].map { |player| player.to_unsafe_h.deep_symbolize_keys }
       end
 
       def team_stats_params

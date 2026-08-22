@@ -7,6 +7,10 @@ class SeasonPolicy < ApplicationPolicy
     owner?
   end
 
+  def destroy?
+    owner?
+  end
+
   def analyze_schedule?
     owner?
   end
@@ -39,6 +43,14 @@ class SeasonPolicy < ApplicationPolicy
     owner?
   end
 
+  def analyze_recruiting?
+    owner?
+  end
+
+  def commit_recruiting?
+    owner?
+  end
+
   def analyze_players_of_the_week?
     owner?
   end
@@ -52,6 +64,18 @@ class SeasonPolicy < ApplicationPolicy
   end
 
   def commit_team_schedule?
+    owner?
+  end
+
+  def commit_roster_import?
+    owner?
+  end
+
+  def coach_assignments?
+    owner?
+  end
+
+  def commit_coach_assignments?
     owner?
   end
 

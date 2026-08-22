@@ -143,6 +143,14 @@ export const fetchRoster = (dynastyId, seasonId, collegeSeasonId) =>
     .get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/college_seasons/${collegeSeasonId}/roster`)
     .then((r) => r.data);
 
+export const updateStudentSeasonName = (id, payload) =>
+  api.put(`/api/v1/student_seasons/${id}`, { studentSeason: payload }).then((r) => r.data);
+
+export const commitRosterImport = (dynastyId, seasonId, collegeSeasonId, players) =>
+  api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_roster_import`, { collegeSeasonId, players })
+    .then((r) => r.data);
+
 export const fetchWeekGames = (dynastyId, seasonId, weekNumber) =>
   api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/weeks/${weekNumber}/games`).then((r) => r.data);
 
@@ -151,6 +159,9 @@ export const fetchSeason = (dynastyId, seasonId) =>
 
 export const createSeason = (dynastyId, payload) =>
   api.post(`/api/v1/dynasties/${dynastyId}/seasons`, { season: payload }).then((r) => r.data);
+
+export const deleteSeason = (dynastyId, seasonId) =>
+  api.delete(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}`).then((r) => r.data);
 
 export const analyzeSchedule = (dynastyId, seasonId, files) => {
   const formData = new FormData();
@@ -227,6 +238,21 @@ export const commitConferenceStandings = (dynastyId, seasonId, rows) =>
     .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_conference_standings`, { rows })
     .then((r) => r.data);
 
+export const analyzeRecruiting = (dynastyId, seasonId, files) => {
+  const formData = new FormData();
+  files.forEach((file) => formData.append("images[]", file));
+  return api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/analyze_recruiting`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+    .then((r) => r.data);
+};
+
+export const commitRecruiting = (dynastyId, seasonId, rows) =>
+  api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_recruiting`, { rows })
+    .then((r) => r.data);
+
 export const fetchGame = (id) => api.get(`/api/v1/games/${id}`).then((r) => r.data);
 
 export const analyzeGameStats = (id, buckets) => {
@@ -293,6 +319,14 @@ export const commitTeamSchedule = (dynastyId, seasonId, collegeId, teamStats, ro
       teamStats,
       rows,
     })
+    .then((r) => r.data);
+
+export const fetchCoachAssignments = (dynastyId, seasonId) =>
+  api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/coach_assignments`).then((r) => r.data);
+
+export const commitCoachAssignments = (dynastyId, seasonId, assignments) =>
+  api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_coach_assignments`, { assignments })
     .then((r) => r.data);
 
 export const login = ({ email, password }) =>

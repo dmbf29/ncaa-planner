@@ -28,7 +28,7 @@ Rails.application.routes.draw do
       resources :colleges, only: %i[index]
 
       resources :dynasties, only: %i[index] do
-        resources :seasons, only: %i[show create] do
+        resources :seasons, only: %i[show create destroy] do
           member do
             post :analyze_schedule
             post :commit_schedule
@@ -38,10 +38,15 @@ Rails.application.routes.draw do
             post :commit_nil_spend
             post :analyze_conference_standings
             post :commit_conference_standings
+            post :analyze_recruiting
+            post :commit_recruiting
             post :analyze_players_of_the_week
             post :commit_players_of_the_week
             post :analyze_team_schedule
             post :commit_team_schedule
+            get :coach_assignments
+            post :commit_coach_assignments
+            post :commit_roster_import
           end
         end
       end
@@ -64,7 +69,7 @@ Rails.application.routes.draw do
         end
       end
 
-      resources :student_seasons, only: [] do
+      resources :student_seasons, only: %i[update] do
         resources :injuries, only: %i[create update destroy]
       end
 
