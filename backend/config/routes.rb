@@ -27,9 +27,12 @@ Rails.application.routes.draw do
 
       resources :colleges, only: %i[index]
 
+      resources :college_seasons, only: %i[update]
+
       resources :dynasties, only: %i[index] do
         resources :seasons, only: %i[show create destroy] do
           member do
+            get :team_attributes
             post :analyze_schedule
             post :commit_schedule
             post :analyze_all_americans
@@ -38,6 +41,8 @@ Rails.application.routes.draw do
             post :commit_nil_spend
             post :analyze_conference_standings
             post :commit_conference_standings
+            post :analyze_team_stats
+            post :commit_team_stats
             post :analyze_recruiting
             post :commit_recruiting
             post :analyze_players_of_the_week
@@ -46,6 +51,7 @@ Rails.application.routes.draw do
             post :commit_team_schedule
             get :coach_assignments
             post :commit_coach_assignments
+            post :analyze_roster_import
             post :commit_roster_import
           end
         end
@@ -74,7 +80,7 @@ Rails.application.routes.draw do
       end
 
       # Public, unauthenticated broadcast data for third-party consumption (e.g. podcast generation).
-      get "dynasties/:dynasty_id/seasons/:season_id/preview", to: "season_broadcasts#preview"
+      get "dynasties/:dynasty_id/seasons/:season_id/win_totals", to: "season_broadcasts#win_totals"
       get "dynasties/:dynasty_id/seasons/:season_id/weeks", to: "season_broadcasts#weeks"
       get "dynasties/:dynasty_id/seasons/:season_id/team_breakdown", to: "season_broadcasts#team_breakdown"
 

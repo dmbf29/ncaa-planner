@@ -124,11 +124,10 @@ namespace :dynasty do
         Game.find_or_create_by!(week:, home_college:, away_college:)
       end
     end
-    CollegeSeason.where.not(coach: nil).each do |cs|
-      cs.opponent_college_seasons.each do |college_season|
-        ScrapeStudentsJob.perform_now(college_season_id: college_season.id) unless college_season.student_seasons.count == 85
-        sleep(2)
-      end
+    CollegeSeason.each do |college_season|
+      # 50 is just a random number
+      ScrapeStudentsJob.perform_now(college_season_id: college_season.id) unless college_season.student_seasons.count > 50
+      sleep(5)
     end
   end
 end

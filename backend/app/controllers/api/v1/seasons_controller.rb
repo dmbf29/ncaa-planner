@@ -69,6 +69,11 @@ module Api
         render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
       end
 
+      def team_attributes
+        authorize @season
+        render json: ::TeamAttributesSerializer.new(@season).as_json
+      end
+
       def analyze_conference_standings
         authorize @season
         result = ConferenceStandings::Extractor.new.call(Array(params[:images]))
@@ -80,6 +85,23 @@ module Api
       def commit_conference_standings
         authorize @season
         warnings = ConferenceStandings::CommitService.new(@season).call(commit_rows)
+        render json: { season_id: @season.id, warnings: warnings }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
+      end
+
+      def analyze_team_stats
+        authorize @season
+        extractor = params[:stat_type] == "defense" ? TeamStats::DefenseExtractor.new : TeamStats::OffenseExtractor.new
+        result = extractor.call(Array(params[:images]))
+        render json: result
+      rescue RubyLLM::Error => e
+        render json: { error: "AI extraction failed: #{e.message}", code: "extraction_failed" }, status: :unprocessable_entity
+      end
+
+      def commit_team_stats
+        authorize @season
+        warnings = TeamStats::CommitService.new(@season, params[:stat_type]).call(commit_rows)
         render json: { season_id: @season.id, warnings: warnings }
       rescue ActiveRecord::RecordInvalid => e
         render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
@@ -138,6 +160,13 @@ module Api
         authorize @season
         @season.destroy
         head :no_content
+      end
+
+      def analyze_roster_import
+        authorize @season
+        college_season = @season.college_seasons.find_by!(id: params[:college_season_id])
+        result = RosterImport::Analyzer.new(college_season).call(commit_players)
+        render json: { players: result }
       end
 
       def commit_roster_import

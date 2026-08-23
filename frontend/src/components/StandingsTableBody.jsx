@@ -1,6 +1,8 @@
 import { clsx } from "clsx";
+import { Link } from "react-router-dom";
 
-function StandingsTableBody({ teams }) {
+function StandingsTableBody({ teams, dynastyId, seasonId }) {
+  const canLinkToRoster = Boolean(dynastyId && seasonId);
   return (
     <table className="w-full text-sm">
       <thead>
@@ -23,7 +25,16 @@ function StandingsTableBody({ teams }) {
             <td className="px-4 py-2">
               <span className="flex items-center gap-1.5">
                 {team.rank && <span className="text-textSecondary">#{team.rank}</span>}
-                {team.college.name}
+                {canLinkToRoster ? (
+                  <Link
+                    to={`/dynasty/${dynastyId}/seasons/${seasonId}/college_seasons/${team.id}/roster`}
+                    className="hover:text-burnt hover:underline"
+                  >
+                    {team.college.name}
+                  </Link>
+                ) : (
+                  team.college.name
+                )}
                 {team.coachedByUs && <i className="fa-solid fa-gamepad text-[10px] text-burnt/80" title="User-coached" />}
               </span>
             </td>

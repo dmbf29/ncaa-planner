@@ -132,6 +132,12 @@ export const fetchDynastyDashboard = (dynastyId, seasonId) =>
 export const fetchStandings = (dynastyId, seasonId) =>
   api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/standings`).then((r) => r.data);
 
+export const fetchTeamAttributes = (dynastyId, seasonId) =>
+  api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/team_attributes`).then((r) => r.data);
+
+export const updateCollegeSeasonAttributes = (id, payload) =>
+  api.put(`/api/v1/college_seasons/${id}`, { collegeSeason: payload }).then((r) => r.data);
+
 export const fetchRankings = (dynastyId, seasonId, weekNumber) =>
   api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/weeks/${weekNumber}/rankings`).then((r) => r.data);
 
@@ -145,6 +151,11 @@ export const fetchRoster = (dynastyId, seasonId, collegeSeasonId) =>
 
 export const updateStudentSeasonName = (id, payload) =>
   api.put(`/api/v1/student_seasons/${id}`, { studentSeason: payload }).then((r) => r.data);
+
+export const analyzeRosterImport = (dynastyId, seasonId, collegeSeasonId, players) =>
+  api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/analyze_roster_import`, { collegeSeasonId, players })
+    .then((r) => r.data);
 
 export const commitRosterImport = (dynastyId, seasonId, collegeSeasonId, players) =>
   api
@@ -236,6 +247,22 @@ export const analyzeConferenceStandings = (dynastyId, seasonId, files) => {
 export const commitConferenceStandings = (dynastyId, seasonId, rows) =>
   api
     .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_conference_standings`, { rows })
+    .then((r) => r.data);
+
+export const analyzeTeamStats = (dynastyId, seasonId, files, statType) => {
+  const formData = new FormData();
+  files.forEach((file) => formData.append("images[]", file));
+  formData.append("stat_type", statType);
+  return api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/analyze_team_stats`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+    .then((r) => r.data);
+};
+
+export const commitTeamStats = (dynastyId, seasonId, rows, statType) =>
+  api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_team_stats`, { rows, statType })
     .then((r) => r.data);
 
 export const analyzeRecruiting = (dynastyId, seasonId, files) => {

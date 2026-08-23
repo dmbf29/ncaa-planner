@@ -59,7 +59,7 @@ class SeasonWeeksMarkdownPresenter
       "Results Recap & Rival Matchups — Deep dive into the highlighted games.",
       "Around the #{conference_label} — Quick hits on other conference games.",
       "Injury Report — Who's banged up, who's expected back, and how it affects the depth chart (if any injuries are active).",
-      "Winners & Losers - the hosts each pick 1 team/player who won the week, and 1 who los",
+      "Winners & Losers - the hosts each pick 1 team/player who won the week, and 1 who lost",
       "Top 25 Poll Watch — Discuss rankings and national standing shifts (if focused teams are included)",
       "Week #{next_number} Preview — Look ahead to next week's opponents and the hosts make predictions"
     ]

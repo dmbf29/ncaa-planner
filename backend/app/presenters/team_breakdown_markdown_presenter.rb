@@ -11,7 +11,7 @@ class TeamBreakdownMarkdownPresenter
     lines.concat(PodcastShow.directive_lines(show_name: show_name))
     lines.concat(PodcastShow.opening_script_lines(show_name: show_name, framing_hint: "the roster, position by position"))
     lines.concat(PodcastShow.run_of_show_lines(@data[:positions].map { |p| p[:position_group] }))
-    lines << "# 🏈 TEAM BREAKDOWN: #{show_name} — #{@data[:season][:year]}"
+    lines << "# 🏈 ROSTER BREAKDOWN: #{show_name} — #{@data[:season][:year]}"
     lines << ""
     lines << "> #{producer_note}"
     lines << ""

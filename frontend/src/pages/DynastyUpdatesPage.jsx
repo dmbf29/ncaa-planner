@@ -5,24 +5,48 @@ import Card from "../components/Card";
 import { fetchDynasties, fetchSeason, fetchStandings, createSeason } from "../lib/apiClient";
 
 const WEEKLY_UPDATES = [
-  { key: "games", label: "Add Games/Results", description: "Upload the weekly schedule screenshots.", to: "/dynasty/updates/schedule" },
-  { key: "top25", label: "Update Top 25", description: "Upload the weekly AP-style poll screenshots.", to: "/dynasty/updates/top25" },
-  { key: "standings", label: "Update Conference Standings", description: "Upload the conference standings screenshots.", to: "/dynasty/updates/standings" },
-  { key: "players-of-the-week", label: "Add Players of the Week", description: "Upload the weekly National/Conference Players of the Week screenshots.", to: "/dynasty/updates/players-of-the-week" },
-  { key: "heisman", label: "Add Heisman Candidates", description: "Upload the weekly Heisman Watch List screenshot.", to: "/dynasty/updates/heisman" },
-  { key: "team-schedule", label: "Update Team Schedule", description: "Upload a team's full-season schedule screenshots.", to: "/dynasty/updates/team-schedule" },
+  { key: "games", label: "Games/Results", description: "Upload the weekly schedule screenshots.", to: "/dynasty/updates/schedule" },
+  { key: "top25", label: "Top 25", description: "Upload the weekly AP-style poll screenshots.", to: "/dynasty/updates/top25" },
+  { key: "players-of-the-week", label: "Players of the Week", description: "Upload the weekly National/Conference Players of the Week screenshots.", to: "/dynasty/updates/players-of-the-week" },
+  { key: "heisman", label: "Heisman Candidates", description: "Upload the weekly Heisman Watch List screenshot.", to: "/dynasty/updates/heisman" },
+  { key: "standings", label: "Conference Standings", description: "Upload the conference standings screenshots.", to: "/dynasty/updates/standings" },
+  { key: "team-schedule", label: "Team Schedule", description: "Upload a team's full-season schedule screenshots.", to: "/dynasty/updates/team-schedule" },
 ];
 
 const OCCASIONAL_UPDATES = [
-  { key: "all-americans", label: "Add All-Americans", description: "Upload the National/Conference All-American screenshots.", to: "/dynasty/updates/all-americans" },
-  { key: "nil-spend", label: "Update NIL Spend", description: "Upload the conference NIL spend screenshots.", to: "/dynasty/updates/nil-spend" },
-  { key: "recruiting", label: "Update Recruiting", description: "Upload the national recruiting class rankings screenshots.", to: "/dynasty/updates/recruiting" },
-  { key: "season", label: "Start a New Season", description: "Create the next season for your dynasty." },
+  { key: "nil-spend", label: "NIL Spend", description: "Upload the conference NIL spend screenshots.", to: "/dynasty/updates/nil-spend", tags: ["preseason"] },
+  { key: "recruiting", label: "Recruiting Recap", description: "Upload the national recruiting class rankings screenshots.", to: "/dynasty/updates/recruiting", tags: ["postseason"] },
+  { key: "all-americans", label: "All-Americans", description: "Upload the National/Conference All-American screenshots.", to: "/dynasty/updates/all-americans", tags: ["preseason", "postseason"] },
+  { key: "team-attributes", label: "Team Attributes", description: "Update overall, offense, defense, and prestige for every team.", to: "/dynasty/updates/team-attributes", tags: ["preseason"] },
+  { key: "team-stats", label: "Team Stats", description: "Upload the league-wide offense/defense stats screenshots.", to: "/dynasty/updates/team-stats" },
+  { key: "season", label: "Start a New Season", description: "Create the next season for your dynasty.", tags: ["postseason"] },
 ];
 
+// Occasional updates are tagged by when in the year they come up, and the section sorts by
+// that tag (preseason before postseason) rather than the order above. An update tagged with
+// both sorts alongside its earliest tag but still shows every tag it carries.
+const TAG_ORDER = ["preseason", "postseason"];
+
+const TAG_LABELS = {
+  preseason: "Preseason",
+  postseason: "Postseason",
+};
+
+const TAG_BADGE_CLASSES = {
+  preseason: "bg-olive/10 text-olive",
+  postseason: "bg-burnt/10 text-burnt",
+};
+
+function sortByTag(updates) {
+  return [...updates].sort((a, b) => {
+    const aRank = Math.min(...(a.tags || []).map((tag) => TAG_ORDER.indexOf(tag)));
+    const bRank = Math.min(...(b.tags || []).map((tag) => TAG_ORDER.indexOf(tag)));
+    return aRank - bRank;
+  });
+}
+
 const COMING_SOON_UPDATES = [
-  { key: "team-stats", label: "Update Team Stats", description: "Coming soon." },
-  { key: "player-stats", label: "Update Player Stats", description: "Coming soon." },
+  { key: "player-stats", label: "Player Stats", description: "Coming soon." },
 ];
 
 const BADGE_TONE_CLASSES = {
@@ -41,12 +65,26 @@ function WeeklyBadge({ status }) {
   );
 }
 
+function TagBadges({ tags }) {
+  if (!tags || tags.length === 0) return null;
+
+  return (
+    <div className="flex gap-1">
+      {tags.map((tag) => (
+        <span key={tag} className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${TAG_BADGE_CLASSES[tag]}`}>
+          {TAG_LABELS[tag]}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function UpdateCard({ update, status, onClick }) {
   const content = (
     <div className="p-5 space-y-1.5">
       <div className="flex items-start justify-between gap-2">
         <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">{update.label}</h3>
-        <WeeklyBadge status={status} />
+        {status ? <WeeklyBadge status={status} /> : <TagBadges tags={update.tags} />}
       </div>
       <p className="text-sm text-textSecondary">{update.description}</p>
     </div>
@@ -100,14 +138,6 @@ function weeklyStatus(lastWeekNumber, dueWeekNumber) {
   if (lastWeekNumber == null) return { label: "Not started", tone: "neutral" };
   if (lastWeekNumber >= dueWeekNumber) return { label: `Up to date · Week ${lastWeekNumber}`, tone: "good" };
   return { label: `Needs Week ${dueWeekNumber}`, tone: "warn" };
-}
-
-// Conference standings are a season-wide overwrite with no week attached to
-// them, so there's no "which week is this current through" to check —
-// just whether anything's been entered at all.
-function standingsStatus(standings) {
-  const hasData = standings?.conferences?.some((conference) => conference.teams.some((team) => team.conferenceWins != null));
-  return { label: hasData ? "Data entered" : "Not started", tone: "neutral" };
 }
 
 function NewSeasonModal({ year, onYearChange, onClose, onSubmit, submitting, error, disabled }) {
@@ -177,7 +207,7 @@ function DynastyUpdatesPage() {
 
         const latestSeason = [...(dynasty.seasons || [])].sort((a, b) => b.year - a.year)[0];
         if (!latestSeason) return;
-        const [season, standings] = await Promise.all([
+        const [season] = await Promise.all([
           fetchSeason(dynasty.id, latestSeason.id),
           fetchStandings(dynasty.id, latestSeason.id).catch(() => null),
         ]);
@@ -192,7 +222,6 @@ function DynastyUpdatesPage() {
           // upcoming matchups), so they're due as soon as the current week starts.
           top25: weeklyStatus(season.top25?.week?.number, currentWeekNumber),
           heisman: weeklyStatus(season.heismanWatch?.weeks?.[0]?.week?.number, currentWeekNumber),
-          standings: standingsStatus(standings),
         });
       } catch {
         // Non-fatal here — cards just render without their status badges.
@@ -244,7 +273,7 @@ function DynastyUpdatesPage() {
         <UpdateSection
           title="Occasional"
           hint="Update these as needed — not tied to a specific week."
-          updates={OCCASIONAL_UPDATES}
+          updates={sortByTag(OCCASIONAL_UPDATES)}
           onSeasonClick={openSeasonModal}
         />
         <UpdateSection title="Coming Soon" updates={COMING_SOON_UPDATES} />

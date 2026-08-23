@@ -145,8 +145,8 @@ function ExportPage() {
   const [error, setError] = useState(null);
   const navigate = useNavigate();
 
-  const [previewFormat, setPreviewFormat] = useState("markdown");
-  const [previewMode, setPreviewMode] = useState("download");
+  const [winTotalsFormat, setWinTotalsFormat] = useState("markdown");
+  const [winTotalsMode, setWinTotalsMode] = useState("download");
 
   const [weeksFormat, setWeeksFormat] = useState("markdown");
   const [weeksMode, setWeeksMode] = useState("download");
@@ -193,9 +193,9 @@ function ExportPage() {
     setSelectedWeeks((prev) => (prev.includes(number) ? prev.filter((n) => n !== number) : [...prev, number].sort((a, b) => a - b)));
   };
 
-  const previewUrl = season
-    ? `${API_BASE_URL}/api/v1/dynasties/${season.dynastyId}/seasons/${season.id}/preview${
-        previewFormat === "markdown" ? "?format=markdown" : ""
+  const winTotalsUrl = season
+    ? `${API_BASE_URL}/api/v1/dynasties/${season.dynastyId}/seasons/${season.id}/win_totals${
+        winTotalsFormat === "markdown" ? "?format=markdown" : ""
       }`
     : "";
 
@@ -222,17 +222,6 @@ function ExportPage() {
       {season && (
         <>
           <ExportCard
-            title="Season Preview"
-            description="Storylines, ratings, players to watch, and Week 1 matchups for our coached teams — meant for a preseason episode."
-            format={previewFormat}
-            setFormat={setPreviewFormat}
-            mode={previewMode}
-            setMode={setPreviewMode}
-            url={previewUrl}
-            filename={`season-${season.year}-preview.${previewFormat === "markdown" ? "md" : "json"}`}
-          />
-
-          <ExportCard
             title="Weekly Recap & Preview"
             description="Results, ranking movement, and next-game previews for our coached teams."
             format={weeksFormat}
@@ -240,7 +229,7 @@ function ExportPage() {
             mode={weeksMode}
             setMode={setWeeksMode}
             url={weeksUrl}
-            filename={`week-${selectedWeeks.join("-")}-recap.${weeksFormat === "markdown" ? "md" : "json"}`}
+            filename={`${season.year}_week-${selectedWeeks.join("-")}-recap.${weeksFormat === "markdown" ? "md" : "json"}`}
             disabled={selectedWeeks.length === 0}
             extraControls={
               <div className="space-y-1.5">
@@ -274,14 +263,25 @@ function ExportPage() {
           />
 
           <ExportCard
-            title="Team Breakdown"
+            title="Win Totals: Over/Under"
+            description="Projected Vegas-style win totals for our coached teams, with full schedule and opponent detail — hosts debate over/under, then predict each conference champion."
+            format={winTotalsFormat}
+            setFormat={setWinTotalsFormat}
+            mode={winTotalsMode}
+            setMode={setWinTotalsMode}
+            url={winTotalsUrl}
+            filename={`${season.year}_win-totals.${winTotalsFormat === "markdown" ? "md" : "json"}`}
+          />
+
+          <ExportCard
+            title="Roster Breakdown"
             description="Position-group-by-position-group comparison of our coached teams — best players, average ratings, NIL spend, and All-Americans, plus how we stack up against the rest of the conference."
             format={teamBreakdownFormat}
             setFormat={setTeamBreakdownFormat}
             mode={teamBreakdownMode}
             setMode={setTeamBreakdownMode}
             url={teamBreakdownUrl}
-            filename={`season-${season.year}-team-breakdown.${teamBreakdownFormat === "markdown" ? "md" : "json"}`}
+            filename={`${season.year}_team-breakdown.${teamBreakdownFormat === "markdown" ? "md" : "json"}`}
           />
         </>
       )}

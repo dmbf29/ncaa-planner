@@ -8,11 +8,24 @@ import {
   updateInjury,
   deleteInjury,
   updateStudentSeasonName,
+  analyzeRosterImport,
   commitRosterImport,
 } from "../lib/apiClient";
 
 const nameInputClass =
   "w-20 rounded border border-transparent bg-transparent px-1 py-0.5 text-textPrimary focus:border-burnt focus:bg-white focus:outline-none dark:text-white dark:focus:bg-darksurface";
+
+const STATUS_BADGE_CLASSES = {
+  match: "bg-success/10 text-success",
+  new: "bg-textSecondary/10 text-textSecondary",
+  ambiguous: "bg-warning/10 text-warning",
+};
+
+const STATUS_LABELS = {
+  match: "Match",
+  new: "New Player",
+  ambiguous: "Needs Review",
+};
 
 function ClassBreakdownChart({ classBreakdown }) {
   if (!classBreakdown) return null;
@@ -302,87 +315,227 @@ function InjuryModal({ player, injury, games, onClose, onSaved }) {
   );
 }
 
+function CandidatePicker({ row, onChange }) {
+  return (
+    <select
+      value={row.studentId ?? ""}
+      onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
+      className="w-full max-w-[260px] rounded-md border border-warning/50 bg-white px-2 py-1 text-xs text-textPrimary focus:border-burnt focus:outline-none dark:border-warning/40 dark:bg-darksurface dark:text-white"
+    >
+      <option value="">— Create New Player —</option>
+      {row.candidates.map((candidate) => (
+        <option key={candidate.studentId} value={candidate.studentId}>
+          {candidate.name} ({candidate.position}, {candidate.classYear}, {candidate.overall ?? "—"} OVR)
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function ImportReviewRow({ row, onChange }) {
+  return (
+    <tr className="border-b border-border/60 last:border-0 dark:border-darkborder/60">
+      <td className="px-2 py-1.5 text-textPrimary dark:text-white">
+        {row.firstName} {row.lastName}
+      </td>
+      <td className="px-2 py-1.5 text-textSecondary">
+        {row.position} &middot; {row.classYear}
+      </td>
+      <td className="px-2 py-1.5">
+        <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_BADGE_CLASSES[row.status]}`}>
+          {STATUS_LABELS[row.status]}
+        </span>
+      </td>
+      <td className="px-2 py-1.5">
+        {row.status === "match" && <span className="text-textSecondary">{row.matchedName}</span>}
+        {row.status === "new" && <span className="text-textSecondary">New Student</span>}
+        {row.status === "ambiguous" && <CandidatePicker row={row} onChange={onChange} />}
+      </td>
+    </tr>
+  );
+}
+
 function ImportRosterForm({ dynastyId, seasonId, collegeSeasonId, onClose, onImported }) {
   const [text, setText] = useState("");
-  const [importing, setImporting] = useState(false);
-  const [error, setError] = useState(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState(null);
+
+  const [rows, setRows] = useState(null);
+  const [committing, setCommitting] = useState(false);
+  const [commitError, setCommitError] = useState(null);
+  const [saved, setSaved] = useState(false);
   const [warnings, setWarnings] = useState(null);
 
-  const handleImport = async () => {
+  const handleAnalyze = async () => {
     let parsed;
     try {
       parsed = JSON.parse(text);
     } catch {
-      setError("That's not valid JSON.");
+      setAnalyzeError("That's not valid JSON.");
       return;
     }
     if (!Array.isArray(parsed.players)) {
-      setError('Expected an object with a "players" array.');
+      setAnalyzeError('Expected an object with a "players" array.');
       return;
     }
 
-    setImporting(true);
-    setError(null);
-    setWarnings(null);
+    setAnalyzing(true);
+    setAnalyzeError(null);
     try {
-      const result = await commitRosterImport(dynastyId, seasonId, collegeSeasonId, parsed.players);
-      setWarnings(result.warnings || []);
-      onImported();
+      const result = await analyzeRosterImport(dynastyId, seasonId, collegeSeasonId, parsed.players);
+      setRows(
+        result.players.map((row) => ({
+          ...row,
+          studentId: row.status === "ambiguous" ? row.suggestedStudentId : (row.studentId ?? null),
+        })),
+      );
     } catch (err) {
-      setError(err.message);
+      setAnalyzeError(err.message);
     } finally {
-      setImporting(false);
+      setAnalyzing(false);
     }
   };
+
+  const updateRow = (index, studentId) => {
+    setRows((prev) => prev.map((row, i) => (i === index ? { ...row, studentId } : row)));
+  };
+
+  const handleCommit = async () => {
+    setCommitting(true);
+    setCommitError(null);
+    try {
+      const result = await commitRosterImport(dynastyId, seasonId, collegeSeasonId, rows);
+      setWarnings(result.warnings || []);
+      setSaved(true);
+      onImported();
+    } catch (err) {
+      setCommitError(err.message);
+    } finally {
+      setCommitting(false);
+    }
+  };
+
+  const counts = rows
+    ? rows.reduce(
+        (acc, row) => {
+          acc[row.status] += 1;
+          return acc;
+        },
+        { match: 0, new: 0, ambiguous: 0 },
+      )
+    : null;
 
   return (
     <Card>
       <div className="p-5 space-y-3">
         <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">Import Roster</h3>
-        <p className="text-sm text-textSecondary">
-          Paste a JSON object with a &ldquo;players&rdquo; array. Returning players are matched to last season&rsquo;s
-          roster automatically.
-        </p>
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          rows={10}
-          placeholder='{"players": [...]}'
-          className="w-full rounded-md border border-border bg-white px-3 py-2 font-mono text-xs text-textPrimary focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface dark:text-white"
-        />
 
-        {error && <p className="text-sm text-danger">{error}</p>}
-        {warnings && warnings.length > 0 && (
-          <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-textPrimary dark:text-white">
-            <p className="font-semibold">{warnings.length} player{warnings.length === 1 ? "" : "s"} couldn&rsquo;t be saved:</p>
-            <ul className="mt-1 list-disc pl-5">
-              {warnings.map((warning, index) => (
-                <li key={index}>
-                  {warning.player}: {warning.error}
-                </li>
-              ))}
-            </ul>
+        {saved ? (
+          <div className="space-y-2">
+            <p className="text-sm font-semibold text-success">Saved! Roster has been updated.</p>
+            {warnings && warnings.length > 0 && (
+              <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-textPrimary dark:text-white">
+                <p className="font-semibold">{warnings.length} player{warnings.length === 1 ? "" : "s"} couldn&rsquo;t be saved:</p>
+                <ul className="mt-1 list-disc pl-5">
+                  {warnings.map((warning, index) => (
+                    <li key={index}>
+                      {warning.player}: {warning.error}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-textSecondary hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+            >
+              Close
+            </button>
           </div>
-        )}
-        {warnings && warnings.length === 0 && <p className="text-sm font-semibold text-success">Imported successfully.</p>}
+        ) : !rows ? (
+          <>
+            <p className="text-sm text-textSecondary">
+              Paste a JSON object with a &ldquo;players&rdquo; array. Returning players are matched to their existing
+              record automatically — anything ambiguous gets flagged for you to confirm before saving.
+            </p>
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              rows={10}
+              placeholder='{"players": [...]}'
+              className="w-full rounded-md border border-border bg-white px-3 py-2 font-mono text-xs text-textPrimary focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface dark:text-white"
+            />
+            {analyzeError && <p className="text-sm text-danger">{analyzeError}</p>}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleAnalyze}
+                disabled={analyzing || !text.trim()}
+                className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {analyzing ? "Analyzing..." : "Analyze"}
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-textSecondary hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+              >
+                Close
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-textSecondary">
+              {counts.match} matched &middot; {counts.new} new &middot; {counts.ambiguous} need review
+            </p>
+            <div className="max-h-[420px] overflow-y-auto overflow-x-auto rounded-md border border-border dark:border-darkborder">
+              <table className="w-full min-w-[560px] text-left text-sm">
+                <thead className="sticky top-0 bg-surface dark:bg-darksurface">
+                  <tr className="border-b border-border text-xs uppercase tracking-wide text-textSecondary dark:border-darkborder">
+                    <th className="px-2 py-2 font-semibold">Player</th>
+                    <th className="px-2 py-2 font-semibold">Pos / Yr</th>
+                    <th className="px-2 py-2 font-semibold">Status</th>
+                    <th className="px-2 py-2 font-semibold">Match</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row, index) => (
+                    <ImportReviewRow key={index} row={row} onChange={(studentId) => updateRow(index, studentId)} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={handleImport}
-            disabled={importing || !text.trim()}
-            className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {importing ? "Importing..." : "Import Roster"}
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-textSecondary hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
-          >
-            Close
-          </button>
-        </div>
+            {commitError && <p className="text-sm text-danger">{commitError}</p>}
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleCommit}
+                disabled={committing}
+                className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {committing ? "Saving..." : "Confirm Import"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setRows(null)}
+                className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-textSecondary hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-textSecondary hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+              >
+                Cancel
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </Card>
   );

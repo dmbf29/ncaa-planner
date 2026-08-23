@@ -43,6 +43,18 @@ class SeasonPolicy < ApplicationPolicy
     owner?
   end
 
+  def team_attributes?
+    owner?
+  end
+
+  def analyze_team_stats?
+    owner?
+  end
+
+  def commit_team_stats?
+    owner?
+  end
+
   def analyze_recruiting?
     owner?
   end
@@ -64,6 +76,10 @@ class SeasonPolicy < ApplicationPolicy
   end
 
   def commit_team_schedule?
+    owner?
+  end
+
+  def analyze_roster_import?
     owner?
   end
 

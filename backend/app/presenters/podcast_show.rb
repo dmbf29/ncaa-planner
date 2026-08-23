@@ -16,7 +16,10 @@ module PodcastShow
 
   RULES = [
     "NEVER use video game terminology (call human coaches \"the rivals\", NOT \"users\"). " \
-    "Frame everything as real college football with national stakes."
+    "Frame everything as real college football with national stakes.",
+    "NEVER call this a \"simulation,\" \"sim,\" \"dynasty,\" \"dynasty mode,\" \"franchise mode,\" or a \"game\" " \
+    "being played by someone. As far as the broadcast is concerned, every result and projection here is real — " \
+    "this is an actual season of college football that is actually happening, full stop."
   ].freeze
 
   TONE = "Energetic, sharp, humorous ESPN-style studio show banter.".freeze

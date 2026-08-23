@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_22_061946) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_23_080143) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -139,6 +139,21 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_22_061946) do
     t.integer "home_wins"
     t.integer "home_losses"
     t.jsonb "bye_week_ids", default: [], null: false
+    t.integer "points_scored"
+    t.integer "total_offensive_yards"
+    t.float "yards_per_play"
+    t.integer "passing_yards"
+    t.integer "passing_touchdowns"
+    t.integer "rushing_yards"
+    t.integer "rushing_touchdowns"
+    t.integer "first_downs"
+    t.integer "points_allowed"
+    t.integer "total_yards_allowed"
+    t.integer "passing_yards_allowed"
+    t.integer "rushing_yards_allowed"
+    t.integer "defensive_sacks"
+    t.integer "fumble_recoveries"
+    t.integer "defensive_interceptions"
     t.index ["coach_id"], name: "index_college_seasons_on_coach_id"
     t.index ["college_id"], name: "index_college_seasons_on_college_id"
     t.index ["season_id"], name: "index_college_seasons_on_season_id"

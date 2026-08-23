@@ -6,9 +6,9 @@ module Api
     class SeasonBroadcastsController < ApplicationController
       before_action :set_season
 
-      def preview
-        data = ::SeasonPreviewSerializer.new(@season).as_json
-        render_broadcast(data) { ::SeasonPreviewMarkdownPresenter.new(data).to_markdown }
+      def win_totals
+        data = ::WinTotalsSerializer.new(@season).as_json
+        render_broadcast(data) { ::WinTotalsMarkdownPresenter.new(data).to_markdown }
       end
 
       def weeks

@@ -50,7 +50,7 @@ function ConferenceStandingsPage() {
       {data && (
         <div className="grid gap-4 md:grid-cols-2">
           {data.conferences.map((conference) => (
-            <StandingsTable key={conference.conference} conference={conference} />
+            <StandingsTable key={conference.conference} conference={conference} dynastyId={dynastyId} seasonId={seasonId} />
           ))}
         </div>
       )}
