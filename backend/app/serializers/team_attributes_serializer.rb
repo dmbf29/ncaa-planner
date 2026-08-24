@@ -18,8 +18,7 @@ class TeamAttributesSerializer
   def college_seasons_by_conference
     @season.college_seasons
            .includes(:college)
-           .joins(:college)
-           .group_by { |cs| cs.college.conference }
+           .group_by(&:conference)
            .sort_by { |conference, _rows| conference.to_s }
   end
 
@@ -34,6 +33,7 @@ class TeamAttributesSerializer
     {
       id: college_season.id,
       college: { id: college_season.college.id, name: college_season.college.name },
+      conference: college_season.conference,
       overall: college_season.overall,
       offense: college_season.offense,
       defense: college_season.defense,

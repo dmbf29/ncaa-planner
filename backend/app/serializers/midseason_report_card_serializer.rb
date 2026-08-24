@@ -70,7 +70,7 @@ class MidseasonReportCardSerializer
   end
 
   def college_seasons_by_conference
-    @college_seasons_by_conference ||= all_college_seasons.group_by { |cs| cs.college.conference }
+    @college_seasons_by_conference ||= all_college_seasons.group_by(&:conference)
   end
 
   def team_json(college_season)
@@ -79,7 +79,7 @@ class MidseasonReportCardSerializer
     record = record_json(played_games)
 
     {
-      college: college_json(college_season.college),
+      college: college_json(college_season.college, college_season.conference),
       coach: { id: college_season.coach.id, name: college_season.coach.name },
       ratings: ratings_json(college_season),
       record: record,
@@ -93,8 +93,8 @@ class MidseasonReportCardSerializer
     }
   end
 
-  def college_json(college)
-    { id: college.id, name: college.name, conference: college.conference }
+  def college_json(college, conference)
+    { id: college.id, name: college.name, conference: conference }
   end
 
   def ratings_json(college_season)
@@ -118,8 +118,8 @@ class MidseasonReportCardSerializer
   end
 
   def conference_game?(game)
-    team_conference = game[:college_season].college.conference
-    team_conference.present? && team_conference == game[:opponent_college].conference
+    team_conference = game[:college_season].conference
+    team_conference.present? && team_conference == game[:opponent]&.conference
   end
 
   def record_note(college_season, derived_record)
@@ -132,7 +132,7 @@ class MidseasonReportCardSerializer
   end
 
   def conference_standing_json(college_season)
-    conference = college_season.college.conference
+    conference = college_season.conference
     return nil unless conference
 
     ranked = college_seasons_by_conference.fetch(conference, [])
@@ -226,7 +226,7 @@ class MidseasonReportCardSerializer
     {
       week_number: game[:week].number,
       home: game[:home],
-      opponent: college_json(game[:opponent_college]),
+      opponent: college_json(game[:opponent_college], game[:opponent]&.conference),
       score: { team: game[:result][:team_score], opponent: game[:result][:opponent_score] }
     }
   end
@@ -264,7 +264,7 @@ class MidseasonReportCardSerializer
   # season totals, so a team that's had a bye isn't penalized against one
   # that hasn't — same reasoning as the per-game figures shown alongside.
   def conference_stat_rank(college_season, column)
-    conference = college_season.college.conference
+    conference = college_season.conference
     return nil unless conference
 
     leaderboard = conference_stat_leaderboard(conference, column)
@@ -321,7 +321,7 @@ class MidseasonReportCardSerializer
     {
       week_number: game[:week].number,
       home: game[:home],
-      opponent: college_json(game[:opponent_college]),
+      opponent: college_json(game[:opponent_college], game[:opponent]&.conference),
       opponent_ratings: ratings_json(game[:opponent]),
       result: game[:result],
       pregame_projection: pregame_projection(game)
@@ -332,7 +332,7 @@ class MidseasonReportCardSerializer
     {
       week_number: game[:week].number,
       home: game[:home],
-      opponent: college_json(game[:opponent_college]),
+      opponent: college_json(game[:opponent_college], game[:opponent]&.conference),
       opponent_ratings: ratings_json(game[:opponent]),
       projection: pregame_projection(game)
     }

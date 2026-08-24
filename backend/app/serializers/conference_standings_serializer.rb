@@ -20,8 +20,7 @@ class ConferenceStandingsSerializer
   def college_seasons_by_conference
     @season.college_seasons
            .includes(:college, :coach)
-           .joins(:college)
-           .group_by { |cs| cs.college.conference }
+           .group_by(&:conference)
            .sort_by { |conference, _rows| conference.to_s }
   end
 

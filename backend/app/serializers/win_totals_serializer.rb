@@ -82,7 +82,7 @@ class WinTotalsSerializer
     schedule = games.map { |g| game_json(g) }
 
     {
-      college: college_json(college_season.college),
+      college: college_json(college_season.college, college_season.conference),
       coach: { id: college_season.coach.id, name: college_season.coach.name },
       ratings: ratings_json(college_season),
       previous_season_record: previous_season_record_json(college_season.college_id),
@@ -102,8 +102,8 @@ class WinTotalsSerializer
     }
   end
 
-  def college_json(college)
-    { id: college.id, name: college.name, conference: college.conference }
+  def college_json(college, conference)
+    { id: college.id, name: college.name, conference: conference }
   end
 
   def ratings_json(college_season)
@@ -143,7 +143,7 @@ class WinTotalsSerializer
     {
       week_number: context[:week].number,
       home: context[:home],
-      opponent: college_json(context[:opponent_college]),
+      opponent: college_json(context[:opponent_college], opponent_cs&.conference),
       opponent_ratings: ratings_json(opponent_cs),
       opponent_previous_season_record: previous_season_record_json(context[:opponent_college].id),
       opponent_key_players: opponent_cs && key_players_json(opponent_cs),
@@ -216,11 +216,11 @@ class WinTotalsSerializer
   end
 
   def conference_landscape_json
-    conferences = coached_college_seasons.filter_map { |cs| cs.college.conference }.uniq
+    conferences = coached_college_seasons.filter_map(&:conference).uniq
 
     conferences.map do |conference|
       others = all_college_seasons.select do |cs|
-        cs.college.conference == conference && !coached_college_ids.include?(cs.college_id)
+        cs.conference == conference && !coached_college_ids.include?(cs.college_id)
       end
 
       teams = others.map { |cs| conference_rival_json(cs) }
@@ -232,7 +232,7 @@ class WinTotalsSerializer
 
   def conference_rival_json(college_season)
     {
-      college: college_json(college_season.college),
+      college: college_json(college_season.college, college_season.conference),
       overall: college_season.overall,
       previous_season_record: previous_season_record_json(college_season.college_id),
       vegas_win_total: @calculator.vegas_win_total(college_season, scheduled_games(college_season))
@@ -240,10 +240,10 @@ class WinTotalsSerializer
   end
 
   def champion_predictions_json
-    conferences = coached_college_seasons.filter_map { |cs| cs.college.conference }.uniq
+    conferences = coached_college_seasons.filter_map(&:conference).uniq
 
     conferences.map do |conference|
-      ranked = strength_ranked.select { |cs, _strength| cs.college.conference == conference }
+      ranked = strength_ranked.select { |cs, _strength| cs.conference == conference }
       favorite = ranked.first
       our_best = ranked.find { |cs, _strength| coached_college_ids.include?(cs.college_id) }
 
@@ -257,7 +257,7 @@ class WinTotalsSerializer
 
   def strength_entry_json((college_season, strength), gap_to: nil)
     {
-      college: college_json(college_season.college),
+      college: college_json(college_season.college, college_season.conference),
       coach: college_season.coach && { id: college_season.coach.id, name: college_season.coach.name },
       team_strength: strength.round(1),
       coached_by_us: coached_college_ids.include?(college_season.college_id),

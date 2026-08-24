@@ -39,7 +39,7 @@ class WeekRankingsSerializer
     {
       rank: cwr.ranking,
       rank_trend: rank_trend(cwr.ranking, previous_rankings_by_college_id[cwr.college_id]),
-      college: { id: cwr.college.id, name: cwr.college.name, conference: cwr.college.conference },
+      college: { id: cwr.college.id, name: cwr.college.name, conference: college_season&.conference },
       coached_by_us: coached_college_ids.include?(cwr.college_id),
       record: college_season && { wins: college_season.wins, losses: college_season.losses },
       this_week: this_week_matchup_json(cwr.college_id),

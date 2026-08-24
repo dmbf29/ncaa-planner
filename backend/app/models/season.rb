@@ -17,11 +17,14 @@ class Season < ApplicationRecord
   end
 
   def create_college_seasons
+    previous_conferences = previous_season&.college_seasons&.pluck(:college_id, :conference)&.to_h || {}
+
     College.find_each do |college|
       college_season = CollegeSeason.find_or_initialize_by(
         college:,
         season: self,
       )
+      college_season.conference ||= previous_conferences[college.id] || college.conference
       college_season.save
     end
   end

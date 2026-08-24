@@ -91,7 +91,7 @@ class SeasonDashboardSerializer
     {
       rank: cwr.ranking,
       rank_trend: rank_trend(cwr.ranking, previous_rankings_by_college_id[cwr.college_id]),
-      college: { id: cwr.college.id, name: cwr.college.name, conference: cwr.college.conference },
+      college: { id: cwr.college.id, name: cwr.college.name, conference: college_season&.conference },
       coached_by_us: coached_college_ids.include?(cwr.college_id),
       record: college_season && { wins: college_season.wins, losses: college_season.losses },
       this_week: this_week_matchup_json(cwr.college_id),
@@ -326,7 +326,7 @@ class SeasonDashboardSerializer
         id: college_season.college.id,
         name: college_season.college.name,
         alternate_name: college_season.college.alternate_name,
-        conference: college_season.college.conference
+        conference: college_season.conference
       },
       coach: { id: college_season.coach.id, name: college_season.coach.name },
       overall: college_season.overall,

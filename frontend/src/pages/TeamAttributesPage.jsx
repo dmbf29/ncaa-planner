@@ -31,8 +31,9 @@ function AttributeInput({ value, onChange, step = 1 }) {
   );
 }
 
-function TeamAttributesRow({ team }) {
+function TeamAttributesRow({ team, conferenceOptions }) {
   const [values, setValues] = useState({
+    conference: team.conference,
     overall: team.overall,
     offense: team.offense,
     defense: team.defense,
@@ -77,6 +78,22 @@ function TeamAttributesRow({ team }) {
       <td className="px-2 py-1.5">
         <AttributeInput value={values.prestige} onChange={(prestige) => update({ prestige })} step={0.5} />
       </td>
+      <td className="px-2 py-1.5">
+        <select
+          value={values.conference ?? ""}
+          onChange={(e) => update({ conference: e.target.value === "" ? null : e.target.value })}
+          className="w-32 rounded border border-transparent bg-transparent px-1.5 py-1 text-sm text-textPrimary focus:border-burnt focus:bg-white focus:outline-none dark:text-white dark:focus:bg-darksurface"
+        >
+          <option value="" disabled>
+            Select...
+          </option>
+          {conferenceOptions.map((conference) => (
+            <option key={conference} value={conference}>
+              {conference}
+            </option>
+          ))}
+        </select>
+      </td>
       <td className="px-3 py-1.5 text-xs">
         {status && <span className={STATUS_CLASSES[status]}>{STATUS_LABELS[status]}</span>}
       </td>
@@ -84,7 +101,7 @@ function TeamAttributesRow({ team }) {
   );
 }
 
-function ConferenceAttributesTable({ conference }) {
+function ConferenceAttributesTable({ conference, conferenceOptions }) {
   return (
     <Card className="overflow-hidden">
       <div className="border-b border-border bg-charcoal px-4 py-3 text-white dark:border-darkborder">
@@ -98,13 +115,14 @@ function ConferenceAttributesTable({ conference }) {
               <th className="px-2 py-2 font-semibold">Overall</th>
               <th className="px-2 py-2 font-semibold">Offense</th>
               <th className="px-2 py-2 font-semibold">Defense</th>
+              <th className="px-2 py-2 font-semibold">Conference</th>
               <th className="px-2 py-2 font-semibold">Prestige</th>
               <th className="px-3 py-2 font-semibold"></th>
             </tr>
           </thead>
           <tbody>
             {conference.teams.map((team) => (
-              <TeamAttributesRow key={team.id} team={team} />
+              <TeamAttributesRow key={team.id} team={team} conferenceOptions={conferenceOptions} />
             ))}
           </tbody>
         </table>
@@ -148,8 +166,10 @@ function TeamAttributesPage() {
     load();
   }, [navigate]);
 
+  const conferenceOptions = data ? data.conferences.map((c) => c.conference).filter(Boolean) : [];
+
   return (
-    <div className="max-w-5xl mx-auto px-4">
+    <div className="px-4">
       <PageHeader
         title="Team Attributes"
         eyebrow="Dynasty Updates"
@@ -171,7 +191,11 @@ function TeamAttributesPage() {
           <p className="text-sm text-textSecondary">Changes save automatically as you type.</p>
           <div className="grid gap-4 md:grid-cols-2">
             {data.conferences.map((conference) => (
-              <ConferenceAttributesTable key={conference.conference} conference={conference} />
+              <ConferenceAttributesTable
+                key={conference.conference}
+                conference={conference}
+                conferenceOptions={conferenceOptions}
+              />
             ))}
           </div>
         </div>

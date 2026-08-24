@@ -60,11 +60,15 @@ class SeasonWeeksSerializer
   # the conference" scoreboard to results relevant to our dynasty rather
   # than every other game league-wide.
   def coached_conferences
-    @coached_conferences ||= coached_college_seasons.map { |cs| cs.college.conference }.uniq
+    @coached_conferences ||= coached_college_seasons.map(&:conference).uniq
   end
 
   def college_seasons_by_college_id
     @college_seasons_by_college_id ||= @season.college_seasons.index_by(&:college_id)
+  end
+
+  def conference_for(college_id)
+    college_seasons_by_college_id[college_id]&.conference
   end
 
   def all_games
@@ -129,7 +133,7 @@ class SeasonWeeksSerializer
       rank: cwr.ranking,
       previous_rank: previous&.ranking,
       status: ranking_status(cwr, previous),
-      college: { id: college.id, name: college.name, conference: college.conference },
+      college: { id: college.id, name: college.name, conference: conference_for(college.id) },
       coached_by_us: coached_college_ids.include?(college.id),
       record: record_before(college.id, games_for_college(college.id), poll_week.number)
     }
@@ -489,7 +493,7 @@ class SeasonWeeksSerializer
   def conference_results_for_week(week)
     all_games.select { |game| game.week_id == week.id }
              .reject { |game| coached_college_ids.include?(game.home_college_id) || coached_college_ids.include?(game.away_college_id) }
-             .select { |game| coached_conferences.include?(game.home_college.conference) || coached_conferences.include?(game.away_college.conference) }
+             .select { |game| coached_conferences.include?(conference_for(game.home_college_id)) || coached_conferences.include?(conference_for(game.away_college_id)) }
              .filter_map { |game| conference_game_json(game) }
   end
 
@@ -516,8 +520,7 @@ class SeasonWeeksSerializer
     previous_by_college = previous_week ? previous_week.college_week_rankings.includes(:college).index_by(&:college_id) : {}
 
     relevant_college_ids = (current_by_college.keys + previous_by_college.keys).uniq.select do |college_id|
-      college = (current_by_college[college_id] || previous_by_college[college_id]).college
-      coached_conferences.include?(college.conference) && !coached_college_ids.include?(college_id)
+      coached_conferences.include?(conference_for(college_id)) && !coached_college_ids.include?(college_id)
     end
 
     relevant_college_ids.map do |college_id|
@@ -545,8 +548,8 @@ class SeasonWeeksSerializer
 
     relevant_student_season_ids = (current_by_student_season.keys + previous_by_student_season.keys).uniq.select do |student_season_id|
       candidate = current_by_student_season[student_season_id] || previous_by_student_season[student_season_id]
-      college = candidate.student_season.college_season.college
-      coached_conferences.include?(college.conference) && !coached_college_ids.include?(college.id)
+      college_season = candidate.student_season.college_season
+      coached_conferences.include?(college_season.conference) && !coached_college_ids.include?(college_season.college_id)
     end
 
     relevant_student_season_ids.map do |student_season_id|

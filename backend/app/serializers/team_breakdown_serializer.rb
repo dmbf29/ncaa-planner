@@ -67,14 +67,13 @@ class TeamBreakdownSerializer
   end
 
   def coached_conferences
-    @coached_conferences ||= coached_college_seasons.filter_map { |cs| cs.college.conference }.uniq
+    @coached_conferences ||= coached_college_seasons.filter_map(&:conference).uniq
   end
 
   def conference_college_seasons
     @conference_college_seasons ||= @season.college_seasons
                                             .includes(:college, :coach, :student_seasons)
-                                            .joins(:college)
-                                            .where(colleges: { conference: coached_conferences })
+                                            .where(conference: coached_conferences)
                                             .to_a
   end
 
