@@ -28,6 +28,11 @@ module Api
         render_broadcast(data) { ::TeamBreakdownMarkdownPresenter.new(data).to_markdown }
       end
 
+      def midseason_report_cards
+        data = ::MidseasonReportCardSerializer.new(@season).as_json
+        render_broadcast(data) { ::MidseasonReportCardMarkdownPresenter.new(data).to_markdown }
+      end
+
       private
 
       def set_season

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { clsx } from "clsx";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
@@ -155,6 +155,9 @@ function ExportPage() {
   const [teamBreakdownFormat, setTeamBreakdownFormat] = useState("markdown");
   const [teamBreakdownMode, setTeamBreakdownMode] = useState("download");
 
+  const [reportCardsFormat, setReportCardsFormat] = useState("markdown");
+  const [reportCardsMode, setReportCardsMode] = useState("download");
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -213,9 +216,26 @@ function ExportPage() {
       }`
     : "";
 
+  const reportCardsUrl = season
+    ? `${API_BASE_URL}/api/v1/dynasties/${season.dynastyId}/seasons/${season.id}/midseason_report_cards${
+        reportCardsFormat === "markdown" ? "?format=markdown" : ""
+      }`
+    : "";
+
   return (
     <div className="max-w-4xl mx-auto px-4 space-y-6">
-      <PageHeader title="Export" eyebrow={season ? `${season.dynasty.name} · ${season.year} Season` : "Dynasty"} />
+      <PageHeader
+        title="Export"
+        eyebrow={season ? `${season.dynasty.name} · ${season.year} Season` : "Dynasty"}
+        actions={
+          <Link
+            to="/dynasty"
+            className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+          >
+            Back to Dashboard
+          </Link>
+        }
+      />
       {loading && <p className="text-sm text-textSecondary">Loading dynasty...</p>}
       {error && <p className="text-sm text-danger">{error}</p>}
 
@@ -282,6 +302,17 @@ function ExportPage() {
             setMode={setTeamBreakdownMode}
             url={teamBreakdownUrl}
             filename={`${season.year}_team-breakdown.${teamBreakdownFormat === "markdown" ? "md" : "json"}`}
+          />
+
+          <ExportCard
+            title="Midseason Report Cards"
+            description="Letter-grade debate for our coached teams — record, pace against the preseason Vegas number, signature wins and bad losses, team stats, and conference standing, ending with what it'll take to improve for the rest of the season."
+            format={reportCardsFormat}
+            setFormat={setReportCardsFormat}
+            mode={reportCardsMode}
+            setMode={setReportCardsMode}
+            url={reportCardsUrl}
+            filename={`${season.year}_midseason-report-cards.${reportCardsFormat === "markdown" ? "md" : "json"}`}
           />
         </>
       )}

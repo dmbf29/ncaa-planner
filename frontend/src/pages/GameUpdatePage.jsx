@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
@@ -537,6 +537,26 @@ function GameUpdatePage() {
   const [commitError, setCommitError] = useState(null);
   const [saved, setSaved] = useState(false);
 
+  // True while any of the three screenshot sections is mid-analyze — the
+  // save button stays disabled during this window so a save can't race
+  // ahead of stats that are still being extracted.
+  const anyAnalyzing = Boolean(sectionStatus.boxScore.analyzing || sectionStatus.home.analyzing || sectionStatus.away.analyzing);
+
+  // Flips on for a moment right as analysis finishes (rather than staying
+  // on for the whole "analyzing" window) so the save button's re-enable
+  // reads as a deliberate transition instead of an abrupt state flip.
+  const [justFinishedAnalyzing, setJustFinishedAnalyzing] = useState(false);
+  const wasAnalyzingRef = useRef(false);
+  useEffect(() => {
+    const wasAnalyzing = wasAnalyzingRef.current;
+    wasAnalyzingRef.current = anyAnalyzing;
+    if (wasAnalyzing && !anyAnalyzing) {
+      setJustFinishedAnalyzing(true);
+      const timer = setTimeout(() => setJustFinishedAnalyzing(false), 1200);
+      return () => clearTimeout(timer);
+    }
+  }, [anyAnalyzing]);
+
   // Any edit to the review data means the last save is now stale — used
   // instead of raw setAnalysis wherever the user (or a fresh AI pass)
   // changes something, so the "Saved" indicator only shows right after an
@@ -797,14 +817,26 @@ function GameUpdatePage() {
               <button
                 type="button"
                 onClick={handleCommit}
-                disabled={committing}
+                disabled={committing || anyAnalyzing}
                 className={
-                  saved
-                    ? "rounded-md border border-border bg-transparent px-4 py-2 text-sm font-semibold text-textSecondary transition hover:bg-border/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-darkborder dark:hover:bg-white/10"
-                    : "rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                  (saved
+                    ? "rounded-md border border-border bg-transparent px-4 py-2 text-sm font-semibold text-textSecondary transition-all duration-500 hover:bg-border/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-darkborder dark:hover:bg-white/10"
+                    : "rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition-all duration-500 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60") +
+                  (justFinishedAnalyzing ? " scale-105 ring-4 ring-success/50" : " scale-100 ring-0 ring-success/0")
                 }
               >
-                {committing ? "Saving..." : saved ? "✓ Saved" : "Save Game Stats — unsaved changes"}
+                {anyAnalyzing ? (
+                  <span className="flex items-center gap-2">
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                    Analyzing Photos...
+                  </span>
+                ) : committing ? (
+                  "Saving..."
+                ) : saved ? (
+                  "✓ Saved"
+                ) : (
+                  "Save Game Stats — unsaved changes"
+                )}
               </button>
               <button
                 type="button"

@@ -83,6 +83,7 @@ Rails.application.routes.draw do
       get "dynasties/:dynasty_id/seasons/:season_id/win_totals", to: "season_broadcasts#win_totals"
       get "dynasties/:dynasty_id/seasons/:season_id/weeks", to: "season_broadcasts#weeks"
       get "dynasties/:dynasty_id/seasons/:season_id/team_breakdown", to: "season_broadcasts#team_breakdown"
+      get "dynasties/:dynasty_id/seasons/:season_id/midseason_report_cards", to: "season_broadcasts#midseason_report_cards"
 
       # Public, unauthenticated dashboard data for the shareable dynasty portal — same
       # no-ownership-check reasoning as the broadcast routes above, but shaped for the frontend UI.
