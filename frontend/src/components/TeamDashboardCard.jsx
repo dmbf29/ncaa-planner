@@ -315,12 +315,20 @@ function TeamDashboardCard({ team, dynastyId, seasonId }) {
       </div>
 
       {dynastyId && seasonId && (
-        <Link
-          to={`/dynasty/${dynastyId}/seasons/${seasonId}/college_seasons/${team.id}/roster`}
-          className="border-t border-border px-4 py-2 text-center text-xs font-semibold uppercase tracking-wide text-burnt hover:bg-burnt/5 dark:border-darkborder"
-        >
-          Full Roster &rarr;
-        </Link>
+        <>
+          <Link
+            to={`/dynasty/${dynastyId}/seasons/${seasonId}/college_seasons/${team.id}/roster`}
+            className="border-t border-border px-4 py-2 text-center text-xs font-semibold uppercase tracking-wide text-burnt hover:bg-burnt/5 dark:border-darkborder"
+          >
+            Full Roster &rarr;
+          </Link>
+          <Link
+            to={`/dynasty/${dynastyId}/player-stats?collegeId=${team.college.id}`}
+            className="border-t border-border px-4 py-2 text-center text-xs font-semibold uppercase tracking-wide text-burnt hover:bg-burnt/5 dark:border-darkborder"
+          >
+            Player Stats &rarr;
+          </Link>
+        </>
       )}
     </Card>
   );

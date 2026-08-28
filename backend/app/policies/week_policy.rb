@@ -15,6 +15,14 @@ class WeekPolicy < ApplicationPolicy
     owner?
   end
 
+  def analyze_bowl_projections?
+    owner?
+  end
+
+  def commit_bowl_projections?
+    owner?
+  end
+
   def owner?
     record.season.dynasty.user == user
   end

@@ -694,7 +694,7 @@ function GameUpdatePage() {
     <div className="max-w-5xl mx-auto px-4 space-y-6">
       <PageHeader
         title={`${game.awayCollege.name} @ ${game.homeCollege.name}`}
-        eyebrow={`Week ${game.week.number}`}
+        eyebrow={game.bowlName ? `${game.bowlName} · Week ${game.week.number}` : `Week ${game.week.number}`}
         actions={
           <Link
             to="/dynasty"

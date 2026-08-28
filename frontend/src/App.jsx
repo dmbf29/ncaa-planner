@@ -15,6 +15,7 @@ import ConferenceStandingsPage from "./pages/ConferenceStandingsPage";
 import Top25Page from "./pages/Top25Page";
 import AllAmericansPage from "./pages/AllAmericansPage";
 import RosterPage from "./pages/RosterPage";
+import PlayerStatsPage from "./pages/PlayerStatsPage";
 import WeekResultsPage from "./pages/WeekResultsPage";
 import ExportPage from "./pages/ExportPage";
 import GameUpdatePage from "./pages/GameUpdatePage";
@@ -31,6 +32,7 @@ import TeamScheduleUpdatePage from "./pages/TeamScheduleUpdatePage";
 import RecruitingUpdatePage from "./pages/RecruitingUpdatePage";
 import SeasonCoachesPage from "./pages/SeasonCoachesPage";
 import TeamAttributesPage from "./pages/TeamAttributesPage";
+import BowlProjectionsUpdatePage from "./pages/BowlProjectionsUpdatePage";
 
 function App() {
   return (
@@ -55,6 +57,7 @@ function App() {
           path="/dynasty/:dynastyId/seasons/:seasonId/college_seasons/:collegeSeasonId/roster"
           element={<RosterPage />}
         />
+        <Route path="/dynasty/:dynastyId/player-stats" element={<PlayerStatsPage />} />
         <Route path="/dynasty/:dynastyId/seasons/:seasonId/weeks/:weekNumber/games" element={<WeekResultsPage />} />
         <Route path="/dynasty/export" element={<ExportPage />} />
         <Route path="/dynasty/games/:gameId" element={<GameUpdatePage />} />
@@ -71,6 +74,7 @@ function App() {
         <Route path="/dynasty/updates/recruiting" element={<RecruitingUpdatePage />} />
         <Route path="/dynasty/updates/season/coaches" element={<SeasonCoachesPage />} />
         <Route path="/dynasty/updates/team-attributes" element={<TeamAttributesPage />} />
+        <Route path="/dynasty/updates/bowl-projections" element={<BowlProjectionsUpdatePage />} />
       </Routes>
     </Layout>
   );

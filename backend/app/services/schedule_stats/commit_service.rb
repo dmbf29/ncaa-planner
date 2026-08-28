@@ -40,6 +40,7 @@ module ScheduleStats
       ActiveRecord::Base.transaction do
         game = find_or_create_game(away, home)
         update_time(game, row[:month], row[:day], row[:time_of_day])
+        update_bowl(game, row[:bowl_name])
         update_score(game, away, row[:away_score])
         update_score(game, home, row[:home_score])
       end
@@ -66,6 +67,12 @@ module ScheduleStats
       game.update!(time: Time.new(year, month, day, hour, match[2].to_i))
     rescue ArgumentError
       nil
+    end
+
+    def update_bowl(game, bowl_name)
+      return if bowl_name.blank?
+
+      game.update!(bowl_name: bowl_name, cfp_round: CfpRoundInference.call(bowl_name))
     end
 
     def update_score(game, college, score)

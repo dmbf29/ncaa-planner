@@ -68,6 +68,10 @@ module ScheduleStats
         array :games, description: "One entry per row in the MATCHUP column, in the order shown." do
           object do
             integer :row_number, description: "This row's position counting from 1 at the top, top to bottom across all images — must line up with the same row's position in the TIME(ET)/RESULT reading."
+            string :bowl_name, required: false,
+                   description: "The name shown in a GAME column to the left of the matchup, if this screenshot has " \
+                                "one (e.g. 'Alamo Bowl', 'CFP First Round', 'Cotton Bowl'). Leave unset if there is " \
+                                "no such column — a regular-season schedule screen only has MATCHUP and DATE."
             string :away_raw_name, description: "The team on the left of 'at' in the MATCHUP column, exactly as shown"
             string :away_college_name, enum: names,
                    description: "The database college that away_raw_name refers to — use your knowledge of team " \
@@ -121,7 +125,7 @@ module ScheduleStats
 
     def matchup_prompt
       "These screenshots together show one week's full schedule, split across multiple images if needed. " \
-        "Read every row in the MATCHUP and DATE columns, top to bottom, across all images."
+        "Read every row in the GAME (if present), MATCHUP, and DATE columns, top to bottom, across all images."
     end
 
     def result_prompt
@@ -136,6 +140,7 @@ module ScheduleStats
       scores = resolved_scores(result)
 
       {
+        bowl_name: matchup["bowl_name"],
         away_raw_name: away_raw,
         away_college_id: resolve_college(away_raw, matchup["away_college_name"])&.id,
         home_raw_name: home_raw,

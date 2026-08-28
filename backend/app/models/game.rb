@@ -1,4 +1,13 @@
 class Game < ApplicationRecord
+  # Bowl week (Week#post_season) games only. cfp_round is nil for both
+  # regular-season games and non-playoff bowl games (e.g. "Alamo Bowl") —
+  # only games in the actual College Football Playoff bracket get one.
+  # first_round/quarterfinal/semifinal/championship line up 1:1 with the
+  # four post-season weeks Season#create_weeks generates ("Bowl Week 1"-4),
+  # and championship doubles as the national championship marker since
+  # it's always that bracket's last round.
+  enum :cfp_round, { first_round: 0, quarterfinal: 1, semifinal: 2, championship: 3 }
+
   belongs_to :week
   belongs_to :home_college, class_name: "College"
   belongs_to :away_college, class_name: "College"

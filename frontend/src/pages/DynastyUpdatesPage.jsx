@@ -19,21 +19,24 @@ const OCCASIONAL_UPDATES = [
   { key: "all-americans", label: "All-Americans", description: "Upload the National/Conference All-American screenshots.", to: "/dynasty/updates/all-americans", tags: ["preseason", "postseason"] },
   { key: "team-attributes", label: "Team Attributes", description: "Update overall, offense, defense, and prestige for every team.", to: "/dynasty/updates/team-attributes", tags: ["preseason"] },
   { key: "team-stats", label: "Team Stats", description: "Upload the league-wide offense/defense stats screenshots.", to: "/dynasty/updates/team-stats" },
+  { key: "bowl-projections", label: "Bowl Projections", description: "Track who's projected to play in each bowl/CFP game.", to: "/dynasty/updates/bowl-projections", tags: ["midseason"] },
   { key: "season", label: "Start a New Season", description: "Create the next season for your dynasty.", tags: ["postseason"] },
 ];
 
 // Occasional updates are tagged by when in the year they come up, and the section sorts by
-// that tag (preseason before postseason) rather than the order above. An update tagged with
-// both sorts alongside its earliest tag but still shows every tag it carries.
-const TAG_ORDER = ["preseason", "postseason"];
+// that tag (preseason before midseason before postseason) rather than the order above. An
+// update tagged with more than one sorts alongside its earliest tag but still shows every tag it carries.
+const TAG_ORDER = ["preseason", "midseason", "postseason"];
 
 const TAG_LABELS = {
   preseason: "Preseason",
+  midseason: "Midseason",
   postseason: "Postseason",
 };
 
 const TAG_BADGE_CLASSES = {
   preseason: "bg-olive/10 text-olive",
+  midseason: "bg-warning/10 text-warning",
   postseason: "bg-burnt/10 text-burnt",
 };
 

@@ -149,6 +149,19 @@ export const fetchRoster = (dynastyId, seasonId, collegeSeasonId) =>
     .get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/college_seasons/${collegeSeasonId}/roster`)
     .then((r) => r.data);
 
+export const fetchDynastyTeams = (dynastyId) =>
+  api.get(`/api/v1/dynasties/${dynastyId}/teams`).then((r) => r.data);
+
+const playerStatsParams = (scope) => {
+  if (scope.type === "conference") return { scope: "conference", conference: scope.conference };
+  if (scope.type === "national") return { scope: "national" };
+  if (scope.type === "coached") return { scope: "coached" };
+  return { college_id: scope.collegeId };
+};
+
+export const fetchPlayerStats = (dynastyId, scope) =>
+  api.get(`/api/v1/dynasties/${dynastyId}/player_stats`, { params: playerStatsParams(scope) }).then((r) => r.data);
+
 export const updateStudentSeasonName = (id, payload) =>
   api.put(`/api/v1/student_seasons/${id}`, { studentSeason: payload }).then((r) => r.data);
 
@@ -188,6 +201,31 @@ export const commitSchedule = (dynastyId, seasonId, weekId, rows) =>
   api
     .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_schedule`, { weekId, rows })
     .then((r) => r.data);
+
+export const fetchBowlProjections = (weekId) =>
+  api.get(`/api/v1/weeks/${weekId}/bowl_projections`).then((r) => r.data);
+
+export const createBowlProjection = (weekId, payload) =>
+  api.post(`/api/v1/weeks/${weekId}/bowl_projections`, { bowl_projection: payload }).then((r) => r.data);
+
+export const updateBowlProjection = (weekId, id, payload) =>
+  api.put(`/api/v1/weeks/${weekId}/bowl_projections/${id}`, { bowl_projection: payload }).then((r) => r.data);
+
+export const deleteBowlProjection = (weekId, id) =>
+  api.delete(`/api/v1/weeks/${weekId}/bowl_projections/${id}`).then((r) => r.data);
+
+export const analyzeBowlProjections = (weekId, files) => {
+  const formData = new FormData();
+  files.forEach((file) => formData.append("images[]", file));
+  return api
+    .post(`/api/v1/weeks/${weekId}/analyze_bowl_projections`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+    .then((r) => r.data);
+};
+
+export const commitBowlProjections = (weekId, rows) =>
+  api.post(`/api/v1/weeks/${weekId}/commit_bowl_projections`, { rows }).then((r) => r.data);
 
 export const analyzeAllAmericans = (dynastyId, seasonId, files) => {
   const formData = new FormData();

@@ -47,6 +47,15 @@ function GameRow({ row, colleges, onChange }) {
   return (
     <tr className="border-b border-border align-top dark:border-darkborder">
       <td className="p-2">
+        <input
+          type="text"
+          placeholder="e.g. Alamo Bowl"
+          value={row.bowlName || ""}
+          onChange={(e) => update({ bowlName: e.target.value || null })}
+          className={`${inputClass} w-32`}
+        />
+      </td>
+      <td className="p-2">
         <CollegeSelect value={row.awayCollegeId} onChange={(awayCollegeId) => update({ awayCollegeId })} colleges={colleges} />
         {row.awayRawName && !row.awayCollegeId && <p className="mt-1 text-xs text-danger">Unmatched: &ldquo;{row.awayRawName}&rdquo;</p>}
       </td>
@@ -119,6 +128,7 @@ function ScheduleReview({ weekNumber, weeks, selectedWeekId, onWeekChange, rows,
           <table className="w-full min-w-[800px] border-collapse text-left">
             <thead>
               <tr className="border-b border-border text-xs uppercase tracking-wide text-textSecondary dark:border-darkborder">
+                <th className="p-2">Bowl</th>
                 <th className="p-2">Away</th>
                 <th className="p-2"></th>
                 <th className="p-2">Home</th>

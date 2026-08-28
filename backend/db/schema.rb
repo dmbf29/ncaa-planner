@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_24_154216) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_24_154218) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -52,6 +52,19 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_24_154216) do
     t.datetime "updated_at", null: false
     t.index ["student_season_id", "national", "conference", "preseason"], name: "index_all_americans_on_student_season_and_category", unique: true
     t.index ["student_season_id"], name: "index_all_americans_on_student_season_id"
+  end
+
+  create_table "bowl_projections", force: :cascade do |t|
+    t.bigint "week_id", null: false
+    t.string "bowl_name", null: false
+    t.integer "cfp_round"
+    t.bigint "projected_home_college_id"
+    t.bigint "projected_away_college_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["projected_away_college_id"], name: "index_bowl_projections_on_projected_away_college_id"
+    t.index ["projected_home_college_id"], name: "index_bowl_projections_on_projected_home_college_id"
+    t.index ["week_id"], name: "index_bowl_projections_on_week_id"
   end
 
   create_table "coaches", force: :cascade do |t|
@@ -217,6 +230,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_24_154216) do
     t.string "offensive_player_stat_line"
     t.bigint "defensive_player_of_game_id"
     t.string "defensive_player_stat_line"
+    t.string "bowl_name"
+    t.integer "cfp_round"
     t.index ["away_college_id"], name: "index_games_on_away_college_id"
     t.index ["defensive_player_of_game_id"], name: "index_games_on_defensive_player_of_game_id"
     t.index ["home_college_id"], name: "index_games_on_home_college_id"
@@ -467,6 +482,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_24_154216) do
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "all_americans", "student_seasons"
+  add_foreign_key "bowl_projections", "colleges", column: "projected_away_college_id"
+  add_foreign_key "bowl_projections", "colleges", column: "projected_home_college_id"
+  add_foreign_key "bowl_projections", "weeks"
   add_foreign_key "coaches", "dynasties"
   add_foreign_key "college_game_stats", "colleges"
   add_foreign_key "college_game_stats", "games"

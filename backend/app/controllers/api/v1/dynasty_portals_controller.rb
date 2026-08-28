@@ -37,6 +37,27 @@ module Api
         render json: ::CollegeSeasonRosterSerializer.new(college_season).as_json
       end
 
+      def teams
+        dynasty = Dynasty.find(params[:dynasty_id])
+        render json: ::DynastyTeamsSerializer.new(dynasty).as_json
+      end
+
+      def player_stats
+        dynasty = Dynasty.find(params[:dynasty_id])
+
+        case params[:scope]
+        when "conference"
+          render json: ::PlayerStatsSerializer.new(dynasty, conference: params[:conference]).as_json
+        when "national"
+          render json: ::PlayerStatsSerializer.new(dynasty).as_json
+        when "coached"
+          render json: ::PlayerStatsSerializer.new(dynasty, coached: true).as_json
+        else
+          college = College.find(params[:college_id])
+          render json: ::PlayerStatsSerializer.new(dynasty, college: college).as_json
+        end
+      end
+
       def week_games
         season = set_season
         week = season.weeks.find_by!(number: params[:week_number])

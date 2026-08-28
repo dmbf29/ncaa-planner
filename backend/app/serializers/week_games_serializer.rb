@@ -28,6 +28,8 @@ class WeekGamesSerializer
     {
       id: game.id,
       time: game.time,
+      bowl_name: game.bowl_name,
+      cfp_round: game.cfp_round,
       home: side_json(game.home_college),
       away: side_json(game.away_college),
       result: played ? { home_score: home_stat.final_score, away_score: away_stat.final_score } : nil

@@ -72,7 +72,10 @@ Rails.application.routes.draw do
           post :commit_top_25_rankings
           post :analyze_heisman_candidates
           post :commit_heisman_candidates
+          post :analyze_bowl_projections
+          post :commit_bowl_projections
         end
+        resources :bowl_projections, only: %i[index create update destroy]
       end
 
       resources :student_seasons, only: %i[update] do
@@ -94,6 +97,8 @@ Rails.application.routes.draw do
       get "dynasties/:dynasty_id/seasons/:season_id/all_americans", to: "dynasty_portals#all_americans"
       get "dynasties/:dynasty_id/seasons/:season_id/college_seasons/:college_season_id/roster",
           to: "dynasty_portals#roster"
+      get "dynasties/:dynasty_id/teams", to: "dynasty_portals#teams"
+      get "dynasties/:dynasty_id/player_stats", to: "dynasty_portals#player_stats"
       get "dynasties/:dynasty_id/seasons/:season_id/weeks/:week_number/games", to: "dynasty_portals#week_games"
     end
   end

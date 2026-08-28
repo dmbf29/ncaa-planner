@@ -6,6 +6,15 @@ export const weekLabel = (week) => week.name || (week.number === 0 ? "Week 0" : 
 const gameDateLabel = (time) =>
   time ? new Date(time).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : null;
 
+const CFP_ROUND_LABELS = {
+  first_round: "CFP First Round",
+  quarterfinal: "CFP Quarterfinal",
+  semifinal: "CFP Semifinal",
+  championship: "National Championship",
+};
+
+const bowlLabel = (game) => CFP_ROUND_LABELS[game.cfpRound] || game.bowlName;
+
 function TeamName({ side }) {
   return (
     <span className="inline-flex items-center gap-1">
@@ -24,14 +33,27 @@ function LeagueGameRow({ game }) {
 
   const rowClass =
     "flex items-center justify-between gap-2 border-b border-border/60 py-1.5 text-sm last:border-0 dark:border-darkborder/60";
+  const bowl = bowlLabel(game);
 
   return (
     <Link to={`/dynasty/games/${game.id}`} className={clsx(rowClass, "hover:bg-charcoal/5 dark:hover:bg-white/5")}>
-      <div className="flex min-w-0 items-center gap-2">
-        {dateLabel && <span className="shrink-0 text-xs text-textSecondary">{dateLabel}</span>}
-        <span className="truncate text-textPrimary dark:text-white">
-          <TeamName side={game.away} /> <span className="text-textSecondary">@</span> <TeamName side={game.home} />
-        </span>
+      <div className="flex min-w-0 flex-col">
+        {bowl && (
+          <span
+            className={clsx(
+              "truncate text-[10px] font-semibold uppercase tracking-wide",
+              game.cfpRound ? "text-burnt" : "text-textSecondary"
+            )}
+          >
+            {bowl}
+          </span>
+        )}
+        <div className="flex min-w-0 items-center gap-2">
+          {dateLabel && <span className="shrink-0 text-xs text-textSecondary">{dateLabel}</span>}
+          <span className="truncate text-textPrimary dark:text-white">
+            <TeamName side={game.away} /> <span className="text-textSecondary">@</span> <TeamName side={game.home} />
+          </span>
+        </div>
       </div>
       {game.result ? (
         <span className="shrink-0 rounded-full bg-charcoal/5 px-2 py-0.5 text-xs font-semibold dark:bg-white/10">

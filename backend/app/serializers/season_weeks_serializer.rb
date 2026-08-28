@@ -98,6 +98,7 @@ class SeasonWeeksSerializer
       },
       teams: coached_college_seasons.map { |cs| team_week_json(cs, week) },
       top_25: top_25_for_week(week),
+      bowl_projections: bowl_projections_for_week(week),
       coached_matchups: coached_matchups_for_week(week),
       conference_results: conference_results_for_week(week),
       conference_top_25: conference_top_25_for_week(week),
@@ -136,6 +137,28 @@ class SeasonWeeksSerializer
       college: { id: college.id, name: college.name, conference: conference_for(college.id) },
       coached_by_us: coached_college_ids.include?(college.id),
       record: record_before(college.id, games_for_college(college.id), poll_week.number)
+    }
+  end
+
+  # Bowl projections for the week AFTER week — same "N+1" convention as
+  # top_25_for_week, since projections are only ever captured on a handful
+  # of weeks (see BowlProjection's doc comment) rather than every week, so
+  # week N's episode surfaces whichever projection screenshot was taken
+  # going into week N+1. Empty (not included in the recap) unless that
+  # next week actually has projections on record.
+  def bowl_projections_for_week(week)
+    preview_week = @season.weeks.find_by(number: week.number + 1)
+    return [] unless preview_week
+
+    preview_week.bowl_projections.includes(:projected_home_college, :projected_away_college).map { |bp| bowl_projection_json(bp) }
+  end
+
+  def bowl_projection_json(bp)
+    {
+      bowl_name: bp.bowl_name,
+      cfp_round: bp.cfp_round,
+      projected_home: bp.projected_home_college&.name,
+      projected_away: bp.projected_away_college&.name
     }
   end
 
@@ -282,6 +305,8 @@ class SeasonWeeksSerializer
     opponent = home ? game.away_college : game.home_college
     {
       status: result ? "final" : "scheduled",
+      bowl_name: game.bowl_name,
+      cfp_round: game.cfp_round,
       opponent: opponent_json(opponent, home),
       result: result,
       narrative_summary: result ? game.narrative_summary : nil,
@@ -332,6 +357,8 @@ class SeasonWeeksSerializer
     opponent = home ? game.away_college : game.home_college
     {
       week_number: game.week.number,
+      bowl_name: game.bowl_name,
+      cfp_round: game.cfp_round,
       opponent: opponent_json(opponent, home),
       opponent_record: record_before(opponent.id, games_for_college(opponent.id), game.week.number),
       opponent_last_result: opponent_last_result_json(opponent.id, game.week.number),

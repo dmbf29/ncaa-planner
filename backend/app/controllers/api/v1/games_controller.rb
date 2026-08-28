@@ -102,6 +102,8 @@ module Api
           week: { id: @game.week.id, number: @game.week.number },
           home_college: { id: @game.home_college.id, name: @game.home_college.name },
           away_college: { id: @game.away_college.id, name: @game.away_college.name },
+          bowl_name: @game.bowl_name,
+          cfp_round: @game.cfp_round,
           played: @game.played?,
           box_score_screenshots: screenshots_json(@game.box_score_screenshots),
           home_screenshots: screenshots_json(@game.home_stat_screenshots),
