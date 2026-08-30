@@ -181,9 +181,10 @@ class SeasonDashboardSerializer
   end
 
   def heisman_watch_json
-    winner = @season.heisman && player_json(@season.heisman).merge(
-      college: student_college_json(@season.heisman),
-      coached_by_us: coached_by_us?(@season.heisman)
+    heisman_winner = @season.heisman_winner
+    winner = heisman_winner && player_json(heisman_winner).merge(
+      college: student_college_json(heisman_winner),
+      coached_by_us: coached_by_us?(heisman_winner)
     )
 
     {

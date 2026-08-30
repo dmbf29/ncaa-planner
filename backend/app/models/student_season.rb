@@ -6,6 +6,7 @@ class StudentSeason < ApplicationRecord
   has_many :heisman_candidates, dependent: :destroy
   has_many :players_of_the_week, class_name: "PlayerOfTheWeek", dependent: :destroy
   has_many :injuries, dependent: :destroy
+  has_many :season_awards, dependent: :destroy
 
   validates :class_year, presence: true
   validates :position, presence: true

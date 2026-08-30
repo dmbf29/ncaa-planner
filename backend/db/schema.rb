@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_29_083901) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_30_120004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -54,6 +54,16 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_29_083901) do
     t.index ["student_season_id"], name: "index_all_americans_on_student_season_id"
   end
 
+  create_table "awards", force: :cascade do |t|
+    t.string "name", null: false
+    t.text "description"
+    t.string "recipient_type", default: "player", null: false
+    t.integer "sort_order", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_awards_on_name", unique: true
+  end
+
   create_table "bowl_projections", force: :cascade do |t|
     t.bigint "week_id", null: false
     t.string "bowl_name", null: false
@@ -74,6 +84,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_29_083901) do
     t.datetime "updated_at", null: false
     t.string "offensive_scheme"
     t.string "defensive_scheme"
+    t.index "dynasty_id, lower((name)::text)", name: "index_coaches_on_dynasty_id_and_lower_name", unique: true
     t.index ["dynasty_id"], name: "index_coaches_on_dynasty_id"
   end
 
@@ -361,14 +372,28 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_29_083901) do
     t.index ["position_board_id"], name: "index_roster_slots_on_position_board_id"
   end
 
+  create_table "season_awards", force: :cascade do |t|
+    t.bigint "season_id", null: false
+    t.bigint "award_id", null: false
+    t.bigint "student_season_id"
+    t.bigint "coach_id"
+    t.string "stat_line"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["award_id"], name: "index_season_awards_on_award_id"
+    t.index ["coach_id"], name: "index_season_awards_on_coach_id"
+    t.index ["season_id", "award_id"], name: "index_season_awards_on_season_id_and_award_id", unique: true
+    t.index ["season_id"], name: "index_season_awards_on_season_id"
+    t.index ["student_season_id"], name: "index_season_awards_on_student_season_id"
+    t.check_constraint "(student_season_id IS NOT NULL) <> (coach_id IS NOT NULL)", name: "season_awards_exactly_one_recipient"
+  end
+
   create_table "seasons", force: :cascade do |t|
     t.integer "year", null: false
     t.bigint "dynasty_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "heisman_id"
     t.index ["dynasty_id"], name: "index_seasons_on_dynasty_id"
-    t.index ["heisman_id"], name: "index_seasons_on_heisman_id"
   end
 
   create_table "signed_recruits", force: :cascade do |t|
@@ -535,8 +560,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_29_083901) do
   add_foreign_key "recruiting_seasons", "college_seasons"
   add_foreign_key "roster_slots", "players"
   add_foreign_key "roster_slots", "position_boards"
+  add_foreign_key "season_awards", "awards"
+  add_foreign_key "season_awards", "coaches"
+  add_foreign_key "season_awards", "seasons"
+  add_foreign_key "season_awards", "student_seasons"
   add_foreign_key "seasons", "dynasties"
-  add_foreign_key "seasons", "student_seasons", column: "heisman_id"
   add_foreign_key "signed_recruits", "college_seasons"
   add_foreign_key "signed_recruits", "students"
   add_foreign_key "signed_recruits", "weeks"

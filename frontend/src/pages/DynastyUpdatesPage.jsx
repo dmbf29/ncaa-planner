@@ -17,6 +17,7 @@ const WEEKLY_UPDATES = [
 const OCCASIONAL_UPDATES = [
   { key: "nil-spend", label: "NIL Spend", description: "Upload the conference NIL spend screenshots.", to: "/dynasty/updates/nil-spend", tags: ["preseason"] },
   { key: "recruiting", label: "Recruiting Recap", description: "Upload the national recruiting class rankings screenshots.", to: "/dynasty/updates/recruiting", tags: ["postseason"] },
+  { key: "award-winners", label: "Award Winners", description: "Record this season's Heisman and the rest of the national award winners.", to: "/dynasty/updates/award-winners", tags: ["postseason"] },
   { key: "all-americans", label: "All-Americans", description: "Upload the National/Conference All-American screenshots.", to: "/dynasty/updates/all-americans", tags: ["preseason", "postseason"] },
   { key: "team-attributes", label: "Team Attributes", description: "Update overall, offense, defense, and prestige for every team.", to: "/dynasty/updates/team-attributes", tags: ["preseason"] },
   { key: "team-stats", label: "Team Stats", description: "Upload the league-wide offense/defense stats screenshots.", to: "/dynasty/updates/team-stats" },

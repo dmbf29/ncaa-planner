@@ -95,6 +95,14 @@ class SeasonPolicy < ApplicationPolicy
     owner?
   end
 
+  def award_winners?
+    owner?
+  end
+
+  def commit_award_winners?
+    owner?
+  end
+
   def owner?
     record.dynasty.user == user
   end

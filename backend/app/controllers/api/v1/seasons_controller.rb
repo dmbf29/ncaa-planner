@@ -209,6 +209,19 @@ module Api
         render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
       end
 
+      def award_winners
+        authorize @season
+        render json: SeasonAwardWinnersSerializer.new(@season).as_json
+      end
+
+      def commit_award_winners
+        authorize @season
+        warnings = AwardWinners::CommitService.new(@season).call(commit_rows)
+        render json: { season_id: @season.id, warnings: warnings }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
+      end
+
       private
 
       def set_dynasty

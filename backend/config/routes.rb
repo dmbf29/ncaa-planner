@@ -53,6 +53,8 @@ Rails.application.routes.draw do
             post :commit_team_schedule
             get :coach_assignments
             post :commit_coach_assignments
+            get :award_winners
+            post :commit_award_winners
             post :analyze_roster_import
             post :commit_roster_import
           end

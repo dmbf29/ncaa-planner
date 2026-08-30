@@ -294,6 +294,16 @@ function TeamDashboardCard({ team, dynastyId, seasonId }) {
         <TeamStatsGroup teamStats={team.teamStats} />
       </div>
 
+      <div className="max-h-[385px] overflow-y-auto px-4 py-3">
+        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-textSecondary flex justify-between">
+          <span>Schedule</span>
+          <span className="text-textPrimary dark:text-white">{record}</span>
+        </p>
+        {weeks.map((week) => (
+          <ScheduleRow key={week.id} week={week} />
+        ))}
+      </div>
+
       <div className="space-y-3 px-4 pt-3 pb-2 dark:border-darkborder">
         <div className="grid grid-cols-3 gap-1.5">
           <NumberPill label="OVR" bold="true" value={team.overall ?? "—"} />
@@ -303,16 +313,6 @@ function TeamDashboardCard({ team, dynastyId, seasonId }) {
       </div>
 
       <PositionGroupAveragesCollapsible averages={team.positionGroupAverages} />
-
-      <div className="max-h-72 overflow-y-auto px-4 py-3">
-        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-textSecondary flex justify-between">
-          <span>Schedule</span>
-          <span className="text-textPrimary dark:text-white">{record}</span>
-        </p>
-        {weeks.map((week) => (
-          <ScheduleRow key={week.id} week={week} />
-        ))}
-      </div>
 
       {dynastyId && seasonId && (
         <>

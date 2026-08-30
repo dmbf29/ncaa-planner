@@ -1,8 +1,9 @@
 class Season < ApplicationRecord
   belongs_to :dynasty
-  belongs_to :heisman, class_name: "StudentSeason", optional: true
   has_many :weeks, dependent: :destroy
   has_many :college_seasons, dependent: :destroy
+  has_many :season_awards, dependent: :destroy
+  has_many :awards, through: :season_awards
 
   validates :year, presence: true, uniqueness: { scope: :dynasty }
   after_create_commit :setup_new_year
@@ -10,6 +11,13 @@ class Season < ApplicationRecord
   def setup_new_year
     create_weeks
     create_college_seasons
+  end
+
+  # The StudentSeason that won the Heisman this season, if one has been
+  # recorded. Kept as a named helper because the dashboard/broadcast code
+  # calls it directly the way it used to read the old `heisman` association.
+  def heisman_winner
+    season_awards.joins(:award).find_by(awards: { name: "Heisman Trophy" })&.student_season
   end
 
   def previous_season

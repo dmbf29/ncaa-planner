@@ -413,6 +413,14 @@ export const commitCoachAssignments = (dynastyId, seasonId, assignments) =>
     .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_coach_assignments`, { assignments })
     .then((r) => r.data);
 
+export const fetchAwardWinners = (dynastyId, seasonId) =>
+  api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/award_winners`).then((r) => r.data);
+
+export const commitAwardWinners = (dynastyId, seasonId, rows) =>
+  api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_award_winners`, { rows })
+    .then((r) => r.data);
+
 export const login = ({ email, password }) =>
   api.post("/users/sign_in", { user: { email, password } }).then((r) => r.data);
 
