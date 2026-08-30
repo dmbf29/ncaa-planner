@@ -16,7 +16,8 @@ class SeasonDashboardSerializer
       players_of_the_week: players_of_the_week_json,
       around_the_league: around_the_league_json,
       current_week_number: current_week_number,
-      last_played_week_number: last_played_week_number
+      last_played_week_number: last_played_week_number,
+      signed_recruits_last_week_number: signed_recruits_last_week_number
     }
   end
 
@@ -28,6 +29,16 @@ class SeasonDashboardSerializer
            .where.not(coach_id: nil)
            .joins(:college)
            .order("colleges.name")
+  end
+
+  # The highest week number any coached team has a signed recruit recorded
+  # against — drives the Recruitment Trail card's "up to date" badge on the
+  # updates page. nil when nothing's been logged yet.
+  def signed_recruits_last_week_number
+    Week.joins(:signed_recruits)
+        .where(season_id: @season.id)
+        .where(signed_recruits: { college_season_id: @season.college_seasons.where.not(coach_id: nil).select(:id) })
+        .maximum(:number)
   end
 
   # The most recent week (by number) that actually has rankings/candidates

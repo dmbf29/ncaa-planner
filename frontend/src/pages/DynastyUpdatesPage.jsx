@@ -11,6 +11,7 @@ const WEEKLY_UPDATES = [
   { key: "heisman", label: "Heisman Candidates", description: "Upload the weekly Heisman Watch List screenshot.", to: "/dynasty/updates/heisman" },
   { key: "standings", label: "Conference Standings", description: "Upload the conference standings screenshots.", to: "/dynasty/updates/standings" },
   { key: "team-schedule", label: "Team Schedule", description: "Upload a team's full-season schedule screenshots.", to: "/dynasty/updates/team-schedule" },
+  { key: "recruitment-trail", label: "Recruitment Trail", description: "Upload a team's recruiting-class screenshot to log recruits who signed this week.", to: "/dynasty/updates/recruitment-trail" },
 ];
 
 const OCCASIONAL_UPDATES = [
@@ -225,6 +226,12 @@ function DynastyUpdatesPage() {
           // upcoming matchups), so they're due as soon as the current week starts.
           top25: weeklyStatus(season.top25?.week?.number, currentWeekNumber),
           heisman: weeklyStatus(season.heismanWatch?.weeks?.[0]?.week?.number, currentWeekNumber),
+          // Recruiting isn't a per-week obligation, so this is just "has anything been logged":
+          // last week a recruit was signed, or "Not started" if none yet.
+          "recruitment-trail":
+            season.signedRecruitsLastWeekNumber == null
+              ? { label: "Not started", tone: "neutral" }
+              : { label: `Up to date · Week ${season.signedRecruitsLastWeekNumber}`, tone: "good" },
         });
       } catch {
         // Non-fatal here — cards just render without their status badges.

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_24_154218) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_29_083901) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -371,6 +371,26 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_24_154218) do
     t.index ["heisman_id"], name: "index_seasons_on_heisman_id"
   end
 
+  create_table "signed_recruits", force: :cascade do |t|
+    t.bigint "college_season_id", null: false
+    t.bigint "week_id", null: false
+    t.bigint "student_id"
+    t.string "first_name"
+    t.string "last_name", null: false
+    t.string "position", null: false
+    t.integer "star_rating"
+    t.integer "nil_amount"
+    t.integer "national_rank"
+    t.integer "position_rank"
+    t.integer "state_rank"
+    t.string "state"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["college_season_id"], name: "index_signed_recruits_on_college_season_id"
+    t.index ["student_id"], name: "index_signed_recruits_on_student_id"
+    t.index ["week_id"], name: "index_signed_recruits_on_week_id"
+  end
+
   create_table "squads", force: :cascade do |t|
     t.string "name", null: false
     t.bigint "team_id", null: false
@@ -517,6 +537,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_24_154218) do
   add_foreign_key "roster_slots", "position_boards"
   add_foreign_key "seasons", "dynasties"
   add_foreign_key "seasons", "student_seasons", column: "heisman_id"
+  add_foreign_key "signed_recruits", "college_seasons"
+  add_foreign_key "signed_recruits", "students"
+  add_foreign_key "signed_recruits", "weeks"
   add_foreign_key "squads", "teams"
   add_foreign_key "student_game_stats", "games"
   add_foreign_key "student_game_stats", "student_seasons"

@@ -46,7 +46,7 @@ class SeasonWeeksSerializer
 
   def coached_college_seasons
     @coached_college_seasons ||= @season.college_seasons
-                                         .includes(:college, :coach, :student_seasons)
+                                         .includes(:college, :coach, :student_seasons, signed_recruits: :week)
                                          .where.not(coach_id: nil)
                                          .joins(:college)
                                          .order("colleges.name")
@@ -187,6 +187,7 @@ class SeasonWeeksSerializer
       game: this_week_game_json(this_week_game, college_season.college_id),
       top_performers: top_performers_json(this_week_game, college_season),
       players_of_the_week: players_of_the_week_json(college_season, week),
+      recruiting_trail: recruiting_trail_json(college_season, week),
       injury_report: injury_report_json(college_season, week),
       next_game: next_game && upcoming_game_json(next_game, college_season.college_id),
       season_stats: week.number >= MIN_WEEK_NUMBER_FOR_SEASON_STATS ? season_stats_json(college_season) : nil
@@ -261,6 +262,30 @@ class SeasonWeeksSerializer
       stat_line: award.stat_line,
       national: award.national,
       conference: award.conference
+    }
+  end
+
+  # Recruits this team signed that were first recorded in THIS week — the
+  # "newly signed this week" list, so a recap mentions each signing once,
+  # the week it happens, rather than re-reading the whole class every week.
+  # Silent (empty array) for a week with no new signings.
+  def recruiting_trail_json(college_season, week)
+    college_season.signed_recruits
+                  .select { |recruit| recruit.week_id == week.id }
+                  .sort_by { |recruit| [ -(recruit.star_rating || 0), recruit.national_rank || Float::INFINITY, recruit.last_name.to_s ] }
+                  .map { |recruit| recruit_json(recruit) }
+  end
+
+  def recruit_json(recruit)
+    {
+      name: recruit.name,
+      position: recruit.position,
+      star_rating: recruit.star_rating,
+      nil_amount: recruit.nil_amount,
+      national_rank: recruit.national_rank,
+      position_rank: recruit.position_rank,
+      state_rank: recruit.state_rank,
+      state: recruit.state
     }
   end
 

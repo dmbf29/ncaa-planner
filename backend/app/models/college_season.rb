@@ -20,6 +20,7 @@ class CollegeSeason < ApplicationRecord
   belongs_to :coach, optional: true
   belongs_to :season
   has_many :student_seasons, dependent: :destroy
+  has_many :signed_recruits, dependent: :destroy
   has_one :recruiting_season, dependent: :destroy
   validates :season, uniqueness: { scope: :college }
   validates :coach_id, uniqueness: { scope: :season_id }, allow_nil: true

@@ -318,6 +318,25 @@ export const commitRecruiting = (dynastyId, seasonId, rows) =>
     .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_recruiting`, { rows })
     .then((r) => r.data);
 
+export const analyzeRecruitmentTrail = (dynastyId, seasonId, files) => {
+  const formData = new FormData();
+  files.forEach((file) => formData.append("images[]", file));
+  return api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/analyze_recruitment_trail`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+    .then((r) => r.data);
+};
+
+export const commitRecruitmentTrail = (dynastyId, seasonId, collegeId, weekNumber, rows) =>
+  api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_recruitment_trail`, {
+      collegeId,
+      weekNumber,
+      rows,
+    })
+    .then((r) => r.data);
+
 export const fetchGame = (id) => api.get(`/api/v1/games/${id}`).then((r) => r.data);
 
 export const analyzeGameStats = (id, buckets) => {

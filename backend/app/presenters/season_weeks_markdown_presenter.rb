@@ -1,6 +1,14 @@
 # Renders the SeasonWeeksSerializer payload as Markdown, meant for feeding
 # into an LLM-based podcast generator (e.g. NotebookLM) rather than JSON.
 class SeasonWeeksMarkdownPresenter
+  # The College Football Playoff selection committee releases its first Top 25
+  # in the poll that comes out AFTER Week 9's games — i.e. the Week 10 poll,
+  # which is what a Week 9 recap surfaces (see
+  # SeasonWeeksSerializer#top_25_for_week for the N+1 convention). From that
+  # poll on, the national rankings are the committee's CFP Top 25, not the
+  # regular in-season media poll, so the broadcast should name them that way.
+  CFP_RANKINGS_FIRST_POLL_WEEK = 10
+
   def initialize(data)
     @data = data
   end
@@ -53,16 +61,24 @@ class SeasonWeeksMarkdownPresenter
   def segments
     next_number = primary_week ? primary_week[:week][:number] + 1 : 1
     current_label = primary_week ? week_label(primary_week[:week]) : "This Week"
+    poll_watch_label = cfp_poll?(next_number) ? "CFP Rankings Watch" : "Top 25 Poll Watch"
 
     [
       "#{current_label} Kickoff & Headlines",
       "Results Recap & Rival Matchups — Deep dive into the highlighted games.",
       "Around the #{conference_label} — Quick hits on other conference games.",
       "Injury Report — Who's banged up, who's expected back, and how it affects the depth chart (if any injuries are active).",
+      "Recruitment Trail — New recruits who signed with our programs this week and what they add (if any signed).",
       "Winners & Losers - the hosts each pick 1 team/player who won the week, and 1 who lost",
-      "Top 25 Poll Watch — Discuss rankings and national standing shifts (if focused teams are included)",
+      "#{poll_watch_label} — Discuss rankings and national standing shifts (if focused teams are included)",
       "Week #{next_number} Preview — Look ahead to next week's opponents and the hosts make predictions"
     ]
+  end
+
+  # Whether the poll released in the given season week is a CFP committee
+  # ranking rather than the regular in-season media poll.
+  def cfp_poll?(poll_week_number)
+    poll_week_number.present? && poll_week_number >= CFP_RANKINGS_FIRST_POLL_WEEK
   end
 
   def conference_label
@@ -74,7 +90,7 @@ class SeasonWeeksMarkdownPresenter
     week = week_data[:week]
     lines = [ "---", "", "# 🏈 #{week_label(week).upcase}#{primary ? ' (CURRENT)' : ''}", "" ]
     lines.concat(at_a_glance_table(week_data[:teams]))
-    lines.concat(top_25_poll_lines(week_data[:top_25]))
+    lines.concat(top_25_poll_lines(week_data[:top_25], week[:number] + 1))
 
     week_data[:teams].each { |team| lines.concat(team_week_section(team)) }
 
@@ -91,7 +107,7 @@ class SeasonWeeksMarkdownPresenter
     end
 
     lines.concat(conference_standings_lines(week_data[:conference_standings]))
-    lines.concat(conference_top_25_lines(week_data[:conference_top_25]))
+    lines.concat(conference_top_25_lines(week_data[:conference_top_25], week[:number]))
     lines.concat(conference_heisman_lines(week_data[:conference_heisman_watch]))
 
     lines
@@ -149,11 +165,14 @@ class SeasonWeeksMarkdownPresenter
 
   # Only rendered when a conference rival actually moved in the poll this
   # week — silent otherwise, per producer note: no filler when there's
-  # nothing to report.
-  def conference_top_25_lines(rankings)
+  # nothing to report. This tracks movement into the recapped week's own
+  # poll (week N), so it flips to CFP wording one episode later than the
+  # national section below, which shows the post-week (N+1) poll.
+  def conference_top_25_lines(rankings, poll_week_number)
     return [] if rankings.blank?
 
-    lines = [ "## 🏆 TOP 25 WATCH — AROUND THE #{conference_label.upcase}", "" ]
+    poll_label = cfp_poll?(poll_week_number) ? "CFP RANKINGS WATCH" : "TOP 25 WATCH"
+    lines = [ "## 🏆 #{poll_label} — AROUND THE #{conference_label.upcase}", "" ]
     rankings.each { |ranking| lines << "- #{ranking[:college][:name]}: #{ranking_line(ranking)}" }
     lines << ""
     lines
@@ -204,11 +223,13 @@ class SeasonWeeksMarkdownPresenter
   # The full national Top 25 poll released after this week's games (not just
   # conference rivals — see conference_top_25_lines) — silent when that next
   # poll hasn't been entered yet, same convention as every other optional
-  # section.
-  def top_25_poll_lines(rankings)
+  # section. From the Week 10 poll on (a Week 9 recap and later) this is the
+  # CFP selection committee's ranking, not the regular media poll.
+  def top_25_poll_lines(rankings, poll_week_number)
     return [] if rankings.blank?
 
-    lines = [ "## 🏆 TOP 25 (LATEST POLL)", "" ]
+    heading = cfp_poll?(poll_week_number) ? "## 🏆 CFP RANKINGS (SELECTION COMMITTEE TOP 25)" : "## 🏆 TOP 25 (LATEST MEDIA POLL)"
+    lines = [ heading, "" ]
     lines << "| Rank | Team | Record | Trend |"
     lines << "| --- | --- | --- | --- |"
     rankings.each { |ranking| lines << top_25_poll_row(ranking) }
@@ -276,6 +297,7 @@ class SeasonWeeksMarkdownPresenter
     lines.concat(player_of_the_week_lines(team[:players_of_the_week]))
     lines.concat(top_performers_lines(team[:top_performers]))
     lines.concat(injury_report_lines(team[:injury_report]))
+    lines.concat(recruiting_trail_lines(team[:recruiting_trail]))
     lines.concat(season_stats_lines(team[:season_stats]))
 
     lines << "### 📅 Next Up"
@@ -567,6 +589,36 @@ class SeasonWeeksMarkdownPresenter
   def injury_report_line(injury)
     status = injury[:status] == "out_for_season" ? "out for the season" : injury[:status].tr("_", " ")
     "#{injury[:name]} (#{injury[:position]}) — #{injury[:description]} (Week #{injury[:injured_week_number]} injury, #{status})"
+  end
+
+  # Only rendered when this team signed at least one recruit that was first
+  # recorded this week — silent otherwise, same convention as every other
+  # optional section.
+  def recruiting_trail_lines(recruiting_trail)
+    return [] if recruiting_trail.blank?
+
+    lines = [ "### 🖊️ Recruitment Trail" ]
+    recruiting_trail.each { |recruit| lines << "- #{recruit_line(recruit)}" }
+    lines << ""
+    lines
+  end
+
+  def recruit_line(recruit)
+    parts = [ "#{recruit[:name]} (#{recruit[:position]})" ]
+    parts << "#{recruit[:star_rating]}★" if recruit[:star_rating]
+    ranks = []
+    ranks << "#{ordinalize(recruit[:national_rank])} nationally" if recruit[:national_rank]
+    ranks << "#{ordinalize(recruit[:position_rank])} at #{recruit[:position]}" if recruit[:position_rank]
+    if recruit[:state_rank] && recruit[:state].present?
+      ranks << "#{ordinalize(recruit[:state_rank])} in #{recruit[:state]}"
+    end
+    parts << "(#{ranks.join(', ')})" if ranks.any?
+    parts << "— NIL #{recruit[:nil_amount]}" if recruit[:nil_amount]
+    parts.join(" ")
+  end
+
+  def ordinalize(number)
+    ActiveSupport::Inflector.ordinalize(number)
   end
 
   def player_of_game_line(player)

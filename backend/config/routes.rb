@@ -45,6 +45,8 @@ Rails.application.routes.draw do
             post :commit_team_stats
             post :analyze_recruiting
             post :commit_recruiting
+            post :analyze_recruitment_trail
+            post :commit_recruitment_trail
             post :analyze_players_of_the_week
             post :commit_players_of_the_week
             post :analyze_team_schedule
