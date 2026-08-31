@@ -3,7 +3,9 @@ import { Link, useParams } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import OverallPill from "../components/OverallPill";
-import { deletePlayer, fetchPlayers, fetchTeam, fetchSquadBoards, updatePlayer } from "../lib/apiClient";
+import PlayerFlagIcons from "../components/PlayerFlagIcons";
+import FlagPicker from "../components/FlagPicker";
+import { deletePlayer, fetchFlags, fetchPlayers, fetchTeam, fetchSquadBoards, updatePlayer } from "../lib/apiClient";
 
 const archetypeGroups = {
   Quarterback: {
@@ -81,7 +83,13 @@ const archetypeShort = (longLabel) => {
   return longLabel || "";
 };
 
-const classYears = ["FR", "FR(RS)", "SO", "SO(RS)", "JR", "JR(RS)", "SR", "SR(RS)", "Rec", "✍️"];
+const classYears = ["FR", "FR(RS)", "SO", "SO(RS)", "JR", "JR(RS)", "SR", "SR(RS)"];
+
+const STATUS_FLAG_OPTIONS = [
+  { name: "recruit", label: "Recruit" },
+  { name: "commited", label: "Commited" },
+];
+const STATUS_FLAG_NAMES = STATUS_FLAG_OPTIONS.map((o) => o.name);
 
 const devTraitOptions = [
   { value: "normal", label: "Normal" },
@@ -155,7 +163,6 @@ const PlayerSummary = ({ player }) => {
   const archetype = archetypeShort(player.archetype);
   const overall = player.overall;
   const trait = player.devTrait ?? player.dev_trait;
-  const isFlagged = !!player.flagged;
 
   const AttributeCell = ({ value }) => (
     <div className="flex flex-col">
@@ -170,7 +177,7 @@ const PlayerSummary = ({ player }) => {
       <div className="flex items-center justify-between gap-2 px-2 pt-2">
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-textPrimary dark:text-white font-semibold truncate">{player.name || player.id}</span>
-          {isFlagged ? <i className="fa-solid fa-flag text-danger text-xs" title="Flagged"></i> : null}
+          <PlayerFlagIcons flags={player.flags} />
         </div>
         {overall ? <OverallPill value={overall} /> : null}
       </div>
@@ -193,7 +200,7 @@ const PlayerSummary = ({ player }) => {
   );
 };
 
-function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy }) {
+function PlayerEditModal({ editing, flags, onClose, onSaveDraft, onSave, onDelete, busy }) {
   if (!editing) return null;
 
   return (
@@ -242,14 +249,38 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
             <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
               <span>Class</span>
               <select
-                value={editing.classYear}
-                onChange={(e) => onSaveDraft({ ...editing, classYear: e.target.value })}
+                value={
+                  editing.classYear ||
+                  flags.find((f) => STATUS_FLAG_NAMES.includes(f.name) && (editing.flagIds || []).includes(f.id))
+                    ?.name ||
+                  ""
+                }
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const statusFlag = flags.find((f) => STATUS_FLAG_NAMES.includes(f.name) && f.name === val);
+                  onSaveDraft((prev) => {
+                    const statusFlagIds = flags
+                      .filter((f) => STATUS_FLAG_NAMES.includes(f.name))
+                      .map((f) => f.id);
+                    const flagIds = (prev.flagIds || []).filter((fid) => !statusFlagIds.includes(fid));
+                    return {
+                      ...prev,
+                      classYear: statusFlag ? "" : val,
+                      flagIds: statusFlag ? [...flagIds, statusFlag.id] : flagIds,
+                    };
+                  });
+                }}
                 className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
               >
                 <option value="">-</option>
                 {classYears.map((c) => (
                   <option key={c || "blank"} value={c}>
                     {c || "—"}
+                  </option>
+                ))}
+                {STATUS_FLAG_OPTIONS.map((o) => (
+                  <option key={o.name} value={o.name}>
+                    {o.label}
                   </option>
                 ))}
               </select>
@@ -290,15 +321,15 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
           </div>
           <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
             <div className="flex items-center justify-between">
-              <span>Assign to position board (returns as recruit)</span>
-              <span className="text-xs text-textSecondary/70">Optional</span>
+              <span>Position group</span>
+              <span className="text-xs text-textSecondary/70">Stays as alumni</span>
             </div>
             <select
-              value={editing.boardId || ""}
-              onChange={(e) => onSaveDraft({ ...editing, boardId: e.target.value || null })}
+              value={editing.positionGroupId || ""}
+              onChange={(e) => onSaveDraft({ ...editing, positionGroupId: e.target.value || null })}
               className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
             >
-              <option value="">— Keep as alumni —</option>
+              <option value="">— Unassigned —</option>
               {editing.boardOptions?.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.label}
@@ -306,23 +337,40 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
               ))}
             </select>
           </label>
+          <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+            <div className="flex items-center justify-between">
+              <span>Return to active roster</span>
+              <span className="text-xs text-textSecondary/70">Optional</span>
+            </div>
+            <select
+              value={editing.returnBoardId || ""}
+              onChange={(e) => onSaveDraft({ ...editing, returnBoardId: e.target.value || null })}
+              className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+            >
+              <option value="">— Stay as alumni —</option>
+              {editing.boardOptions?.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <FlagPicker
+            flags={flags.filter((f) => !STATUS_FLAG_NAMES.includes(f.name))}
+            selectedIds={editing.flagIds || []}
+            disabled={busy}
+            onToggle={(flagId) =>
+              onSaveDraft((prev) => ({
+                ...prev,
+                flagIds: prev.flagIds.includes(flagId)
+                  ? prev.flagIds.filter((id) => id !== flagId)
+                  : [...prev.flagIds, flagId],
+              }))
+            }
+          />
         </div>
         <div className="mt-4 flex justify-end items-end">
           <div className="flex gap-1">
-            <button
-              type="button"
-              onClick={() => onSaveDraft((prev) => ({ ...prev, flagged: !prev.flagged }))}
-              disabled={busy}
-              aria-pressed={editing.flagged}
-              title={editing.flagged ? "Unflag player" : "Flag player"}
-              className={`rounded-md border px-4 py-2 text-sm font-semibold transition ${
-                editing.flagged
-                  ? "border-danger text-danger bg-danger/10 shadow-card"
-                  : "border-border text-textSecondary hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
-              }`}
-            >
-              <i className="fa-solid fa-flag"></i>
-            </button>
             <button
               onClick={() => {
                 if (busy) return;
@@ -356,24 +404,50 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
   );
 }
 
+function PlayerCard({ player, onEdit }) {
+  return (
+    <Card className="h-full">
+      <div className="p-4 space-y-2 h-full flex flex-col">
+        <div className="flex items-start justify-between gap-2">
+          <span className="rounded-full bg-textSecondary/10 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-textSecondary">
+            {player.status}
+          </span>
+          <button
+            type="button"
+            onClick={() => onEdit(player)}
+            className="text-sm font-semibold text-burnt hover:underline"
+          >
+            Edit
+          </button>
+        </div>
+        <PlayerSummary player={player} />
+      </div>
+    </Card>
+  );
+}
+
 function GraduatesPage() {
   const { id } = useParams();
   const [team, setTeam] = useState(null);
   const [players, setPlayers] = useState([]);
   const [boards, setBoards] = useState([]);
+  const [flags, setFlags] = useState([]);
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [teamData, playerData] = await Promise.all([
+        const [teamData, playerData, flagData] = await Promise.all([
           fetchTeam(id),
           fetchPlayers(id, { status: ["graduated", "departed"] }),
+          fetchFlags(),
         ]);
         setTeam(teamData);
         setPlayers(playerData);
+        setFlags(flagData);
         if (teamData?.squads?.length) {
           const boardGroups = await Promise.all(
             teamData.squads.map((sq) => fetchSquadBoards(id, sq.id)),
@@ -401,6 +475,43 @@ function GraduatesPage() {
     [players],
   );
 
+  const filteredPlayers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return sortedPlayers;
+    return sortedPlayers.filter((p) => (p.name || "").toLowerCase().includes(q));
+  }, [sortedPlayers, search]);
+
+  const groupedSquads = useMemo(() => {
+    const boardsById = new Map(boards.map((b) => [String(b.id), b]));
+    const squads = team?.squads || [];
+    const sections = new Map(
+      squads.map((sq) => [String(sq.id), { squad: sq, boardGroups: new Map(), unassigned: [] }]),
+    );
+    const otherSection = { squad: null, boardGroups: new Map(), unassigned: [] };
+
+    for (const p of filteredPlayers) {
+      const board = boardsById.get(String(p.positionBoardId || p.position_board_id || ""));
+      const squadId = board ? String(board.squadId || board.squad_id) : String(p.squadId || p.squad_id || "");
+      const section = sections.get(squadId) || otherSection;
+      if (board) {
+        const key = String(board.id);
+        if (!section.boardGroups.has(key)) section.boardGroups.set(key, { board, players: [] });
+        section.boardGroups.get(key).players.push(p);
+      } else {
+        section.unassigned.push(p);
+      }
+    }
+
+    return [...squads.map((sq) => sections.get(String(sq.id))), otherSection]
+      .map((section) => ({
+        ...section,
+        boardGroups: [...section.boardGroups.values()].sort(
+          (a, b) => (a.board.sortOrder || a.board.sort_order || 0) - (b.board.sortOrder || b.board.sort_order || 0),
+        ),
+      }))
+      .filter((section) => section.boardGroups.length || section.unassigned.length);
+  }, [filteredPlayers, boards, team]);
+
   const openEdit = (player) => {
     setEditing({
       id: player.id,
@@ -411,8 +522,9 @@ function GraduatesPage() {
       overall: player.overall || "",
       starRating: player.starRating || player.star_rating || 3,
       status: player.status || "graduated",
-      flagged: !!player.flagged,
-      boardId: player.positionBoardId || player.position_board_id || "",
+      flagIds: (player.flags || []).map((f) => f.id),
+      positionGroupId: player.positionBoardId || player.position_board_id || "",
+      returnBoardId: "",
       boardOptions: boards,
     });
   };
@@ -423,7 +535,7 @@ function GraduatesPage() {
     if (!editing) return;
     setSaving(true);
     try {
-      const wantsReturn = !!editing.boardId;
+      const wantsReturn = !!editing.returnBoardId;
       await updatePlayer(id, editing.id, {
         name: editing.name,
         class_year: editing.classYear || null,
@@ -432,8 +544,8 @@ function GraduatesPage() {
         overall: editing.overall || null,
         star_rating: editing.starRating || null,
         status: wantsReturn ? "recruit" : editing.status || "graduated",
-        position_board_id: editing.boardId || null,
-        flagged: !!editing.flagged,
+        position_board_id: wantsReturn ? editing.returnBoardId : editing.positionGroupId || null,
+        flag_ids: editing.flagIds || [],
       });
       const playerData = await fetchPlayers(id, { status: ["graduated", "departed"] });
       setPlayers(playerData);
@@ -485,32 +597,51 @@ function GraduatesPage() {
     <div className="space-y-4">
       <PageHeader title="Alumni" eyebrow={team ? team.name : "Loading"} actions={headerActions} />
       {error && <p className="text-sm text-danger">{error}</p>}
+      <input
+        type="text"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search alumni by name…"
+        className="w-full max-w-xs rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+      />
       {!sortedPlayers.length && !error && (
         <p className="text-sm text-textSecondary">No alumni (graduated or departed) yet.</p>
       )}
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-        {sortedPlayers.map((p) => (
-          <Card key={p.id} className="h-full">
-            <div className="p-4 space-y-2 h-full flex flex-col">
-              <div className="flex items-start justify-between gap-2">
-                <span className="rounded-full bg-textSecondary/10 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-textSecondary">
-                  {p.status}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => openEdit(p)}
-                  className="text-sm font-semibold text-burnt hover:underline"
-                >
-                  Edit
-                </button>
+      {!!sortedPlayers.length && !filteredPlayers.length && !error && (
+        <p className="text-sm text-textSecondary">No alumni match that search.</p>
+      )}
+      <div className="space-y-6">
+        {groupedSquads.map((section) => (
+          <div key={section.squad?.id || "other"} className="space-y-4">
+            <h2 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">
+              {section.squad?.name || "Other"}
+            </h2>
+            {section.boardGroups.map(({ board, players: boardPlayers }) => (
+              <div key={board.id} className="space-y-2">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-textSecondary">{board.name}</h3>
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  {boardPlayers.map((p) => (
+                    <PlayerCard key={p.id} player={p} onEdit={openEdit} />
+                  ))}
+                </div>
               </div>
-              <PlayerSummary player={p} />
-            </div>
-          </Card>
+            ))}
+            {section.unassigned.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-textSecondary">Unassigned</h3>
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  {section.unassigned.map((p) => (
+                    <PlayerCard key={p.id} player={p} onEdit={openEdit} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         ))}
       </div>
       <PlayerEditModal
         editing={editing}
+        flags={flags}
         onClose={closeEdit}
         onSaveDraft={(draft) => setEditing(draft)}
         onSave={() => saveEdit()}

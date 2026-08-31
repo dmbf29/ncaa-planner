@@ -51,3 +51,7 @@ group :development, :test do
 
   gem "dotenv-rails"
 end
+
+# Custom Added
+gem "cloudinary"
+gem "ruby_llm"

@@ -20,7 +20,7 @@ export default {
         textPrimary: "#2A2A2A",
         textSecondary: "#6B6B6B",
         success: "#4C7A4F",
-        warning: "#C2410C",
+        warning: "#CA8A04",
         info: "#8DA1B9",
         danger: "#991B1B",
         darkbg: "#1F1F1F",

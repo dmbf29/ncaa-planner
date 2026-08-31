@@ -6,7 +6,7 @@ function StatPill({ label, value, tone = "muted" }) {
   };
 
   return (
-    <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${tones[tone]}`}>
+    <div className={`inline-flex justify-between items-center gap-2 rounded-full px-2 py-1 text-xs font-medium ${tones[tone]}`}>
       <span className="font-crayon uppercase tracking-wide text-[11px]">{label}</span>
       <span className="font-semibold text-sm">{value}</span>
     </div>

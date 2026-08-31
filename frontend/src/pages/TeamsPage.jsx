@@ -54,29 +54,33 @@ function TeamsPage() {
               <div className="p-5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-varsity text-xl uppercase tracking-[0.07em]">{team.name}</h3>
+                    <h3 className="font-varsity text-xl uppercase tracking-[0.07em] flex items-center">
+                      {team.name}
+                      <Link
+                        to={`/teams/${team.id}/setup`}
+                        className="px-2 text-xs text-charcoal transition dark:text-white dark:hover:bg-white/10"
+                      >
+                        <i className="fa-solid fa-gear"></i>
+                      </Link>
+                    </h3>
                   </div>
-                  <StatPill label="Squads" value={team.squads?.length || 0} />
+                  <StatPill label="Players" value={team.players?.length || 0} />
                 </div>
                 <div className="mt-4 flex gap-3">
-                  <Link
-                    to={`/teams/${team.id}/setup`}
-                    className="rounded-md bg-burnt px-3 py-2 text-charcoal text-sm font-semibold shadow-card transition hover:-translate-y-0.5"
-                  >
-                    Setup
-                  </Link>
-                  <Link
-                    to={`/teams/${team.id}/graduates`}
-                    className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
-                  >
-                    Graduates / Departures
-                  </Link>
                   {team.squads?.[0] && (
                     <Link
                       to={`/teams/${team.id}/squads/${team.squads[0].id}`}
-                      className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+                      className="rounded-md bg-burnt  border border-border px-3 py-2 text-sm text-charcoal transition border-burnt hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
                     >
-                      Open first squad
+                      Offense
+                    </Link>
+                  )}
+                  {team.squads?.[1] && (
+                    <Link
+                      to={`/teams/${team.id}/squads/${team.squads[1].id}`}
+                      className="rounded-md bg-burnt  border border-border px-3 py-2 text-sm text-charcoal transition border-burnt hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+                    >
+                      Defense
                     </Link>
                   )}
                 </div>

@@ -27,3 +27,9 @@
 /tmp/storage/*
 !/tmp/storage/
 !/tmp/storage/.keep
+/vendor/bundle
+../.DS_Store
+.DS_Store
+app/.DS_Store
+config/.DS_Store
+db/.DS_Store

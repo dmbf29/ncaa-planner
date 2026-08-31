@@ -5,7 +5,7 @@ module Api
       before_action :set_player, only: %i[update destroy]
 
       def index
-        players = policy_scope(@team.players.includes(:roster_slot, :position_board, :squad))
+        players = policy_scope(@team.players.includes(:roster_slot, :position_board, :squad, :flags))
         players = players.where(position_board_id: params[:position_board_id]) if params[:position_board_id].present?
         players = players.where(squad_id: params[:squad_id]) if params[:squad_id].present?
         players = players.where(status: params[:status]) if params[:status].present?
@@ -61,15 +61,16 @@ module Api
           :star_rating,
           :eval_status,
           :overall,
+          :nil_amount,
           :notes,
           :pursued,
           :signed,
-          :flagged,
           :position_change_needed,
           :squad_id,
           :position_board_id,
           abilities: [],
           tags: [],
+          flag_ids: [],
           attributes: {},
           attribute_values: {}
         )

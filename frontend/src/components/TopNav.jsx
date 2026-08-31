@@ -46,6 +46,17 @@ function TopNav() {
               >
                 Teams
               </Link>
+              <Link
+                to="/dynasty"
+                className={clsx(
+                  "rounded-md px-3 py-2 transition",
+                  location.pathname.startsWith("/dynasty")
+                    ? ""
+                    : "text-white/80 hover:bg-white/10",
+                )}
+              >
+                Dynasty
+              </Link>
               <div className="relative">
                 <button
                   onClick={() => setMenuOpen((v) => !v)}

@@ -4,9 +4,9 @@ class PositionBoard < ApplicationRecord
 
   has_many :players, dependent: :nullify
   has_many :roster_slots, dependent: :destroy
-  has_many :needs, dependent: :destroy
 
   validates :name, presence: true
+  validates :priorities, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validate :squad_belongs_to_team
 
   private

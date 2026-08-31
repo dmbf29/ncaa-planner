@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import PageHeader from "../components/PageHeader";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import Card from "../components/Card";
-import StatPill from "../components/StatPill";
+// import StatPill from "../components/StatPill";
 import OverallPill from "../components/OverallPill";
+import PlayerFlagIcons from "../components/PlayerFlagIcons";
+import FlagPicker from "../components/FlagPicker";
+import ClassBreakdown from "../components/ClassBreakdown";
+import BoardCardStats from "../components/BoardCardStats";
+import PriorityPositions from "../components/PriorityPositions";
 import {
   fetchTeam,
   fetchSquadBoards,
   fetchPlayers,
+  fetchFlags,
   createRosterSlot,
   updateRosterSlot,
   updatePositionBoard,
@@ -15,9 +20,6 @@ import {
   updatePlayer,
   deletePlayer,
   deleteRosterSlot,
-  createNeed,
-  updateNeed,
-  deleteNeed,
 } from "../lib/apiClient";
 
 const archetypeGroups = {
@@ -96,7 +98,13 @@ const archetypeShort = (longLabel) => {
   return longLabel || "";
 };
 
-const classYears = ["FR", "FR(RS)", "SO", "SO(RS)", "JR", "JR(RS)", "SR", "SR(RS)", "Rec", "✍️"];
+const classYears = ["FR", "FR(RS)", "SO", "SO(RS)", "JR", "JR(RS)", "SR", "SR(RS)"];
+
+const STATUS_FLAG_OPTIONS = [
+  { name: "recruit", label: "Recruit" },
+  { name: "commited", label: "Commited" },
+];
+const STATUS_FLAG_NAMES = STATUS_FLAG_OPTIONS.map((o) => o.name);
 
 const devTraitOptions = [
   { value: "normal", label: "Normal" },
@@ -311,7 +319,8 @@ function SquadBoardPage() {
     starRating: 3,
     archetype: "",
     overall: "",
-    classYear: "",
+    nilAmount: "",
+    classYear: "recruit",
     devTrait: "",
     recruitStatus: "",
   });
@@ -322,30 +331,25 @@ function SquadBoardPage() {
   const [dragOverRecruitBoard, setDragOverRecruitBoard] = useState(null); // boardId
   const [previewOrder, setPreviewOrder] = useState({ boardId: null, order: [] }); // local visual reorder
   const [newPlayerAttributes, setNewPlayerAttributes] = useState({});
-  const [needDraft, setNeedDraft] = useState({
-    boardId: null,
-    needId: null,
-    departingPlayerId: "",
-    replacementPlayerId: "",
-    slotNumber: "",
-    resolved: false,
-  });
-  const [needBusy, setNeedBusy] = useState(false);
-  const [needMessage, setNeedMessage] = useState("");
+  const [priorityBusyId, setPriorityBusyId] = useState(null);
   const [attributeModal, setAttributeModal] = useState({ boardId: null, selected: [], custom: "" });
+  const [flags, setFlags] = useState([]);
   const cardRefs = useRef({});
+  const navigate = useNavigate();
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [teamData, boardsData, playersData] = await Promise.all([
+        const [teamData, boardsData, playersData, flagData] = await Promise.all([
           fetchTeam(id),
           fetchSquadBoards(id),
           fetchPlayers(id, { status: ["recruit", "rostered"] }),
+          fetchFlags(),
         ]);
         setTeam(teamData);
         setBoards(dedupeBoards(boardsData));
         setPlayers(playersData);
+        setFlags(flagData);
       } catch (err) {
         setError(err.message);
       }
@@ -476,10 +480,9 @@ function SquadBoardPage() {
       const next = typeof updater === "function" ? updater(prev) : updater;
       if (!next) return next;
       const nextDraft = { ...next };
-      if (nextDraft.flagged === undefined) {
-        nextDraft.flagged = !!prev?.flagged;
+      if (nextDraft.flagIds === undefined) {
+        nextDraft.flagIds = prev?.flagIds || [];
       }
-      nextDraft.flagged = !!nextDraft.flagged;
       nextDraft.attributeValues = sanitizeAttributeMap(nextDraft.attributeValues || prev?.attributeValues || {});
 
       const targetBoardId =
@@ -658,6 +661,8 @@ function SquadBoardPage() {
       "JR(RS)": "text-[#c99b2b]",
       SR: "text-[#991B1B]",
       "SR(RS)": "text-[#991B1B]",
+      Recruit: "text-[#6b6b6b]",
+      Commit: "text-[#6b6b6b]",
     };
     return map[cls] || "text-textSecondary";
   };
@@ -672,31 +677,37 @@ function SquadBoardPage() {
       "JR(RS)": { bg: "bg-[#c99b2b1a]", border: "border-[#c99b2b33]" },
       SR: { bg: "bg-[#991B1B1a]", border: "border-[#991B1B33]" },
       "SR(RS)": { bg: "bg-[#991B1B1a]", border: "border-[#991B1B33]" },
+      Recruit: { bg: "bg-[#dcdcdc]", border: "border-[#6b6b6b]" },
+      Commit: { bg: "bg-[#dcdcdc]", border: "border-[#6b6b6b]" },
     };
     const palette = map[cls];
     const base =
-      "inline-flex items-center justify-center px-1.5 py-[2px] rounded-full text-[11px] font-semibold border max-w-[72px] w-full";
+      "inline-flex items-center justify-center px-1.5 py-[2px] rounded-full text-[10px] font-semibold border max-w-[72px] w-full";
     if (!palette) {
       return `${base} text-textSecondary bg-textSecondary/10 border-textSecondary/20`;
     }
     return `${base} ${classColor(cls)} ${palette.bg} ${palette.border}`;
   };
 
+
+
   const PlayerSummary = ({ player, highlightedAttributes = [], attributes = {}, showRecruitStatus = true }) => {
     if (!player) return null;
     const star = player.starRating ?? player.star_rating;
-    const classYear = player.classYear ?? player.class_year;
+    const statusFlag = (player.flags || []).find((f) => STATUS_FLAG_NAMES.includes(f.name));
+    const classYear =
+      player.classYear || player.class_year || (statusFlag?.name === "commited" ? "Commit" : statusFlag ? "Recruit" : null);
     const archetype = archetypeShort(player.archetype);
     const overall = player.overall;
+    const nilAmount = player.nilAmount ?? player.nil_amount;
     const trait = player.devTrait ?? player.dev_trait;
     const recruitStatus = showRecruitStatus ? getRecruitStatus(player) : "normal";
     const isGem = recruitStatus === "gem";
     const isBust = recruitStatus === "bust";
-    const isFlagged = !!player.flagged;
     const attrValues = Object.keys(attributes || {}).length > 0 ? attributes : getPlayerAttributes(player);
 
-    const AttributeCell = ({ value }) => (
-      <div className="flex flex-col items-center min-w-0 overflow-hidden">
+    const AttributeCell = ({ value, className = "" }) => (
+      <div className={`flex flex-col items-center min-w-0 overflow-hidden ${className}`}>
         <span className="text-xs text-textSecondary font-medium min-h-[1.1rem] flex items-center justify-center max-w-full w-full">
           {value ?? <span className="text-border">—</span>}
         </span>
@@ -704,13 +715,13 @@ function SquadBoardPage() {
     );
 
     return (
-      <div className="flex flex-col w-full gap-1">
-        <div className="flex items-center justify-between gap-2 px-2 pt-2">
+      <div className="flex flex-col w-full gap-0">
+        <div className="flex items-center justify-between gap-1 px-2 pt-1">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="text-textPrimary dark:text-white font-semibold truncate">
+            <span className="text-textPrimary dark:text-white text-xs font-semibold truncate">
               {player.name || player.id}
             </span>
-            {isFlagged ? <i className="fa-solid fa-flag text-danger text-xs" title="Flagged"></i> : null}
+            <PlayerFlagIcons flags={player.flags} />
           </div>
           <div className="flex flex-wrap items-center gap-0">
             {highlightedAttributes.length > 0 && (
@@ -731,12 +742,19 @@ function SquadBoardPage() {
             {overall ? <OverallPill value={overall} /> : null}
           </div>
         </div>
-        <div className="grid grid-cols-4 gap-1 px-1 bg-textSecondary/5 py-1 items-center">
+        <div className="grid grid-cols-6 gap-0 px-1 bg-textSecondary/5 py-1 items-center">
           <AttributeCell
             value={
-              classYear ? <span className={classPillClass(classYear)}>{classYear}</span> : null
+              nilAmount != null ? (
+                <span className="flex items-center gap-1">
+                  <i className="fa-solid fa-diamond text-[10px]" aria-hidden="true" />
+                  <span>{nilAmount}</span>
+                </span>
+              ) : null
             }
           />
+          <AttributeCell value={archetype ? archetype : null} />
+          <AttributeCell value={trait ? renderTrait(trait) : null} />
           <AttributeCell
             value={
               star || isBust ? (
@@ -783,8 +801,12 @@ function SquadBoardPage() {
               ) : null
             }
           />
-          <AttributeCell value={trait ? renderTrait(trait) : null} />
-          <AttributeCell value={archetype ? archetype : null} />
+          <AttributeCell
+            className="col-span-2"
+            value={
+              classYear ? <span className={classPillClass(classYear)}>{classYear}</span> : null
+            }
+          />
         </div>
       </div>
     );
@@ -795,19 +817,31 @@ function SquadBoardPage() {
     setBusyBoardId(boardId);
     try {
       const attrPayload = buildAttributePayload(newPlayerAttributes[boardId]);
+      const statusFlag = flags.find((f) => STATUS_FLAG_NAMES.includes(f.name) && f.name === newPlayer.classYear);
       await createPlayer(id, {
         name: newPlayer.name,
         star_rating: newPlayer.starRating || null,
         archetype: newPlayer.archetype || null,
         overall: newPlayer.overall || null,
-        class_year: newPlayer.classYear || null,
+        nil_amount: newPlayer.nilAmount === "" ? null : newPlayer.nilAmount,
+        class_year: statusFlag ? null : newPlayer.classYear || null,
         dev_trait: newPlayer.devTrait || null,
         recruit_status: newPlayer.recruitStatus || "normal",
         status: "recruit",
         position_board_id: boardId,
         attribute_values: attrPayload,
+        flag_ids: statusFlag ? [statusFlag.id] : [],
       });
-      setNewPlayer({ name: "", starRating: "", archetype: "", overall: "", classYear: "", devTrait: "", recruitStatus: "" });
+      setNewPlayer({
+        name: "",
+        starRating: "",
+        archetype: "",
+        overall: "",
+        nilAmount: "",
+        classYear: "recruit",
+        devTrait: "",
+        recruitStatus: "",
+      });
       setNewPlayerAttributes((prev) => ({ ...prev, [boardId]: {} }));
       setShowFormBoardId(null);
       const playersData = await fetchPlayers(id, { status: ["recruit", "rostered"] });
@@ -952,10 +986,11 @@ function SquadBoardPage() {
       devTrait: player.devTrait || "",
       archetype: player.archetype || "",
       overall: player.overall || "",
+      nilAmount: player.nilAmount ?? "",
       starRating: player.starRating || 3,
       status: player.status || "recruit",
       recruitStatus: getRecruitStatus(player),
-      flagged: !!player.flagged,
+      flagIds: (player.flags || []).map((f) => f.id),
       boardSelection: boardId || player.positionBoardId || player.position_board_id || "",
       boardOptions,
       attributeValues,
@@ -985,12 +1020,13 @@ function SquadBoardPage() {
         dev_trait: payload.devTrait,
         archetype: payload.archetype,
         overall: payload.overall,
+        nil_amount: payload.nilAmount === "" ? null : payload.nilAmount,
         star_rating: payload.starRating,
         status: isAlumni ? payload.status : payload.status === "rostered" && !boardChanged ? "rostered" : "recruit",
         recruit_status: payload.recruitStatus || "normal",
-        position_board_id: isAlumni ? null : targetBoardId || null,
+        position_board_id: targetBoardId || null,
         attribute_values: attributeValuesPayload,
-        flagged: !!payload.flagged,
+        flag_ids: payload.flagIds || [],
       });
       if (shouldRemoveSlot && sourceSlot) {
         await deleteRosterSlot(sourceBoard.id, sourceSlot.id);
@@ -1029,104 +1065,76 @@ function SquadBoardPage() {
     }
   };
 
-  const allNeeds = useMemo(() => {
-    const byKey = new Map();
-    boards.forEach((b) => {
-      (b.needs || []).forEach((n) => {
-        const dep = n.departingPlayerId || n.departing_player_id || "";
-        const slotNum = n.slotNumber || n.slot_number || "";
-        const rep = n.replacementPlayerId || n.replacement_player_id || "";
-        const key = n.id ? `id:${n.id}` : `combo:${b.id}:${dep}:${slotNum}:${rep}`;
-        if (byKey.has(key)) return;
-        byKey.set(key, {
-          ...n,
-          boardName: b.name,
-          boardId: b.id,
-          squadId: b.squadId || b.squad_id,
-          boardSortOrder: b.sortOrder || b.sort_order || 0,
-        });
-      });
-    });
-    return Array.from(byKey.values());
-  }, [boards]);
+  const priorityBoards = useMemo(
+    () =>
+      boards.map((b) => ({
+        ...b,
+        squadId: b.squadId || b.squad_id,
+        sortOrder: b.sortOrder || b.sort_order || 0,
+      })),
+    [boards],
+  );
 
-  const handleClearAllNeeds = async () => {
-    if (!window.confirm(`Delete all ${allNeeds.length} planned replacement${allNeeds.length !== 1 ? "s" : ""}? This cannot be undone.`)) return;
+  const handlePriorityChange = async (board, delta) => {
+    const next = Math.max(0, (board.priorities || 0) + delta);
+    if (next === (board.priorities || 0)) return;
+    setPriorityBusyId(board.id);
+    setBoards((prev) => prev.map((b) => (b.id === board.id ? { ...b, priorities: next } : b)));
     try {
-      await Promise.all(allNeeds.map((n) => deleteNeed(n.boardId, n.id)));
-      const boardsData = await loadAllBoards();
-      setBoards(boardsData);
+      await updatePositionBoard(id, board.id, { priorities: next });
     } catch (err) {
       setError(err.message);
-    }
-  };
-
-  const handleDeleteNeed = async (boardId, needId) => {
-    setNeedBusy(true);
-    setNeedMessage("");
-    try {
-      await deleteNeed(boardId, needId);
       const boardsData = await loadAllBoards();
       setBoards(boardsData);
-      closeNeedModal();
-    } catch (err) {
-      setError(err.message);
     } finally {
-      setNeedBusy(false);
+      setPriorityBusyId(null);
     }
   };
 
-  const closeNeedModal = () => {
-    setNeedDraft({
-      boardId: null,
-      needId: null,
-      departingPlayerId: "",
-      replacementPlayerId: "",
-      slotNumber: "",
-      resolved: false,
-    });
-    setNeedMessage("");
-    setNeedBusy(false);
-  };
-
-  const handleSaveNeed = async () => {
-    if (!needDraft.boardId) return;
-    if (!needDraft.departingPlayerId && !needDraft.slotNumber) {
-      setNeedMessage("Pick a departing player or an empty slot.");
+  const handleClearAllPriorities = async () => {
+    const toClear = priorityBoards.filter((b) => (b.priorities || 0) > 0);
+    if (toClear.length === 0) return;
+    if (
+      !window.confirm(
+        `Clear priorities for all ${toClear.length} position${toClear.length !== 1 ? "s" : ""}? This cannot be undone.`,
+      )
+    )
       return;
-    }
-    setNeedBusy(true);
-    setNeedMessage("");
     try {
-      const payload = {
-        departing_player_id: needDraft.departingPlayerId || null,
-        slot_number: needDraft.slotNumber ? Number(needDraft.slotNumber) : null,
-        replacement_player_id: needDraft.replacementPlayerId || null,
-        resolved: !!needDraft.resolved,
-      };
-      if (needDraft.needId) {
-        await updateNeed(needDraft.boardId, needDraft.needId, payload);
-      } else {
-        await createNeed(needDraft.boardId, payload);
-      }
+      await Promise.all(toClear.map((b) => updatePositionBoard(id, b.id, { priorities: 0 })));
       const boardsData = await loadAllBoards();
       setBoards(boardsData);
-      closeNeedModal();
     } catch (err) {
       setError(err.message);
-    } finally {
-      setNeedBusy(false);
+    }
+  };
+
+  const handleSelectPriorityBoard = (board) => {
+    const boardSquadId = board.squadId || board.squad_id;
+    if (String(boardSquadId) === String(squadId)) {
+      cardRefs.current[board.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
+    } else {
+      navigate(`/teams/${id}/squads/${boardSquadId}`);
     }
   };
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        title={team ? `${team.name}` : "Loading..."}
-        eyebrow="Roster Planner"
-        actions={
-          squadList.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-2 sm:mt-0">
+      <div className="mb-6 flex flex-col gap-1 border-b border-border pb-4 dark:border-darkborder">
+        <div className="grid gap-2 sm:grid-cols-1 md:grid-cols-2 rounded-xl border border-border bg-surface/40 shadow-card dark:border-darkborder dark:bg-darksurface/50 px-3 py-4">
+          <div className="flex flex-col">
+            <h1 className="font-varsity text-3xl tracking-[0.06em] uppercase flex items-center">
+              {team ? `${team.name}` : "Loading..."}
+              <small className="flex items-center">
+                <Link
+                  to={`/teams/${id}/setup`}
+                  className="rounded-md px-3 text-charcoal text-sm font-semibold shadow-card transition hover:-translate-y-0.5"
+                >
+                  <i className="fa-solid fa-gear"></i>
+                </Link>
+              </small>
+            </h1>
+            <div className="flex flex-wrap gap-2 mt-2">
               {squadList.map((sq) => (
                 <Link
                   key={sq.id}
@@ -1146,81 +1154,27 @@ function SquadBoardPage() {
               >
                 Alumni
               </Link>
+              <Link
+                to={`/teams/${id}/batch-update`}
+                className="font-varsity uppercase rounded-md px-3 py-2 text-sm bg-burnt text-white transition hover:bg-burnt/80"
+              >
+                Batch Update
+              </Link>
             </div>
-          )
-        }
-      />
+            <div className="mt-3">
+              <PriorityPositions
+                boards={priorityBoards}
+                squadList={squadList}
+                onClearAll={handleClearAllPriorities}
+                onSelectBoard={handleSelectPriorityBoard}
+              />
+            </div>
+          </div>
+          <ClassBreakdown players={players} flags={flags} />
+        </div>
+      </div>
       {error && <p className="text-sm text-danger">{error}</p>}
       {!team && !error && <p className="text-sm text-textSecondary">Loading squad...</p>}
-      {allNeeds.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-textSecondary uppercase tracking-[0.12em] flex items-center gap-2">
-            <span><span className="font-crayon">Planned Replacements</span> ({allNeeds.length})</span>
-            <button
-              type="button"
-              onClick={handleClearAllNeeds}
-              title="Clear all planned replacements"
-              className="text-textSecondary/50 hover:text-error transition-colors"
-            >
-              <i className="fa-solid fa-trash-can" aria-hidden="true" />
-            </button>
-          </h3>
-          <div className="flex flex-wrap gap-1">
-            {(() => {
-              // Group by boardId
-              const seen = new Map();
-              allNeeds.forEach((need) => {
-                if (!seen.has(need.boardId)) seen.set(need.boardId, { need, count: 0 });
-                seen.get(need.boardId).count += 1;
-              });
-              // Sort by squad order (squadList index) then board sortOrder
-              const squadOrder = (squadId) => {
-                const idx = squadList.findIndex((sq) => String(sq.id) === String(squadId));
-                return idx === -1 ? 999 : idx;
-              };
-              const sorted = Array.from(seen.values()).sort((a, b) => {
-                const sqDiff = squadOrder(a.need.squadId) - squadOrder(b.need.squadId);
-                if (sqDiff !== 0) return sqDiff;
-                return a.need.boardSortOrder - b.need.boardSortOrder;
-              });
-              const offenseSquadId = squadList[0]?.id;
-              return sorted.map(({ need, count }) => {
-                const isOffense = String(need.squadId) === String(offenseSquadId);
-                return (
-                  <button
-                    key={need.boardId}
-                    type="button"
-                    onClick={() => {
-                      setNeedDraft({
-                        boardId: need.boardId,
-                        needId: need.id,
-                        departingPlayerId: need.departingPlayerId || need.departing_player_id || "",
-                        replacementPlayerId: need.replacementPlayerId || need.replacement_player_id || "",
-                        slotNumber: need.slotNumber || need.slot_number || "",
-                        resolved: !!need.resolved,
-                      });
-                      setNeedMessage("");
-                      setNeedBusy(false);
-                    }}
-                    className={`inline-flex items-center rounded-full border px-2 bg-white py-1 text-xs font-semibold shadow-sm ${
-                      need.resolved
-                        ? "border-success/70 text-success"
-                        : isOffense
-                        ? "border-border text-burnt dark:border-darkborder dark:bg-darksurface"
-                        : "border-border text-charcoal dark:border-darkborder dark:bg-darksurface dark:text-white"
-                    }`}
-                  >
-                    {need.boardName}{count > 1 ? ` (${count})` : ""}
-                  </button>
-                );
-              });
-            })()}
-          </div>
-          <h3 className="text-sm font-semibold text-textSecondary uppercase tracking-[0.12em] flex items-center gap-2">
-            <span><span className="font-crayon">Recruits on the Board</span> ({players.filter(p => { const cy = p.classYear ?? p.class_year; return cy === "Rec" || cy === "✍️"; }).length})</span>
-          </h3>
-        </div>
-      )}
       <div className="grid gap-2 sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
         {sortedBoards.map((board) => {
           const rosterSlots = board.rosterSlots || board.roster_slots || [];
@@ -1235,6 +1189,12 @@ function SquadBoardPage() {
               String(p.positionBoardId || p.position_board_id || "") === String(board.id) &&
               !assignedIds.has(p.id),
           );
+          const boardPlayers = players.filter(
+            (p) =>
+              p.status !== "recruit" &&
+              String(p.positionBoardId || p.position_board_id || "") === String(board.id),
+          );
+          const emptySlotCount = slotsArray.filter((s) => !s.occupant).length;
           return (
             <Card
               key={board.id}
@@ -1277,7 +1237,6 @@ function SquadBoardPage() {
               <div className="relative z-[1] h-full space-y-3 p-3 pt-8">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-crayon text-xs uppercase tracking-[0.14em] text-textSecondary">Position</p>
                     <div className="flex">
                       <button
                         type="button"
@@ -1292,74 +1251,39 @@ function SquadBoardPage() {
                       <button
                         type="button"
                         onClick={() => openAttributeModal(board)}
-                        className="font-varsity text-xl tracking-[0.07em] uppercase text-left hover:underline"
+                        className="font-varsity text-2xl tracking-[0.07em] uppercase text-left hover:underline"
                         title="Click to edit highlighted attributes"
                       >
                         {board.name}
                       </button>
                     </div>
+                    <BoardCardStats players={boardPlayers} emptySlots={emptySlotCount} />
                   </div>
-                  <div className="flex items-center gap-1">
-                    {(board.needs || []).map((need) => {
-                      const departing =
-                        need.departingPlayer?.name ||
-                        need.departing_player?.name ||
-                        (need.slotNumber || need.slot_number ? "Empty" : "Departing?");
-                      const replacement =
-                        need.replacementPlayer?.name ||
-                        need.replacement_player?.name ||
-                        "TBD";
-                      return (
-                        <button
-                          key={need.id}
-                          type="button"
-                          onClick={() => {
-                            setNeedDraft({
-                              boardId: board.id,
-                              needId: need.id,
-                              departingPlayerId: need.departingPlayerId || need.departing_player_id || "",
-                              replacementPlayerId: need.replacementPlayerId || need.replacement_player_id || "",
-                              slotNumber: need.slotNumber || need.slot_number || "",
-                              resolved: !!need.resolved,
-                            });
-                            setNeedMessage("");
-                            setNeedBusy(false);
-                          }}
-                          className={`inline-flex items-center gap-1 rounded-full border px-2 bg-white py-1 text-xs font-semibold text-textSecondary shadow-sm ${
-                            need.resolved ? "border-success/70" : "border-border dark:border-darkborder dark:bg-darksurface"
-                          }`}
-                        >
-                          <span className="text-textPrimary">{departing}</span>
-                          {replacement !== "TBD" && (
-                            <>
-                              <span className="text-textSecondary/50">→</span>
-                              <span className="text-textPrimary">{replacement}</span>
-                            </>
-                          )}
-                        </button>
-                      );
-                    })}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setNeedDraft({
-                          boardId: board.id,
-                          needId: null,
-                          departingPlayerId: "",
-                          replacementPlayerId: "",
-                          slotNumber: "",
-                          resolved: false,
-                        });
-                        setNeedMessage("");
-                        setNeedBusy(false);
-                      }}
-                      className="text-left"
-                    >
-                      <StatPill
-                        label="Needs"
-                        value={(board.needs || []).filter((n) => !n.resolved).length}
-                      />
-                    </button>
+                  <div>
+                    <div className="flex justify-center items-center font-crayon text-xs uppercase text-textSecondary">
+                      {board.priorities ? 'Priority Spots' : 'Set as Priority' }
+                    </div>
+                    <div className="flex justify-between items-center gap-1 rounded-full px-1 py-1 text-xs font-medium bg-textSecondary/5 text-textSecondary dark:bg-white/10 dark:text-white/80">
+                      <button
+                        type="button"
+                        onClick={() => handlePriorityChange(board, -1)}
+                        disabled={priorityBusyId === board.id || (board.priorities || 0) <= 0}
+                        className="flex h-6 w-6 items-center justify-center rounded-full border border-border text-textSecondary hover:bg-border/40 disabled:opacity-40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+                        title="Decrease priorities"
+                      >
+                        <i className="fa-solid fa-minus text-[10px]" aria-hidden="true" />
+                      </button>
+                      <span className='px-1'>{board.priorities || 0}</span>
+                      <button
+                        type="button"
+                        onClick={() => handlePriorityChange(board, 1)}
+                        disabled={priorityBusyId === board.id}
+                        className="flex h-6 w-6 items-center justify-center rounded-full border border-border text-textSecondary hover:bg-border/40 disabled:opacity-40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+                        title="Increase priorities"
+                      >
+                        <i className="fa-solid fa-plus text-[10px]" aria-hidden="true" />
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -1371,20 +1295,18 @@ function SquadBoardPage() {
                         playerId ? findPlayerById(playerId) || occupant?.player || { id: playerId } : null;
                       const highlightAttrs = getBoardHighlightedAttributes(board);
                       const attrValues = resolvedPlayer ? getPlayerAttributes(resolvedPlayer) : {};
-                      const isFlagged = !!resolvedPlayer?.flagged;
                       const isDraggingCurrent = draggingPlayer?.playerId === playerId;
                       const dropHoverClass =
                         !occupant && dragOverSlot?.boardId === board.id && dragOverSlot?.slotNum === slotNum
                           ? "border-burnt bg-burnt/15 scale-[1.02] shadow-inner"
                           : "border-border bg-white/80";
-                      const flaggedClass = occupant && isFlagged ? "border-danger shadow-[0_0_0_1px_rgba(185,28,28,0.25)]" : "";
                       const draggingClass = occupant && isDraggingCurrent ? "opacity-70 ring-2 ring-burnt/50" : "";
                       return (
                         <li
                           key={slotNum}
                           className={`flex items-center justify-between gap-2 rounded-md border text-sm dark:border-darkborder dark:bg-darksurface/80 transition ${
                             occupant ? "cursor-grab active:cursor-grabbing" : ""
-                          } ${dropHoverClass} ${flaggedClass} ${draggingClass}`}
+                          } ${dropHoverClass} ${draggingClass}`}
                           draggable={Boolean(occupant)}
                           onDragStart={(e) => occupant && startPlayerDrag(e, playerId, board.id)}
                           onDragEnd={onPlayerDragEnd}
@@ -1511,37 +1433,25 @@ function SquadBoardPage() {
                           </optgroup>
                         ))}
                       </select>
-                      <input
-                        type="number"
-                        placeholder="Overall"
-                        value={newPlayer.overall}
-                        onChange={(e) => setNewPlayer((p) => ({ ...p, overall: e.target.value }))}
-                        className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
-                      />
                       <select
                         value={newPlayer.classYear}
                         onChange={(e) => setNewPlayer((p) => ({ ...p, classYear: e.target.value }))}
                         className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
                       >
                         <option value="">Class</option>
+                        {STATUS_FLAG_OPTIONS.map((o) => (
+                          <option key={o.name} value={o.name}>
+                            {o.label}
+                          </option>
+                        ))}
                         {classYears.map((c) => (
                           <option key={c || "blank"} value={c}>
                             {c || "—"}
                           </option>
                         ))}
                       </select>
-                      <div className="space-y-1">
-                        <span className="text-sm font-medium text-textSecondary dark:text-white/80">Dev Trait</span>
-                        <DevTraitButtons
-                          value={newPlayer.devTrait}
-                          onChange={(val) => setNewPlayer((p) => ({ ...p, devTrait: val }))}
-                        />
-                      </div>
                       {highlightAttrs.length > 0 && (
                         <div className="space-y-2">
-                          <p className="text-xs font-semibold text-textSecondary uppercase tracking-[0.12em]">
-                            Position attributes
-                          </p>
                           <div className="grid gap-2 sm:grid-cols-2">
                             {highlightAttrs.map((attr) => (
                               <label
@@ -1561,6 +1471,30 @@ function SquadBoardPage() {
                           </div>
                         </div>
                       )}
+                      <div className="space-y-1">
+                        <span className="text-sm font-medium text-textSecondary dark:text-white/80">Dev Trait</span>
+                        <DevTraitButtons
+                          value={newPlayer.devTrait}
+                          onChange={(val) => setNewPlayer((p) => ({ ...p, devTrait: val }))}
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          placeholder="Overall"
+                          value={newPlayer.overall}
+                          onChange={(e) => setNewPlayer((p) => ({ ...p, overall: e.target.value }))}
+                          className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="NIL Amount"
+                          value={newPlayer.nilAmount}
+                          onChange={(e) => setNewPlayer((p) => ({ ...p, nilAmount: e.target.value }))}
+                          className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+                        />
+                      </div>
                       <button
                         type="button"
                         onClick={() => handleCreatePlayer(board.id)}
@@ -1573,13 +1507,13 @@ function SquadBoardPage() {
                   )}
                   {recruits.length > 0 && (
                     <ul className="space-y-2">
-                      {recruits.map((p) => (
+                      {recruits.map((p) => {
+                        const primaryFlag = p.flags?.[0];
+                        return (
                         <li
                           key={p.id}
                           className={`flex items-center justify-between rounded-md border text-sm dark:border-darkborder dark:bg-darksurface/80 cursor-grab active:cursor-grabbing ${
-                            p.flagged
-                              ? "border-danger shadow-[0_0_0_1px_rgba(185,28,28,0.25)]"
-                              : "border-border bg-white/80"
+                            primaryFlag ? "" : "border-border bg-white/80"
                           } ${
                             draggingPlayer?.playerId === p.id ? "opacity-70 ring-2 ring-burnt/50" : ""
                           }`}
@@ -1594,7 +1528,8 @@ function SquadBoardPage() {
                             highlightedAttributes={getBoardHighlightedAttributes(board)}
                           />
                         </li>
-                      ))}
+                        );
+                      })}
                     </ul>
                   )}
                 </div>
@@ -1614,19 +1549,9 @@ function SquadBoardPage() {
         onAddCustom={addCustomAttribute}
         busy={busyBoardId === attributeModal.boardId}
       />
-      <NeedModal
-        needDraft={needDraft}
-        setNeedDraft={setNeedDraft}
-        needBusy={needBusy}
-        needMessage={needMessage}
-        onClose={closeNeedModal}
-        onSave={handleSaveNeed}
-        onDelete={handleDeleteNeed}
-        boards={sortedBoards}
-        players={players}
-      />
       <PlayerEditModal
         editing={editing}
+        flags={flags}
         onClose={closeEdit}
         onSaveDraft={setEditingDraft}
         onSave={() => saveEdit()}
@@ -1726,166 +1651,8 @@ function AttributeModal({ draft, board, onClose, onSave, onToggle, onCustomChang
   );
 }
 
-// Modal for creating a need from a board
-function NeedModal({
-  needDraft,
-  setNeedDraft,
-  needBusy,
-  needMessage,
-  onClose,
-  onSave,
-  onDelete,
-  boards,
-  players,
-}) {
-  if (!needDraft.boardId) return null;
-  const board = boards.find((b) => b.id === needDraft.boardId);
-  const rosterSlots = board?.rosterSlots || board?.roster_slots || [];
-  const occupants = rosterSlots
-    .map((rs) => rs.player || players.find((p) => p.id === (rs.playerId || rs.player_id)))
-    .filter(Boolean);
-  const rosteredIds = new Set(
-    boards
-      .flatMap((b) => b.rosterSlots || b.roster_slots || [])
-      .map((rs) => rs.playerId || rs.player_id)
-      .filter(Boolean),
-  );
-  const slotCount = board?.slotsCount || board?.slots_count || 0;
-  const occupiedSlotNumbers = new Set(
-    (rosterSlots || []).map((rs) => rs.slotNumber || rs.slot_number).filter(Boolean),
-  );
-  const emptySlots = Array.from({ length: slotCount })
-    .map((_, idx) => idx + 1)
-    .filter((num) => !occupiedSlotNumbers.has(num));
-
-  const boardLookup = new Map(boards.map((b) => [b.id, b]));
-  const replacementOptions = players
-    .filter((p) => p.id !== needDraft.departingPlayerId)
-    .filter((p) => !rosteredIds.has(p.id))
-    .map((p) => {
-      const b = boardLookup.get(p.positionBoardId || p.position_board_id);
-      return {
-        player: p,
-        boardName: b?.name || "Unassigned",
-        sort: b?.sortOrder || b?.sort_order || 0,
-      };
-    })
-    .sort((a, b) => {
-      const sortDiff = (a.sort || 0) - (b.sort || 0);
-      if (sortDiff !== 0) return sortDiff;
-      return (a.boardName || "").localeCompare(b.boardName || "", undefined, { sensitivity: "base" });
-    });
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-      <div className="w-full max-w-lg rounded-xl bg-surface p-6 shadow-2xl dark:bg-darksurface">
-        <div className="flex items-center justify-between">
-          <h3 className="font-varsity text-xl uppercase tracking-[0.06em]">
-            {needDraft.needId ? "Edit planned replacement" : "Plan a replacement"}
-          </h3>
-          <button onClick={onClose} className="text-textSecondary hover:text-charcoal dark:hover:text-white">
-            ✕
-          </button>
-        </div>
-        <div className="mt-4 space-y-3">
-          <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
-            <span>Departing player or empty slot</span>
-            <select
-              value={
-                needDraft.slotNumber
-                  ? `slot:${needDraft.slotNumber}`
-                  : needDraft.departingPlayerId || ""
-              }
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val.startsWith("slot:")) {
-                  const num = val.replace("slot:", "");
-                  setNeedDraft((prev) => ({ ...prev, departingPlayerId: "", slotNumber: num }));
-                } else {
-                  setNeedDraft((prev) => ({ ...prev, departingPlayerId: val, slotNumber: "" }));
-                }
-              }}
-              className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
-            >
-              <option value="">— Pick a player or empty slot —</option>
-              {occupants.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-              {emptySlots.length > 0 && (
-                <optgroup label="Empty slots">
-                  {emptySlots.map((num) => (
-                    <option key={num} value={`slot:${num}`}>
-                      Empty Slot (#{num})
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-            </select>
-          </label>
-          <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
-            <span>Optional replacement player</span>
-            <select
-              value={needDraft.replacementPlayerId}
-              onChange={(e) => setNeedDraft((prev) => ({ ...prev, replacementPlayerId: e.target.value }))}
-              className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
-            >
-              <option value="">Select later</option>
-              {replacementOptions.map((opt) => (
-                <option key={opt.player.id} value={opt.player.id}>
-                  {opt.boardName} - {opt.player.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex items-center gap-2 text-sm font-medium text-textSecondary dark:text-white/80">
-            <input
-              type="checkbox"
-              checked={!!needDraft.resolved}
-              onChange={(e) => setNeedDraft((prev) => ({ ...prev, resolved: e.target.checked }))}
-              className="h-4 w-4 rounded border-border text-burnt focus:ring-burnt"
-            />
-            <span>Mark as resolved</span>
-          </label>
-          {needMessage && <p className="text-xs text-success">{needMessage}</p>}
-        </div>
-        <div className="mt-4 flex justify-between items-end gap-2">
-          {needDraft.needId ? (
-            <button
-              onClick={() => onDelete(needDraft.boardId, needDraft.needId)}
-              disabled={needBusy}
-              data-confirm="Delete this planned replacement?"
-              className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-danger hover:bg-danger/10 disabled:opacity-60"
-            >
-              Delete
-            </button>
-          ) : (
-            <div />
-          )}
-          <div className="flex gap-2">
-            <button
-              onClick={onClose}
-              className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-textSecondary hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={onSave}
-              disabled={needBusy}
-              className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:opacity-60"
-            >
-              {needBusy ? "Saving..." : needDraft.needId ? "Save" : "Plan"}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // Modal for editing a player
-function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy }) {
+function PlayerEditModal({ editing, flags, onClose, onSaveDraft, onSave, onDelete, busy }) {
   if (!editing) return null;
 
   return (
@@ -1937,33 +1704,6 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
               />
             </label>
             <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
-              <span>Class</span>
-              <select
-                value={editing.classYear}
-                onChange={(e) => onSaveDraft({ ...editing, classYear: e.target.value })}
-                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
-              >
-                <option value="">-</option>
-                {classYears.map((c) => (
-                  <option key={c || "blank"} value={c}>
-                    {c || "—"}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
-              <span>Overall</span>
-              <input
-                type="number"
-                value={editing.overall}
-                onChange={(e) => onSaveDraft({ ...editing, overall: e.target.value })}
-                placeholder="OVR"
-                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
-              />
-            </label>
-            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
               <span>Archetype</span>
               <select
                 value={editing.archetype}
@@ -1977,6 +1717,68 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
                       <option key={label} value={label}>{`${label} - ${code}`}</option>
                     ))}
                   </optgroup>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+              <span>Overall</span>
+              <input
+                type="number"
+                value={editing.overall}
+                onChange={(e) => onSaveDraft({ ...editing, overall: e.target.value })}
+                placeholder="OVR"
+                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+              />
+            </label>
+            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+              <span>NIL Amount</span>
+              <input
+                type="number"
+                min="0"
+                value={editing.nilAmount}
+                onChange={(e) => onSaveDraft({ ...editing, nilAmount: e.target.value })}
+                placeholder="NIL"
+                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+              />
+            </label>
+            <label className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80">
+              <span>Class</span>
+              <select
+                value={
+                  editing.classYear ||
+                  flags.find((f) => STATUS_FLAG_NAMES.includes(f.name) && (editing.flagIds || []).includes(f.id))
+                    ?.name ||
+                  ""
+                }
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const statusFlag = flags.find((f) => STATUS_FLAG_NAMES.includes(f.name) && f.name === val);
+                  onSaveDraft((prev) => {
+                    const statusFlagIds = flags
+                      .filter((f) => STATUS_FLAG_NAMES.includes(f.name))
+                      .map((f) => f.id);
+                    const flagIds = (prev.flagIds || []).filter((fid) => !statusFlagIds.includes(fid));
+                    return {
+                      ...prev,
+                      classYear: statusFlag ? "" : val,
+                      flagIds: statusFlag ? [...flagIds, statusFlag.id] : flagIds,
+                    };
+                  });
+                }}
+                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface"
+              >
+                <option value="">-</option>
+                {STATUS_FLAG_OPTIONS.map((o) => (
+                  <option key={o.name} value={o.name}>
+                    {o.label}
+                  </option>
+                ))}
+                {classYears.map((c) => (
+                  <option key={c || "blank"} value={c}>
+                    {c || "—"}
+                  </option>
                 ))}
               </select>
             </label>
@@ -2046,6 +1848,19 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
               ))}
             </select>
           </label>
+          <FlagPicker
+            flags={flags.filter((f) => !STATUS_FLAG_NAMES.includes(f.name))}
+            selectedIds={editing.flagIds || []}
+            disabled={busy}
+            onToggle={(flagId) =>
+              onSaveDraft((prev) => ({
+                ...prev,
+                flagIds: (prev.flagIds || []).includes(flagId)
+                  ? prev.flagIds.filter((id) => id !== flagId)
+                  : [...(prev.flagIds || []), flagId],
+              }))
+            }
+          />
         </div>
         <div className="mt-4 flex justify-between items-end">
           <div className="space-y-1 text-sm font-medium text-textSecondary dark:text-white/80 w-full">
@@ -2058,20 +1873,6 @@ function PlayerEditModal({ editing, onClose, onSaveDraft, onSave, onDelete, busy
         </div>
         <div className="mt-4 flex justify-end items-end">
           <div className="flex gap-1">
-            <button
-              type="button"
-              onClick={() => onSaveDraft((prev) => ({ ...prev, flagged: !prev.flagged }))}
-              disabled={busy}
-              aria-pressed={editing.flagged}
-              title={editing.flagged ? "Unflag player" : "Flag player"}
-              className={`rounded-md border px-4 py-2 text-sm font-semibold transition ${
-                editing.flagged
-                  ? "border-danger text-danger bg-danger/10 shadow-card"
-                  : "border-border text-textSecondary hover:bg-border/40 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
-              }`}
-            >
-              <i className="fa-solid fa-flag"></i>
-            </button>
             <button
               onClick={() => {
                 if (busy) return;

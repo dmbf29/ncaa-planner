@@ -8,78 +8,14 @@ import {
   updatePositionBoard,
   deletePositionBoard,
 } from "../lib/apiClient";
-
-const offenseTemplate = [
-  { name: "QB", slotsCount: 5 },
-  { name: "HB", slotsCount: 7 },
-  { name: "WR", slotsCount: 8 },
-  { name: "TE", slotsCount: 4 },
-  { name: "OT", slotsCount: 7 },
-  { name: "OG", slotsCount: 7 },
-  { name: "C", slotsCount: 4 },
-  { name: "K", slotsCount: 1 },
-  { name: "P", slotsCount: 1 },
-];
-
-const defenseTemplate = [
-  { name: "DE", slotsCount: 8 },
-  { name: "DT", slotsCount: 5 },
-  { name: "WILL", slotsCount: 4 },
-  { name: "SAM", slotsCount: 4 },
-  { name: "MIKE", slotsCount: 4 },
-  { name: "CB", slotsCount: 8 },
-  { name: "FS", slotsCount: 4 },
-  { name: "SS", slotsCount: 4 },
-];
-
-const offenseOptionalPositions = ["FB", "LT", "LG", "RG", "RT", "OL", "OTHER"];
-const defenseOptionalPositions = ["LE", "RE", "OLB", "LB", "DB", "NICKEL", "OTHER"];
-
-const offensePositionNames = offenseTemplate.map((pos) => pos.name);
-const defensePositionNames = defenseTemplate.map((pos) => pos.name);
-
-const uniqueOrdered = (list) => {
-  const seen = new Set();
-  const ordered = [];
-  list.forEach((item) => {
-    if (!seen.has(item)) {
-      seen.add(item);
-      ordered.push(item);
-    }
-  });
-  return ordered;
-};
-
-const isOffenseSquad = (squad) => squad?.name?.toLowerCase()?.includes("off");
-
-const getAvailablePositions = (squad) => {
-  const base = isOffenseSquad(squad) ? offensePositionNames : defensePositionNames;
-  const optional = isOffenseSquad(squad)
-    ? offenseOptionalPositions
-    : defenseOptionalPositions;
-  return uniqueOrdered([...base, ...optional]);
-};
-
-const getDefaultSelection = (squad) =>
-  isOffenseSquad(squad) ? offensePositionNames : defensePositionNames;
-
-const getDefaultSlotsCount = (squad, name) => {
-  const template = (isOffenseSquad(squad) ? offenseTemplate : defenseTemplate).find(
-    (pos) => pos.name === name,
-  );
-  return template?.slotsCount ?? 1;
-};
-
-const sortByPositionOrder = (names, squad) => {
-  const order = getAvailablePositions(squad);
-  const orderMap = new Map(order.map((name, index) => [name, index]));
-  return [...names].sort((a, b) => {
-    const ai = orderMap.has(a) ? orderMap.get(a) : Number.MAX_SAFE_INTEGER;
-    const bi = orderMap.has(b) ? orderMap.get(b) : Number.MAX_SAFE_INTEGER;
-    if (ai !== bi) return ai - bi;
-    return a.localeCompare(b);
-  });
-};
+import {
+  isOffenseSquad,
+  getAvailablePositions,
+  getDefaultSelection,
+  getDefaultSlotsCount,
+  getDefaultSortOrder,
+  sortByPositionOrder,
+} from "../lib/positionTemplates";
 
 function SquadAccordion({
   squad,
@@ -359,6 +295,7 @@ function TeamSetupPage() {
             createPositionBoard(id, {
               name,
               slotsCount: getDefaultSlotsCount(squad, name),
+              sortOrder: getDefaultSortOrder(squad, name),
               squadId: squad.id,
             }),
           ),
