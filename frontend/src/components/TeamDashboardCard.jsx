@@ -45,11 +45,15 @@ const STAT_LEADER_LABELS = {
 };
 
 function StatLeaderRow({ label, unit, leader }) {
+  console.log(leader);
   return (
     <div className="flex items-center justify-between gap-2 text-sm">
       <div className="flex min-w-0 items-center gap-1.5">
         <span className="w-16 shrink-0 text-xs text-textSecondary">{label}</span>
-        <span className="truncate text-textPrimary dark:text-white text-xs">{leader ? leader.name : "—"}</span>
+        <span className="truncate text-textPrimary dark:text-white text-xs">
+          <span className="text-textSecondary text-no-wrap">{leader ? `${leader.position} - ` : ""}</span>
+          {leader ? leader.name : "—"}
+        </span>
       </div>
       {leader ? (
         <span className="shrink-0 rounded-full bg-charcoal/5 px-1.5 py-0.5 text-xs font-semibold dark:bg-white/10">
@@ -246,11 +250,14 @@ function NextGameBanner({ nextGame }) {
           <p className="mt-0.5 flex items-center gap-1.5 text-sm">
             <span className="text-textSecondary">{nextGame.opponent.home ? "vs" : "@"}</span>
             {nextGame.opponent.rank && <span className="text-textSecondary">#{nextGame.opponent.rank}</span>}
-            <span className="font-semibold text-textPrimary dark:text-white">{nextGame.opponent.name}</span>
+            <span className="font-semibold font-varsity text-textPrimary dark:text-white text-nowrap overflow-hidden text-ellipsis">{nextGame.opponent.name}</span>
             {nextGame.opponentRecord && (
-              <span className="text-textSecondary">
+              <span className="text-textSecondary text-nowrap ">
                 ({nextGame.opponentRecord.wins ?? 0}-{nextGame.opponentRecord.losses ?? 0})
               </span>
+            )}
+            {nextGame.opponentOverall != null && (
+              <span className="text-nowrap font-varsity text-textSecondary text-xs">{nextGame.opponentOverall} OVR</span>
             )}
             {nextGame.opponent.userCoached ? (
               <i className="fa-solid fa-gamepad text-[11px] text-burnt/80" title="User-coached opponent" />

@@ -132,9 +132,9 @@ function DynastyShowPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4">
+    <div className="max-w-[1420px] mx-auto px-4">
       <PageHeader
-        title={dashboard ? `${dashboard.dynasty.name} - ${dashboard.year} Season` : portal?.name || "Dynasty"}
+        title={dashboard ? dashboard.dynasty.name : portal?.name || "Dynasty"}
         actions={
           authed ? (
             <>

@@ -439,6 +439,7 @@ class SeasonDashboardSerializer
       week: { id: upcoming.week.id, number: upcoming.week.number, name: upcoming.week.name },
       opponent: opponent_json(upcoming, college_season.college_id),
       active_injury_count: active_injury_count(college_season, upcoming.week),
+      opponent_overall: opponent_season&.overall,
       opponent_record: opponent_season && effective_record(opponent_season, TeamSeasonStats.new(opponent_season).played_games),
       opponent_last_result: opponent_season && opponent_last_result_json(opponent_season, upcoming.week.number)
     }
