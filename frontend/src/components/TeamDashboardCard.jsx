@@ -176,9 +176,21 @@ function ScheduleRow({ week }) {
       <span className="w-20 shrink-0 text-textSecondary">{label}</span>
       {week.opponent ? (
         <span className="flex min-w-0 flex-1 items-center gap-1 truncate">
+          {week.missingStats ? (
+            <span
+              className="shrink-0 text-[11px] leading-none"
+              title="Missing box-score or player stats — open this game to finish the upload"
+            >
+              ⚠️
+            </span>
+          ) : null}
           <span className="text-textSecondary">{week.opponent.home ? "vs" : "@"}</span>{" "}
           {week.opponent.rank && <span className="shrink-0 text-textSecondary">#{week.opponent.rank}</span>}
-          <span className="truncate text-textPrimary dark:text-white">{week.opponent.name}</span>
+          <span
+            className={clsx("truncate", week.missingStats ? "font-semibold text-burnt" : "text-textPrimary dark:text-white")}
+          >
+            {week.opponent.name}
+          </span>
           {week.opponent.userCoached ? (
             <i className="fa-solid fa-gamepad shrink-0 text-[11px] text-burnt/80" title="User-coached opponent" />
           ) : null}

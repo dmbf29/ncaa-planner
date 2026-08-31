@@ -1,4 +1,12 @@
 class SeasonDashboardSerializer
+  # Team-stat columns a committed game is expected to have filled in from
+  # its box-score screenshots — the same list GameStats::CommitService
+  # whitelists, minus points_in_overtime. OT is legitimately blank on the
+  # ~90% of games that don't go to overtime, so it keeps its orange border
+  # on the game-update page (a prompt to double-check) but is deliberately
+  # ignored here so it doesn't flag every game as "missing" on the dashboard.
+  REQUIRED_COLLEGE_STAT_FIELDS = (GameStats::StatFields::COLLEGE_FIELDS - %i[points_in_overtime]).freeze
+
   def initialize(season)
     @season = season
   end
@@ -483,7 +491,10 @@ class SeasonDashboardSerializer
   end
 
   def weeks_json(college_season)
-    games_by_week = college_season.games.includes(:home_college, :away_college, :college_game_stats).index_by(&:week_id)
+    games_by_week = college_season.games
+                                  .includes(:home_college, :away_college, :college_game_stats,
+                                            student_game_stats: { student_season: :college_season })
+                                  .index_by(&:week_id)
 
     @season.weeks.order(:number).map do |week|
       game = games_by_week[week.id]
@@ -495,9 +506,33 @@ class SeasonDashboardSerializer
         post_season: week.post_season,
         game_id: game&.id,
         opponent: opponent_json(game, college_season.college_id),
-        result: result_json(game, college_season.college_id)
+        result: result_json(game, college_season.college_id),
+        missing_stats: missing_stats?(game)
       }
     end
+  end
+
+  # Whether a committed game is missing data a coach would want to notice
+  # from the dashboard: any required team-stat field blank on either side
+  # (OT excluded — see REQUIRED_COLLEGE_STAT_FIELDS), or zero player-stat
+  # rows uploaded for either team. Only games that have actually been saved
+  # (two CollegeGameStat rows, same bar as Game#played?) are checked; an
+  # unplayed or not-yet-entered game isn't "missing", it's just not done.
+  # Reads only the already-preloaded associations, so it adds no queries.
+  def missing_stats?(game)
+    return false unless game
+
+    team_stats = game.college_game_stats
+    return false unless team_stats.size == 2
+    return true if team_stats.any? { |stat| REQUIRED_COLLEGE_STAT_FIELDS.any? { |field| stat[field].nil? } }
+
+    player_college_ids = game.student_game_stats
+                             .map { |sgs| sgs.student_season.college_season.college_id }
+                             .to_set
+    return true unless player_college_ids.include?(game.home_college_id)
+    return true unless player_college_ids.include?(game.away_college_id)
+
+    false
   end
 
   def opponent_json(game, college_id)
