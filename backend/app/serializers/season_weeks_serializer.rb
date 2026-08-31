@@ -150,13 +150,17 @@ class SeasonWeeksSerializer
     preview_week = @season.weeks.find_by(number: week.number + 1)
     return [] unless preview_week
 
-    preview_week.bowl_projections.includes(:projected_home_college, :projected_away_college).map { |bp| bowl_projection_json(bp) }
+    preview_week.bowl_projections
+                .includes(:projected_home_college, :projected_away_college)
+                .order(:time)
+                .map { |bp| bowl_projection_json(bp) }
   end
 
   def bowl_projection_json(bp)
     {
       bowl_name: bp.bowl_name,
       cfp_round: bp.cfp_round,
+      time: bp.time,
       projected_home: bp.projected_home_college&.name,
       projected_away: bp.projected_away_college&.name
     }

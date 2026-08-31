@@ -49,7 +49,7 @@ module Api
       end
 
       def bowl_projection_params
-        params.require(:bowl_projection).permit(:bowl_name, :cfp_round, :projected_home_college_id, :projected_away_college_id)
+        params.require(:bowl_projection).permit(:bowl_name, :cfp_round, :time, :projected_home_college_id, :projected_away_college_id)
       end
     end
   end

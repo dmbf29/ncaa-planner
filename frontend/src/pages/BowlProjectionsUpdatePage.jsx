@@ -18,6 +18,8 @@ import {
 const inputClass =
   "w-full rounded-md border border-border bg-white px-2 py-1.5 text-sm text-textPrimary focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface dark:text-white";
 
+const smallInputClass = `${inputClass} w-16`;
+
 const CFP_ROUND_OPTIONS = [
   { value: "", label: "Not a CFP game" },
   { value: "first_round", label: "First Round" },
@@ -28,13 +30,38 @@ const CFP_ROUND_OPTIONS = [
 
 const CFP_ROUND_LABELS = CFP_ROUND_OPTIONS.reduce((acc, opt) => (opt.value ? { ...acc, [opt.value]: opt.label } : acc), {});
 
-const emptyForm = { bowlName: "", cfpRound: "", projectedHomeCollegeId: null, projectedAwayCollegeId: null };
+const emptyForm = { bowlName: "", cfpRound: "", time: "", projectedHomeCollegeId: null, projectedAwayCollegeId: null };
 
-// Bowl projections are revealed all at once, in a single screenshot, only
-// during the season's last two regular-season weeks and the conference
+// Formats an ISO datetime string for display, e.g. "Fri, Dec 26, 7:30 PM" — mirrors the screenshots' own format.
+const formatDateTime = (isoString) => {
+  if (!isoString) return "—";
+  return new Date(isoString).toLocaleString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
+// Converts an ISO datetime string to the "YYYY-MM-DDTHH:mm" shape a
+// datetime-local input needs — the input renders blank (not an error) if
+// this doesn't match, so a null/malformed value is safe to pass through.
+const toDateTimeLocal = (isoString) => {
+  if (!isoString) return "";
+  const date = new Date(isoString);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+// Bowl projections are revealed all at once, in a single screenshot, once
+// the CFP picture starts coming into focus — starting around Week 10 and
+// continuing through the rest of the regular season and the conference
 // championship week — never spread across the post-season bowl weeks the
 // games themselves will eventually be played in.
-const isProjectionWeek = (week) => week.conferenceChampionship || week.number === 13 || week.number === 14;
+const FIRST_PROJECTION_WEEK_NUMBER = 10;
+const isProjectionWeek = (week) =>
+  week.conferenceChampionship || (!week.postSeason && week.number >= FIRST_PROJECTION_WEEK_NUMBER);
 
 const weekLabel = (week) => {
   if (week.name) return week.name;
@@ -69,6 +96,17 @@ function CfpRoundSelect({ value, onChange }) {
   );
 }
 
+function NumberInput({ value, onChange }) {
+  return (
+    <input
+      type="number"
+      value={value ?? ""}
+      onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
+      className={smallInputClass}
+    />
+  );
+}
+
 function ReviewRow({ row, colleges, onChange }) {
   const update = (patch) => onChange({ ...row, ...patch });
 
@@ -91,6 +129,20 @@ function ReviewRow({ row, colleges, onChange }) {
         {isUnmatched(row.homeRawName, row.homeCollegeId) && (
           <p className="mt-1 text-xs text-danger">Unmatched: &ldquo;{row.homeRawName}&rdquo;</p>
         )}
+      </td>
+      <td className="p-2">
+        <div className="flex items-center gap-1">
+          <NumberInput value={row.month} onChange={(month) => update({ month })} />
+          <span className="text-textSecondary">/</span>
+          <NumberInput value={row.day} onChange={(day) => update({ day })} />
+        </div>
+        <input
+          type="text"
+          placeholder="e.g. 7:30 PM"
+          value={row.timeOfDay || ""}
+          onChange={(e) => update({ timeOfDay: e.target.value || null })}
+          className={`${inputClass} mt-1 w-28`}
+        />
       </td>
       <td className="p-2">
         <button type="button" onClick={() => onChange(null)} className="text-xs text-danger hover:underline">
@@ -124,6 +176,7 @@ function ReviewTable({ rows, colleges, onChange, onCommit, onDiscard, committing
               <th className="p-2">CFP Round</th>
               <th className="p-2">Away</th>
               <th className="p-2">Home</th>
+              <th className="p-2">Date (M/D) &amp; Time</th>
               <th className="p-2"></th>
             </tr>
           </thead>
@@ -174,6 +227,15 @@ function ProjectionForm({ form, onChange, colleges, onSubmit, onCancel, editing,
       <label className="flex flex-col gap-1 text-sm">
         <span className="text-xs uppercase tracking-wide text-textSecondary">CFP Round</span>
         <CfpRoundSelect value={form.cfpRound} onChange={(cfpRound) => onChange({ ...form, cfpRound: cfpRound || "" })} />
+      </label>
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="text-xs uppercase tracking-wide text-textSecondary">Date &amp; Time</span>
+        <input
+          type="datetime-local"
+          value={form.time}
+          onChange={(e) => onChange({ ...form, time: e.target.value })}
+          className={inputClass}
+        />
       </label>
       <label className="flex flex-col gap-1 text-sm">
         <span className="text-xs uppercase tracking-wide text-textSecondary">Projected Away</span>
@@ -242,6 +304,7 @@ function ProjectionRow({ projection, colleges, onEdit, onDelete }) {
       <td className="p-2 text-sm text-textPrimary dark:text-white">
         {collegeName(projection.projectedAwayCollegeId)} @ {collegeName(projection.projectedHomeCollegeId)}
       </td>
+      <td className="p-2 text-sm text-textSecondary">{formatDateTime(projection.time)}</td>
       <td className="p-2 text-right">
         <button type="button" onClick={() => onEdit(projection)} className="mr-3 text-xs text-burnt hover:underline">
           Edit
@@ -346,6 +409,7 @@ function BowlProjectionsUpdatePage() {
     setForm({
       bowlName: projection.bowlName,
       cfpRound: projection.cfpRound || "",
+      time: toDateTimeLocal(projection.time),
       projectedHomeCollegeId: projection.projectedHomeCollegeId,
       projectedAwayCollegeId: projection.projectedAwayCollegeId,
     });
@@ -370,7 +434,7 @@ function BowlProjectionsUpdatePage() {
   const handleFormSubmit = async () => {
     setSaving(true);
     setFormError(null);
-    const payload = { ...form, cfpRound: form.cfpRound || null };
+    const payload = { ...form, cfpRound: form.cfpRound || null, time: form.time || null };
     try {
       if (editingId) {
         const updated = await updateBowlProjection(selectedWeekId, editingId, payload);
@@ -461,8 +525,9 @@ function BowlProjectionsUpdatePage() {
           <p className="text-sm text-textSecondary">
             Track who&rsquo;s projected to play in each bowl/CFP game before it&rsquo;s official — these are separate
             from the real scheduled games, so they can be updated freely as picks shift. Projections are usually
-            revealed all at once on Week 13, Week 14, or the Conference Championship week — pick whichever week
-            this screenshot was taken on, not the week the bowl will actually be played.
+            revealed all at once, starting around Week 10 once the CFP picture comes into focus, through the rest
+            of the regular season and the Conference Championship week — pick whichever week this screenshot was
+            taken on, not the week the bowl will actually be played.
           </p>
 
           {weeks.length === 0 ? (
@@ -519,6 +584,7 @@ function BowlProjectionsUpdatePage() {
                         <th className="p-2">Bowl</th>
                         <th className="p-2">Round</th>
                         <th className="p-2">Projected Matchup</th>
+                        <th className="p-2">Date</th>
                         <th className="p-2"></th>
                       </tr>
                     </thead>
@@ -534,7 +600,7 @@ function BowlProjectionsUpdatePage() {
                       ))}
                       {projections.length === 0 && (
                         <tr>
-                          <td colSpan={4} className="p-2 text-sm text-textSecondary">
+                          <td colSpan={5} className="p-2 text-sm text-textSecondary">
                             No projections yet for this week.
                           </td>
                         </tr>

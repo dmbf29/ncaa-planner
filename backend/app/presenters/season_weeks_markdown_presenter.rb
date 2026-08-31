@@ -91,6 +91,7 @@ class SeasonWeeksMarkdownPresenter
     lines = [ "---", "", "# 🏈 #{week_label(week).upcase}#{primary ? ' (CURRENT)' : ''}", "" ]
     lines.concat(at_a_glance_table(week_data[:teams]))
     lines.concat(top_25_poll_lines(week_data[:top_25], week[:number] + 1))
+    lines.concat(bowl_projections_lines(week_data[:bowl_projections]))
 
     week_data[:teams].each { |team| lines.concat(team_week_section(team)) }
 
@@ -250,6 +251,31 @@ class SeasonWeeksMarkdownPresenter
     when "moved_down" then "↓#{ranking[:rank] - ranking[:previous_rank]}"
     else "—"
     end
+  end
+
+  # Whichever bowl/CFP matchups were projected going into the NEXT week
+  # (see SeasonWeeksSerializer#bowl_projections_for_week for the N+1
+  # convention, same as the Top 25 poll above) — silent otherwise, same
+  # convention as every other optional section. Only ever present for a
+  # handful of weeks (see BowlProjection's doc comment), so this shows up
+  # rarely, right when it's actually newsworthy.
+  def bowl_projections_lines(projections)
+    return [] if projections.blank?
+
+    lines = [ "## 🏆 BOWL PROJECTIONS", "" ]
+    lines << "| Bowl | Round | Projected Matchup | Date |"
+    lines << "| --- | --- | --- | --- |"
+    projections.each { |projection| lines << bowl_projection_row(projection) }
+    lines << ""
+    lines
+  end
+
+  def bowl_projection_row(projection)
+    round = projection[:cfp_round].present? ? projection[:cfp_round].tr("_", " ").upcase : "—"
+    away = projection[:projected_away] || "TBD"
+    home = projection[:projected_home] || "TBD"
+    date = projection[:time].present? ? projection[:time].strftime("%a %b %-d, %-I:%M %p ET") : "—"
+    "| #{projection[:bowl_name]} | #{round} | #{away} @ #{home} | #{date} |"
   end
 
   def glance_result(game)

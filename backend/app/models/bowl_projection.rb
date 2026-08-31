@@ -1,12 +1,13 @@
 class BowlProjection < ApplicationRecord
   # A speculative matchup for a not-yet-played bowl/CFP game. `week` is the
-  # week this projection was observed/captured (in practice always one of
-  # the last two regular-season weeks or the conference championship week
-  # — bowl projections all get revealed together in one screenshot on
-  # those weeks, not spread across the post-season bowl weeks the games
+  # week this projection was observed/captured (in practice any regular-
+  # season week from around Week 10 on, once the CFP picture starts coming
+  # into focus, through the conference championship week — bowl
+  # projections all get revealed together in one screenshot on those
+  # weeks, not spread across the post-season bowl weeks the games
   # themselves will eventually be played in), not the week the bowl game
   # itself will happen. Snapshotting per observation week keeps "what did
-  # the projection look like in Week 13 vs Week 14" visible instead of one
+  # the projection look like in Week 11 vs Week 13" visible instead of one
   # row being overwritten as picks shift. Deliberately separate from Game:
   # a Game is a real scheduled/played matchup, this is a guess about what
   # a future Game might be.

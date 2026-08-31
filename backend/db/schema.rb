@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_30_120004) do
+ActiveRecord::Schema[8.0].define(version: 2026_08_30_222519) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -72,6 +72,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_30_120004) do
     t.bigint "projected_away_college_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "time"
     t.index ["projected_away_college_id"], name: "index_bowl_projections_on_projected_away_college_id"
     t.index ["projected_home_college_id"], name: "index_bowl_projections_on_projected_home_college_id"
     t.index ["week_id"], name: "index_bowl_projections_on_week_id"
