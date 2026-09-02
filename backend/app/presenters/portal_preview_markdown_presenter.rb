@@ -103,11 +103,11 @@ class PortalPreviewMarkdownPresenter
       "sorted into four groups: Graduating Seniors (a senior's career is over regardless of the draft — plain " \
       "graduation and a senior who's also Pro Draft are the same story, the latter just gets a draft-round " \
       "mention), Declaring for the NFL Draft Early (an underclassman Pro Draft entry with no realistic path " \
-      "back — a real loss of eligibility, not a program success), In the Portal: Slim Chance of a Return (a " \
+      "back — a real loss of eligibility, not a program success), In the Portal: Next to no chance of a return (a " \
       "genuine, if long-shot, uncertain return), and In the Portal, Probably Coming Home (the numbers lean " \
       "toward him returning — worth a brief, mysterious mention, not a real threat). Position Needs covers two " \
       "separate questions: depth (current roster count minus everyone likely gone — graduating seniors, early " \
-      "draft declarations, AND slim-chance-of-returning portal players, against a target headcount; a " \
+      "draft declarations, AND next-to-no-chance-of-returning portal players, against a target headcount; a " \
       "below-medium persuasion chance rarely actually converts, so it's planned around as a loss, not a maybe) " \
       "and starter quality (our starter at each individual position — not a blended group — against the " \
       "conference-wide average starter at that same position, regardless of whether that player is leaving)."
@@ -142,7 +142,7 @@ class PortalPreviewMarkdownPresenter
 
     lines.concat(departures_section("🎓 Graduating Seniors", team[:departures][:graduating_seniors], show_persuasion: false))
     lines.concat(departures_section("🏈 Declaring for the NFL Draft Early", team[:departures][:declaring_early], show_persuasion: false))
-    lines.concat(departures_section("🔄 In the Portal: Slim Chance of a Return", team[:departures][:slim_chance_of_return], show_persuasion: true))
+    lines.concat(departures_section("🔄 In the Portal: Next to no chance of a return", team[:departures][:slim_chance_of_return], show_persuasion: true))
     lines.concat(departures_section("↩️ In the Portal, Probably Coming Home", team[:departures][:likely_return], show_persuasion: true))
     lines.concat(most_important_section(team[:departures][:most_important]))
     lines.concat(position_needs_section(team[:position_needs]))
@@ -156,7 +156,7 @@ class PortalPreviewMarkdownPresenter
 
     "#{summary[:roster_size]} on the roster — #{summary[:graduating_seniors]} graduating seniors, " \
       "#{summary[:declaring_early]} declaring for the draft early, " \
-      "#{summary[:slim_chance_of_return]} in the portal with a slim chance of returning, " \
+      "#{summary[:slim_chance_of_return]} in the portal with a next to no chance of returning, " \
       "#{summary[:likely_return]} in the portal but probably coming home, #{summary[:likely_staying]} presumed staying"
   end
 
@@ -216,7 +216,7 @@ class PortalPreviewMarkdownPresenter
     flag = need[:needs_depth] ? " [NEEDS DEPTH]" : ""
     "- **#{need[:position_group]}**#{flag} — #{need[:current_depth]} on hand now (bare minimum target " \
       "#{need[:min_healthy_depth]}), #{need[:remaining_depth]} left once everyone likely gone (graduating " \
-      "seniors, early draft declarations, and portal players with a slim chance of returning) actually leaves"
+      "seniors, early draft declarations, and portal players with a next to no chance of returning) actually leaves"
   end
 
   def starter_flag_line(starter)
@@ -241,7 +241,7 @@ class PortalPreviewMarkdownPresenter
              "(of #{math[:max_scholarships]}, recruits and portal transfers signed this cycle combined)"
     lines << "- Roster: #{math[:current_roster_size]} on hand now, projects to " \
              "#{math[:projected_roster_with_signees_so_far]} once everyone likely gone (graduating seniors, " \
-             "early draft declarations, and portal players with a slim chance of returning) leaves and this " \
+             "early draft declarations, and portal players with a next to no chance of returning) leaves and this " \
              "cycle's signees are counted (#{math[:max_roster_size]} max) — #{roster_room_line(math)}"
     lines << ""
     lines
@@ -264,7 +264,7 @@ class PortalPreviewMarkdownPresenter
     return lines + [ "- No ranking available.", "" ] if ranking.blank?
 
     lines << "Ranked by total overall walking out the door (graduating seniors, early draft declarations, and " \
-             "in-the-portal players with a slim-but-real chance of returning — not the ones probably coming " \
+             "in-the-portal players with a next-to-no chance of returning — not the ones probably coming " \
              "home) — a data backstop for the hosts, not the final word. They should form their own ranking and " \
              "are free to argue with the order below."
     lines << ""
@@ -276,6 +276,6 @@ class PortalPreviewMarkdownPresenter
   def severity_ranking_line(entry, index)
     "#{index + 1}. #{entry[:college][:name]} — #{entry[:severity_score]} combined OVR at risk " \
       "(#{entry[:graduating_seniors]} graduating seniors, #{entry[:declaring_early]} declaring for the draft " \
-      "early, #{entry[:slim_chance_of_return]} in the portal with a slim chance of returning)"
+      "early, #{entry[:slim_chance_of_return]} in the portal with a next to no chance of returning)"
   end
 end
