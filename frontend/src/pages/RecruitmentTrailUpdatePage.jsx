@@ -60,6 +60,17 @@ function NumberInput({ value, onChange }) {
   );
 }
 
+function CheckboxInput({ checked, onChange }) {
+  return (
+    <input
+      type="checkbox"
+      checked={!!checked}
+      onChange={(e) => onChange(e.target.checked)}
+      className="h-4 w-4 rounded border-border accent-burnt dark:border-darkborder"
+    />
+  );
+}
+
 function RecruitRow({ row, onChange }) {
   const update = (patch) => onChange({ ...row, ...patch });
 
@@ -99,6 +110,17 @@ function RecruitRow({ row, onChange }) {
         <TextInput value={row.state} onChange={(state) => update({ state })} className={`${inputClass} w-16`} />
       </td>
       <td className="p-2">
+        <TextInput
+          value={row.classYear}
+          onChange={(classYear) => update({ classYear })}
+          className={`${inputClass} w-20`}
+          placeholder="HS"
+        />
+      </td>
+      <td className="p-2 text-center">
+        <CheckboxInput checked={row.transfer} onChange={(transfer) => update({ transfer })} />
+      </td>
+      <td className="p-2">
         <button type="button" onClick={() => onChange(null)} className="text-xs text-danger hover:underline">
           Remove
         </button>
@@ -113,6 +135,7 @@ function RecruitmentTrailReview({
   colleges,
   onCollegeChange,
   weekName,
+  filterLabel,
   rows,
   onChange,
   onBack,
@@ -136,8 +159,16 @@ function RecruitmentTrailReview({
             </h3>
             <p className="text-sm text-textSecondary">
               Confirm the team (read from the screenshot header — fix it if it&rsquo;s wrong), type each
-              recruit&rsquo;s full first name, fix anything else the AI misread, then save.
+              recruit&rsquo;s full first name, fix anything else the AI misread, then save. The Transfer column is
+              set from the filter pill the screenshot was taken under (Recruits/Overall = unchecked, Transfers =
+              checked) — fix it by hand if that&rsquo;s wrong for a row.
             </p>
+            {filterLabel && (
+              <p className="mt-1 text-xs text-textSecondary">
+                Detected filter: <span className="font-semibold uppercase">{filterLabel}</span>
+                {filterLabel === "overall" && " — treated as non-transfer recruits; re-upload the Transfers-filtered screen if this team also added portal transfers."}
+              </p>
+            )}
           </div>
           <button
             type="button"
@@ -166,7 +197,7 @@ function RecruitmentTrailReview({
           <p className="text-sm text-textSecondary">No recruits left to save.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] border-collapse text-left">
+            <table className="w-full min-w-[1050px] border-collapse text-left">
               <thead>
                 <tr className="border-b border-border text-xs uppercase tracking-wide text-textSecondary dark:border-darkborder">
                   <th className="p-2">First Name</th>
@@ -178,6 +209,8 @@ function RecruitmentTrailReview({
                   <th className="p-2">Pos#</th>
                   <th className="p-2">St#</th>
                   <th className="p-2">State</th>
+                  <th className="p-2">Class</th>
+                  <th className="p-2">Transfer</th>
                   <th className="p-2"></th>
                 </tr>
               </thead>
@@ -223,6 +256,7 @@ function RecruitmentTrailUpdatePage() {
   const [colleges, setColleges] = useState([]);
   const [collegeId, setCollegeId] = useState(null);
   const [collegeRawName, setCollegeRawName] = useState(null);
+  const [filterLabel, setFilterLabel] = useState(null);
   const [committing, setCommitting] = useState(false);
   const [commitError, setCommitError] = useState(null);
   const [saved, setSaved] = useState(false);
@@ -271,6 +305,7 @@ function RecruitmentTrailUpdatePage() {
     setColleges([]);
     setCollegeId(null);
     setCollegeRawName(null);
+    setFilterLabel(null);
     setAnalyzeError(null);
   };
 
@@ -282,6 +317,7 @@ function RecruitmentTrailUpdatePage() {
       setColleges(result.colleges || []);
       setCollegeId(result.collegeId ?? null);
       setCollegeRawName(result.collegeRawName ?? null);
+      setFilterLabel(result.filterLabel ?? null);
       setRows(result.recruits || []);
     } catch (err) {
       setAnalyzeError(err.message);
@@ -415,6 +451,7 @@ function RecruitmentTrailUpdatePage() {
           colleges={colleges}
           onCollegeChange={setCollegeId}
           weekName={weekName}
+          filterLabel={filterLabel}
           rows={rows}
           onChange={setRows}
           onBack={resetToUpload}

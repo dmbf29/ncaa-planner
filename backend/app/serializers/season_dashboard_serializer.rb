@@ -357,15 +357,44 @@ class SeasonDashboardSerializer
       wins: record[:wins],
       losses: record[:losses],
       nil_spend: college_season.nil_spend,
+      nil_spend_dollars: nil_spend_dollars(college_season.nil_spend),
+      nil_spend_by_position: nil_spend_by_position_json(college_season),
       current_rank: current_rank(college_season),
       next_game: next_game_json(college_season),
       best_offensive_players: college_season.best_offensive_players.map { |ss| player_json(ss) },
       best_defensive_players: college_season.best_defensive_players.map { |ss| player_json(ss) },
       stat_leaders: stat_leaders_json(season_stats.stat_leaders),
       team_stats: season_stats.team_stats,
+      team_totals: season_stats.team_totals,
       position_group_averages: college_season.position_group_averages,
       weeks: weeks_json(college_season)
     }
+  end
+
+  # NIL spend is tracked in the game's abstract "points"; the broadcast
+  # team-breakdown episode converts it to a dollar figure so the podcast
+  # script reads naturally, and the dashboard's NIL section shows that same
+  # figure — so it reuses that one conversion rather than defining a second.
+  def nil_spend_dollars(points)
+    return nil if points.blank?
+
+    points * TeamBreakdownSerializer::DOLLARS_PER_NIL_POINT
+  end
+
+  # nil_spend_by_position is stored keyed by raw position label ("QB",
+  # "K/P", ...). Emitted as an ordered array of {position, points, dollars}
+  # rather than a hash so apiClient's camelCase key conversion doesn't
+  # mangle labels like "K/P" (same reason NilSpend::Extractor uses an array).
+  def nil_spend_by_position_json(college_season)
+    by_position = college_season.nil_spend_by_position
+    return [] if by_position.blank?
+
+    NilSpend::Extractor::POSITIONS.filter_map do |position|
+      points = by_position[position]
+      next if points.blank?
+
+      { position: position, points: points, dollars: nil_spend_dollars(points) }
+    end
   end
 
   def recruiting_json(college_season)

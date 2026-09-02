@@ -33,6 +33,16 @@ module Api
         render_broadcast(data) { ::MidseasonReportCardMarkdownPresenter.new(data).to_markdown }
       end
 
+      def end_of_season_report_cards
+        data = ::EndOfSeasonReportCardSerializer.new(@season).as_json
+        render_broadcast(data) { ::EndOfSeasonReportCardMarkdownPresenter.new(data).to_markdown }
+      end
+
+      def portal_preview
+        data = ::PortalPreviewSerializer.new(@season).as_json
+        render_broadcast(data) { ::PortalPreviewMarkdownPresenter.new(data).to_markdown }
+      end
+
       private
 
       def set_season

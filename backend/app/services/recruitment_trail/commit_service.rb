@@ -11,6 +11,10 @@ module RecruitmentTrail
   #     week" off of.
   #   - a first_name already filled in by hand is never overwritten with a
   #     blank from a fresh extract.
+  #   - class_year only overwrites when the new row actually has one (the
+  #     column isn't always visible/extracted); transfer overwrites
+  #     whenever the row explicitly states it (including false), since
+  #     Extractor always sends one now.
   #
   # Each row commits independently; a validation failure is reported as a
   # warning rather than aborting the batch, mirroring the other
@@ -46,6 +50,8 @@ module RecruitmentTrail
       recruit.national_rank = row[:national_rank]
       recruit.position_rank = row[:position_rank]
       recruit.state_rank = row[:state_rank]
+      recruit.class_year = row[:class_year] if row[:class_year].present?
+      recruit.transfer = row[:transfer] unless row[:transfer].nil?
       recruit.save!
     end
 

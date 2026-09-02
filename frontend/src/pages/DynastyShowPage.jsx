@@ -9,6 +9,8 @@ import PlayersOfTheWeek from "../components/PlayersOfTheWeek";
 import AroundTheLeague from "../components/AroundTheLeague";
 import StandingsSnapshot from "../components/StandingsSnapshot";
 import AllAmericansSnapshot from "../components/AllAmericansSnapshot";
+import NilSquadSpending from "../components/NilSquadSpending";
+import TeamStatsComparison from "../components/TeamStatsComparison";
 import { fetchDynastyPortal, fetchDynastyDashboard, fetchStandings, fetchAllAmericans, deleteSeason } from "../lib/apiClient";
 
 function TeamTabs({ teams, activeTeamId, onSelect }) {
@@ -200,6 +202,11 @@ function DynastyShowPage() {
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <HeismanWatch heismanWatch={dashboard.heismanWatch} />
             <PlayersOfTheWeek playersOfTheWeek={dashboard.playersOfTheWeek} />
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <NilSquadSpending teams={dashboard.teams} />
+            <TeamStatsComparison teams={dashboard.teams} />
           </div>
 
           <div className="mt-6">

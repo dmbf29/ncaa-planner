@@ -40,21 +40,36 @@ class MidseasonReportCardMarkdownPresenter
     lines.concat(PodcastShow.directive_lines(show_name: show_name))
     lines.concat(grading_format_lines)
     lines.concat(pace_tone_lines)
-    lines.concat(PodcastShow.opening_script_lines(show_name: show_name, framing_hint: "how our coached teams are actually performing at the midway point of the season"))
+    lines.concat(PodcastShow.opening_script_lines(show_name: show_name, framing_hint: opening_framing_hint))
     lines.concat(PodcastShow.run_of_show_lines(segments))
-    lines << "# 📋 MIDSEASON REPORT CARDS — #{show_name} — #{@data[:season][:year]}"
+    lines << episode_header_line
     lines << ""
     lines << "> #{producer_note}"
     lines << ""
 
     @data[:teams].each { |team| lines.concat(team_section(team)) }
 
-    lines.concat(improve_your_grade_section)
+    lines.concat(closing_section)
 
     lines.join("\n")
   end
 
   private
+
+  # Override points for EndOfSeasonReportCardMarkdownPresenter — everything
+  # above this comment (structure, team-by-team evidence rendering) is
+  # shared as-is between the two shows.
+  def opening_framing_hint
+    "how our coached teams are actually performing at the midway point of the season"
+  end
+
+  def episode_header_line
+    "# 📋 MIDSEASON REPORT CARDS — #{show_name} — #{@data[:season][:year]}"
+  end
+
+  def closing_section
+    improve_your_grade_section
+  end
 
   def show_name
     @data[:season][:dynasty]

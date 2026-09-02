@@ -35,6 +35,7 @@ import SeasonCoachesPage from "./pages/SeasonCoachesPage";
 import TeamAttributesPage from "./pages/TeamAttributesPage";
 import BowlProjectionsUpdatePage from "./pages/BowlProjectionsUpdatePage";
 import AwardWinnersPage from "./pages/AwardWinnersPage";
+import PortalPreviewUpdatePage from "./pages/PortalPreviewUpdatePage";
 
 function App() {
   return (
@@ -75,6 +76,7 @@ function App() {
         <Route path="/dynasty/updates/team-schedule" element={<TeamScheduleUpdatePage />} />
         <Route path="/dynasty/updates/recruiting" element={<RecruitingUpdatePage />} />
         <Route path="/dynasty/updates/recruitment-trail" element={<RecruitmentTrailUpdatePage />} />
+        <Route path="/dynasty/updates/portal-preview" element={<PortalPreviewUpdatePage />} />
         <Route path="/dynasty/updates/season/coaches" element={<SeasonCoachesPage />} />
         <Route path="/dynasty/updates/team-attributes" element={<TeamAttributesPage />} />
         <Route path="/dynasty/updates/bowl-projections" element={<BowlProjectionsUpdatePage />} />

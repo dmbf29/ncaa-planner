@@ -5,24 +5,25 @@ import Card from "../components/Card";
 import { fetchDynasties, fetchSeason, fetchStandings, createSeason } from "../lib/apiClient";
 
 const WEEKLY_UPDATES = [
-  { key: "games", label: "Games/Results", description: "Upload the weekly schedule screenshots.", to: "/dynasty/updates/schedule" },
-  { key: "top25", label: "Top 25", description: "Upload the weekly AP-style poll screenshots.", to: "/dynasty/updates/top25" },
-  { key: "players-of-the-week", label: "Players of the Week", description: "Upload the weekly National/Conference Players of the Week screenshots.", to: "/dynasty/updates/players-of-the-week" },
-  { key: "heisman", label: "Heisman Candidates", description: "Upload the weekly Heisman Watch List screenshot.", to: "/dynasty/updates/heisman" },
-  { key: "standings", label: "Conference Standings", description: "Upload the conference standings screenshots.", to: "/dynasty/updates/standings" },
-  { key: "team-schedule", label: "Team Schedule", description: "Upload a team's full-season schedule screenshots.", to: "/dynasty/updates/team-schedule" },
-  { key: "recruitment-trail", label: "Recruitment Trail", description: "Upload a team's recruiting-class screenshot to log recruits who signed this week.", to: "/dynasty/updates/recruitment-trail" },
+  { key: "games", label: "Games/Results", icon: "fa-solid fa-stopwatch", description: "Upload the weekly schedule screenshots.", to: "/dynasty/updates/schedule" },
+  { key: "top25", label: "Top 25", icon: "fa-solid fa-arrow-up-right-dots", description: "Upload the weekly AP-style poll screenshots.", to: "/dynasty/updates/top25" },
+  { key: "players-of-the-week", label: "Players of the Week", icon: "fa-solid fa-award", description: "Upload the weekly National/Conference Players of the Week screenshots.", to: "/dynasty/updates/players-of-the-week" },
+  { key: "heisman", label: "Heisman Candidates", icon: "fa-solid fa-trophy", description: "Upload the weekly Heisman Watch List screenshot.", to: "/dynasty/updates/heisman" },
+  { key: "standings", label: "Conference Standings", icon: "fa-solid fa-ranking-star", description: "Upload the conference standings screenshots.", to: "/dynasty/updates/standings" },
+  { key: "team-schedule", label: "Team Schedule", icon: "fa-regular fa-rectangle-list", description: "Upload a team's full-season schedule screenshots.", to: "/dynasty/updates/team-schedule" },
+  { key: "recruitment-trail", label: "Recruitment Trail", icon: "fa-solid fa-file-signature", description: "Upload a team's recruiting-class screenshot to log recruits who signed this week.", to: "/dynasty/updates/recruitment-trail" },
 ];
 
 const OCCASIONAL_UPDATES = [
-  { key: "nil-spend", label: "NIL Spend", description: "Upload the conference NIL spend screenshots.", to: "/dynasty/updates/nil-spend", tags: ["preseason"] },
-  { key: "recruiting", label: "Recruiting Recap", description: "Upload the national recruiting class rankings screenshots.", to: "/dynasty/updates/recruiting", tags: ["postseason"] },
-  { key: "award-winners", label: "Award Winners", description: "Record this season's Heisman and the rest of the national award winners.", to: "/dynasty/updates/award-winners", tags: ["postseason"] },
-  { key: "all-americans", label: "All-Americans", description: "Upload the National/Conference All-American screenshots.", to: "/dynasty/updates/all-americans", tags: ["preseason", "postseason"] },
-  { key: "team-attributes", label: "Team Attributes", description: "Update overall, offense, defense, and prestige for every team.", to: "/dynasty/updates/team-attributes", tags: ["preseason"] },
-  { key: "team-stats", label: "Team Stats", description: "Upload the league-wide offense/defense stats screenshots.", to: "/dynasty/updates/team-stats" },
-  { key: "bowl-projections", label: "Bowl Projections", description: "Track who's projected to play in each bowl/CFP game.", to: "/dynasty/updates/bowl-projections", tags: ["midseason"] },
-  { key: "season", label: "Start a New Season", description: "Create the next season for your dynasty.", tags: ["postseason"] },
+  { key: "nil-spend", label: "NIL Spend", icon: "fa-solid fa-sack-dollar", description: "Upload the conference NIL spend screenshots.", to: "/dynasty/updates/nil-spend", tags: ["preseason"] },
+  { key: "recruiting", label: "Recruiting Recap", icon: "fa-solid fa-signature", description: "Upload the national recruiting class rankings screenshots.", to: "/dynasty/updates/recruiting", tags: ["postseason"] },
+  { key: "award-winners", label: "Award Winners", icon: "fa-solid fa-medal", description: "Record this season's Heisman and the rest of the national award winners.", to: "/dynasty/updates/award-winners", tags: ["postseason"] },
+  { key: "all-americans", label: "All-Americans", icon: "fa-solid fa-people-line", description: "Upload the National/Conference All-American screenshots.", to: "/dynasty/updates/all-americans", tags: ["preseason", "postseason"] },
+  { key: "team-attributes", label: "Team Attributes", icon: "fa-solid fa-bars-progress", description: "Update overall, offense, defense, and prestige for every team.", to: "/dynasty/updates/team-attributes", tags: ["preseason"] },
+  { key: "team-stats", label: "Team Stats", icon: "fa-solid fa-chart-gantt", description: "Upload the league-wide offense/defense stats screenshots.", to: "/dynasty/updates/team-stats" },
+  { key: "bowl-projections", label: "Bowl Projections", icon: "fa-solid fa-football", description: "Track who's projected to play in each bowl/CFP game.", to: "/dynasty/updates/bowl-projections", tags: ["midseason"] },
+  { key: "portal-preview", label: "Portal Preview", icon: "fa-solid fa-door-open", description: "Upload each team's \"players leaving\" screen ahead of the transfer portal.", to: "/dynasty/updates/portal-preview", tags: ["postseason"] },
+  { key: "season", label: "Start a New Season", icon: "fa-regular fa-calendar", description: "Create the next season for your dynasty.", tags: ["postseason"] },
 ];
 
 // Occasional updates are tagged by when in the year they come up, and the section sorts by
@@ -51,7 +52,7 @@ function sortByTag(updates) {
 }
 
 const COMING_SOON_UPDATES = [
-  { key: "player-stats", label: "Player Stats", description: "Coming soon." },
+  { key: "player-stats", label: "Player Stats", icon: "fa-solid fa-chart-line", description: "Coming soon." },
 ];
 
 const BADGE_TONE_CLASSES = {
@@ -88,7 +89,10 @@ function UpdateCard({ update, status, onClick }) {
   const content = (
     <div className="p-5 space-y-1.5">
       <div className="flex items-start justify-between gap-2">
-        <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">{update.label}</h3>
+        <h3 className="flex items-center gap-2 font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">
+          {update.icon && <i className={`${update.icon} text-base text-burnt`} aria-hidden="true" />}
+          {update.label}
+        </h3>
         {status ? <WeeklyBadge status={status} /> : <TagBadges tags={update.tags} />}
       </div>
       <p className="text-sm text-textSecondary">{update.description}</p>

@@ -196,6 +196,35 @@ module Api
         render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
       end
 
+      def analyze_portal_preview
+        authorize @season
+        result = PortalPreview::Extractor.new.call(Array(params[:images]))
+        college_season = @season.college_seasons.find_by(college_id: result[:college_id])
+        result[:players] = PortalPreview::Matcher.new(college_season).resolve_each(result[:players]) if college_season
+        render json: result
+      rescue RubyLLM::Error => e
+        render json: { error: "AI extraction failed: #{e.message}", code: "extraction_failed" }, status: :unprocessable_entity
+      end
+
+      def commit_portal_preview
+        authorize @season
+        college_season = @season.college_seasons.find_by!(college_id: params[:college_id])
+        # Not commit_rows: that helper hard-requires a non-empty :rows, but
+        # deleting every remaining row for a team (removed_ids only, rows
+        # legitimately []) is a normal thing to save here.
+        rows = Array(params[:rows]).map { |row| row.to_unsafe_h.deep_symbolize_keys }
+        warnings = PortalPreview::CommitService.new(college_season).call(rows, removed_ids: Array(params[:removed_ids]))
+        render json: { college_season_id: college_season.id, warnings: warnings }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
+      end
+
+      def portal_statuses
+        authorize @season
+        college_season = @season.college_seasons.find_by!(college_id: params[:college_id])
+        render json: { players: PortalPreview::CurrentStatuses.new.call(college_season) }
+      end
+
       def coach_assignments
         authorize @season
         render json: SeasonCoachAssignmentsSerializer.new(@season).as_json

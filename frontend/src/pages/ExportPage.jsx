@@ -155,8 +155,14 @@ function ExportPage() {
   const [teamBreakdownFormat, setTeamBreakdownFormat] = useState("markdown");
   const [teamBreakdownMode, setTeamBreakdownMode] = useState("download");
 
-  const [reportCardsFormat, setReportCardsFormat] = useState("markdown");
-  const [reportCardsMode, setReportCardsMode] = useState("download");
+  const [midseasonReportCardsFormat, setMidseasonReportCardsFormat] = useState("markdown");
+  const [midseasonReportCardsMode, setMidseasonReportCardsMode] = useState("download");
+
+  const [endOfSeasonReportCardsFormat, setEndOfSeasonReportCardsFormat] = useState("markdown");
+  const [endOfSeasonReportCardsMode, setEndOfSeasonReportCardsMode] = useState("download");
+
+  const [portalPreviewFormat, setPortalPreviewFormat] = useState("markdown");
+  const [portalPreviewMode, setPortalPreviewMode] = useState("download");
 
   useEffect(() => {
     const load = async () => {
@@ -216,9 +222,21 @@ function ExportPage() {
       }`
     : "";
 
-  const reportCardsUrl = season
+  const midseasonReportCardsUrl = season
     ? `${API_BASE_URL}/api/v1/dynasties/${season.dynastyId}/seasons/${season.id}/midseason_report_cards${
-        reportCardsFormat === "markdown" ? "?format=markdown" : ""
+        midseasonReportCardsFormat === "markdown" ? "?format=markdown" : ""
+      }`
+    : "";
+
+  const endOfSeasonReportCardsUrl = season
+    ? `${API_BASE_URL}/api/v1/dynasties/${season.dynastyId}/seasons/${season.id}/end_of_season_report_cards${
+        endOfSeasonReportCardsFormat === "markdown" ? "?format=markdown" : ""
+      }`
+    : "";
+
+  const portalPreviewUrl = season
+    ? `${API_BASE_URL}/api/v1/dynasties/${season.dynastyId}/seasons/${season.id}/portal_preview${
+        portalPreviewFormat === "markdown" ? "?format=markdown" : ""
       }`
     : "";
 
@@ -307,12 +325,34 @@ function ExportPage() {
           <ExportCard
             title="Midseason Report Cards"
             description="Letter-grade debate for our coached teams — record, pace against the preseason Vegas number, signature wins and bad losses, team stats, and conference standing, ending with what it'll take to improve for the rest of the season."
-            format={reportCardsFormat}
-            setFormat={setReportCardsFormat}
-            mode={reportCardsMode}
-            setMode={setReportCardsMode}
-            url={reportCardsUrl}
-            filename={`${season.year}_midseason-report-cards.${reportCardsFormat === "markdown" ? "md" : "json"}`}
+            format={midseasonReportCardsFormat}
+            setFormat={setMidseasonReportCardsFormat}
+            mode={midseasonReportCardsMode}
+            setMode={setMidseasonReportCardsMode}
+            url={midseasonReportCardsUrl}
+            filename={`${season.year}_midseason-report-cards.${midseasonReportCardsFormat === "markdown" ? "md" : "json"}`}
+          />
+
+          <ExportCard
+            title="End of Season Report Cards"
+            description="Final letter-grade debate for our coached teams — final record, Vegas over/under verdict, signature wins and bad losses, final team stats, and conference standing, ending with season awards and each conference's actual champion vs. our preseason prediction. Run after the bowl games, before the transfer portal."
+            format={endOfSeasonReportCardsFormat}
+            setFormat={setEndOfSeasonReportCardsFormat}
+            mode={endOfSeasonReportCardsMode}
+            setMode={setEndOfSeasonReportCardsMode}
+            url={endOfSeasonReportCardsUrl}
+            filename={`${season.year}_end-of-season-report-cards.${endOfSeasonReportCardsFormat === "markdown" ? "md" : "json"}`}
+          />
+
+          <ExportCard
+            title="Portal Preview"
+            description="Roster-planning preview for our coached teams ahead of the transfer portal — confirmed departures (graduating, drafted, or unpersuadable transfers), live at-risk transfer battles, the most important losses, and which position groups need a new starter or more depth."
+            format={portalPreviewFormat}
+            setFormat={setPortalPreviewFormat}
+            mode={portalPreviewMode}
+            setMode={setPortalPreviewMode}
+            url={portalPreviewUrl}
+            filename={`${season.year}_portal-preview.${portalPreviewFormat === "markdown" ? "md" : "json"}`}
           />
         </>
       )}

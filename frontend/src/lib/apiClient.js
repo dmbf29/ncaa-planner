@@ -337,6 +337,26 @@ export const commitRecruitmentTrail = (dynastyId, seasonId, collegeId, weekNumbe
     })
     .then((r) => r.data);
 
+export const analyzePortalPreview = (dynastyId, seasonId, files) => {
+  const formData = new FormData();
+  files.forEach((file) => formData.append("images[]", file));
+  return api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/analyze_portal_preview`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+    .then((r) => r.data);
+};
+
+export const commitPortalPreview = (dynastyId, seasonId, collegeId, rows, removedIds = []) =>
+  api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_portal_preview`, { collegeId, rows, removedIds })
+    .then((r) => r.data);
+
+export const fetchPortalStatuses = (dynastyId, seasonId, collegeId) =>
+  api
+    .get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/portal_statuses`, { params: { college_id: collegeId } })
+    .then((r) => r.data);
+
 export const fetchGame = (id) => api.get(`/api/v1/games/${id}`).then((r) => r.data);
 
 export const analyzeGameStats = (id, buckets) => {

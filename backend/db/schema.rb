@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_08_30_222519) do
+ActiveRecord::Schema[8.0].define(version: 2026_09_02_045003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -328,6 +328,24 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_30_222519) do
     t.index ["week_id"], name: "index_players_of_the_week_on_week_id"
   end
 
+  create_table "portal_statuses", force: :cascade do |t|
+    t.bigint "college_season_id", null: false
+    t.bigint "student_season_id"
+    t.string "first_initial"
+    t.string "last_name", null: false
+    t.string "position", null: false
+    t.string "class_year"
+    t.integer "overall"
+    t.string "status", null: false
+    t.string "transfer_reason"
+    t.integer "projected_draft_round"
+    t.string "persuasion_chance"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["college_season_id"], name: "index_portal_statuses_on_college_season_id"
+    t.index ["student_season_id"], name: "index_portal_statuses_on_student_season_id"
+  end
+
   create_table "position_boards", force: :cascade do |t|
     t.string "name", null: false
     t.integer "slots_count", default: 0, null: false
@@ -412,6 +430,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_30_222519) do
     t.string "state"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "transfer", default: false, null: false
+    t.string "class_year"
     t.index ["college_season_id"], name: "index_signed_recruits_on_college_season_id"
     t.index ["student_id"], name: "index_signed_recruits_on_student_id"
     t.index ["week_id"], name: "index_signed_recruits_on_week_id"
@@ -556,6 +576,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_08_30_222519) do
   add_foreign_key "players", "teams"
   add_foreign_key "players_of_the_week", "student_seasons"
   add_foreign_key "players_of_the_week", "weeks"
+  add_foreign_key "portal_statuses", "college_seasons"
+  add_foreign_key "portal_statuses", "student_seasons"
   add_foreign_key "position_boards", "squads"
   add_foreign_key "position_boards", "teams"
   add_foreign_key "recruiting_seasons", "college_seasons"

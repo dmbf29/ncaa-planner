@@ -10,6 +10,14 @@ class SignedRecruit < ApplicationRecord
   # recruit did anything — it's what lets the weekly podcast surface "newly
   # signed this week" without re-mentioning earlier signings. Same
   # observation-week convention as BowlProjection.
+  #
+  # `transfer` distinguishes a portal transfer in from a traditional HS/JUCO
+  # signee — both burn the same scholarship slot, so this one model covers
+  # both rather than a parallel table. `class_year` is the screen's CLASS
+  # column as-is ("HS" for high school, "JC (JR)"/"JC (SO)" for juco, or a
+  # plain class year like "SO"/"JR"/"SR" for a transfer's year at their
+  # previous school) — not validated against CollegeSeason's class-year
+  # vocabulary since "HS"/"JC (..)" aren't real roster class years.
   belongs_to :college_season
   belongs_to :week
   belongs_to :student, optional: true

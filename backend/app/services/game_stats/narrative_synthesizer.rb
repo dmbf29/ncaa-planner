@@ -40,7 +40,9 @@ module GameStats
     def schema
       RubyLLM::Schema.create do
         string :narrative_summary,
-               description: "2-4 sentence recap of how the game went — key runs, turning points, final margin."
+               description: "2-4 sentence recap of how the game went — key runs, turning points, final margin. " \
+                            "Ground turning-point claims in the quarter-by-quarter scoring, time of possession, " \
+                            "third-down and red-zone numbers given below; don't invent plays that aren't in the data."
         integer :offense_player_of_game_student_season_id, required: false,
                 description: "student_season_id of the best offensive performer, from either team. " \
                              "Only set this if that player has a student_season_id in the data given below."
@@ -70,9 +72,55 @@ module GameStats
       PROMPT
     end
 
+    # Emit as much of the team's box score as we actually have — the
+    # narrative pass gets no images and no play-by-play, so this line is
+    # the model's only source of substance. Quarter-by-quarter scoring in
+    # particular is what lets it write an honest "turning point" / "pulled
+    # away late" sentence instead of guessing from total yards. Blank
+    # fields are dropped so a partial extraction doesn't emit "/ yds".
     def team_line(row)
       f = row[:fields]
-      "#{row[:team]}: #{f[:final_score]} points, #{f[:total_yards]} total yards, #{f[:turnovers]} turnovers"
+      parts = []
+
+      if present?(f[:final_score])
+        quarters = [ :points_in_quarter_1, :points_in_quarter_2, :points_in_quarter_3, :points_in_quarter_4 ]
+                     .map { |key| f[key] }
+        quarters << f[:points_in_overtime] if present?(f[:points_in_overtime])
+        by_quarter = " (by quarter: #{quarters.map { |q| q || 0 }.join('-')})" if quarters.any? { |q| present?(q) }
+        parts << "final #{f[:final_score]}#{by_quarter}"
+      end
+
+      if present?(f[:total_yards])
+        yardage = "#{f[:total_yards]} total yards"
+        yardage << " on #{f[:total_plays]} plays (#{f[:yards_per_play]}/play)" if present?(f[:total_plays])
+        parts << yardage
+      end
+      parts << "#{f[:first_downs]} first downs" if present?(f[:first_downs])
+
+      if present?(f[:rushing_yards])
+        parts << "rush #{f[:rushing_yards]} yds/#{f[:rushes]} car (#{f[:yards_per_rush]} avg), #{f[:rushing_tds].to_i} TD"
+      end
+      if present?(f[:passing_yards])
+        parts << "pass #{f[:passing_completions]}/#{f[:passing_attempts]} for #{f[:passing_yards]} yds, #{f[:passing_tds].to_i} TD"
+      end
+
+      parts << "3rd down #{f[:third_down_conversions]}/#{f[:third_down_attempts]}" if present?(f[:third_down_attempts])
+      parts << "4th down #{f[:fourth_down_conversions]}/#{f[:fourth_down_attempts]}" if present?(f[:fourth_down_attempts])
+      if present?(f[:red_zone_tds]) || present?(f[:red_zone_field_goals])
+        parts << "red zone #{f[:red_zone_tds].to_i} TD/#{f[:red_zone_field_goals].to_i} FG (#{f[:red_zone_success_percentage]}%)"
+      end
+
+      if present?(f[:turnovers])
+        parts << "#{f[:turnovers]} turnovers (#{f[:fumbles_lost].to_i} fum lost, #{f[:interceptions_thrown].to_i} INT)"
+      end
+      parts << "TOP #{f[:time_of_possession]}s" if present?(f[:time_of_possession])
+      parts << "#{f[:penalties]} pen for #{f[:penalty_yards]} yds" if present?(f[:penalties])
+
+      "#{row[:team]} — #{parts.join('; ')}"
+    end
+
+    def present?(value)
+      !value.nil? && value.to_s.strip != ""
     end
 
     def player_line(row)

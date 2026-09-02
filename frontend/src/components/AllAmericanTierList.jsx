@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 const TIER_LABELS = { 1: "First Team", 2: "Second Team" };
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 12;
 
 function HonoreeRow({ honoree }) {
   return (

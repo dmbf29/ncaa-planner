@@ -63,6 +63,14 @@ class SeasonPolicy < ApplicationPolicy
     owner?
   end
 
+  def analyze_recruitment_trail?
+    owner?
+  end
+
+  def commit_recruitment_trail?
+    owner?
+  end
+
   def analyze_players_of_the_week?
     owner?
   end
@@ -84,6 +92,18 @@ class SeasonPolicy < ApplicationPolicy
   end
 
   def commit_roster_import?
+    owner?
+  end
+
+  def analyze_portal_preview?
+    owner?
+  end
+
+  def commit_portal_preview?
+    owner?
+  end
+
+  def portal_statuses?
     owner?
   end
 

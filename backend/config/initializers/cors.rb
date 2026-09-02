@@ -35,5 +35,13 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
     resource "/api/v1/dynasties/*/seasons/*/midseason_report_cards",
              headers: :any,
              methods: %i[get options]
+
+    resource "/api/v1/dynasties/*/seasons/*/end_of_season_report_cards",
+             headers: :any,
+             methods: %i[get options]
+
+    resource "/api/v1/dynasties/*/seasons/*/portal_preview",
+             headers: :any,
+             methods: %i[get options]
   end
 end
