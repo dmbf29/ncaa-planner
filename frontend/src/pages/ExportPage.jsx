@@ -26,6 +26,37 @@ const downloadFile = async (url, filename) => {
   URL.revokeObjectURL(blobUrl);
 };
 
+const EXPORT_TABS = [
+  { id: "weekly", label: "Weekly Recap & Preview" },
+  { id: "win_totals", label: "Win Totals: Over/Under" },
+  { id: "roster_breakdown", label: "Roster Breakdown" },
+  { id: "midseason_report_cards", label: "Midseason Report Cards" },
+  { id: "end_of_season_report_cards", label: "End of Season Report Cards" },
+  { id: "portal_preview", label: "Portal Preview" },
+];
+
+function ExportTabs({ activeTab, onSelect }) {
+  return (
+    <div className="mb-4 flex gap-1.5 flex-wrap">
+      {EXPORT_TABS.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          onClick={() => onSelect(tab.id)}
+          className={clsx(
+            "shrink-0 rounded-md px-3 py-1.5 text-sm font-semibold transition",
+            tab.id === activeTab
+              ? "bg-charcoal text-white dark:bg-white/10"
+              : "border border-border text-textSecondary hover:bg-border/30 dark:border-darkborder dark:hover:bg-white/10",
+          )}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function SegmentedControl({ options, value, onChange }) {
   return (
     <div className="inline-flex rounded-md border border-border p-0.5 dark:border-darkborder">
@@ -164,6 +195,8 @@ function ExportPage() {
   const [portalPreviewFormat, setPortalPreviewFormat] = useState("markdown");
   const [portalPreviewMode, setPortalPreviewMode] = useState("download");
 
+  const [activeTab, setActiveTab] = useState(EXPORT_TABS[0].id);
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -259,6 +292,9 @@ function ExportPage() {
 
       {season && (
         <>
+          <ExportTabs activeTab={activeTab} onSelect={setActiveTab} />
+
+          {activeTab === "weekly" && (
           <ExportCard
             title="Weekly Recap & Preview"
             description="Results, ranking movement, and next-game previews for our coached teams."
@@ -299,7 +335,9 @@ function ExportPage() {
               </div>
             }
           />
+          )}
 
+          {activeTab === "win_totals" && (
           <ExportCard
             title="Win Totals: Over/Under"
             description="Projected Vegas-style win totals for our coached teams, with full schedule and opponent detail — hosts debate over/under, then predict each conference champion."
@@ -310,7 +348,9 @@ function ExportPage() {
             url={winTotalsUrl}
             filename={`${season.year}_win-totals.${winTotalsFormat === "markdown" ? "md" : "json"}`}
           />
+          )}
 
+          {activeTab === "roster_breakdown" && (
           <ExportCard
             title="Roster Breakdown"
             description="Position-group-by-position-group comparison of our coached teams — best players, average ratings, NIL spend, and All-Americans, plus how we stack up against the rest of the conference."
@@ -321,7 +361,9 @@ function ExportPage() {
             url={teamBreakdownUrl}
             filename={`${season.year}_team-breakdown.${teamBreakdownFormat === "markdown" ? "md" : "json"}`}
           />
+          )}
 
+          {activeTab === "midseason_report_cards" && (
           <ExportCard
             title="Midseason Report Cards"
             description="Letter-grade debate for our coached teams — record, pace against the preseason Vegas number, signature wins and bad losses, team stats, and conference standing, ending with what it'll take to improve for the rest of the season."
@@ -332,7 +374,9 @@ function ExportPage() {
             url={midseasonReportCardsUrl}
             filename={`${season.year}_midseason-report-cards.${midseasonReportCardsFormat === "markdown" ? "md" : "json"}`}
           />
+          )}
 
+          {activeTab === "end_of_season_report_cards" && (
           <ExportCard
             title="End of Season Report Cards"
             description="Final letter-grade debate for our coached teams — final record, Vegas over/under verdict, signature wins and bad losses, final team stats, and conference standing, ending with season awards and each conference's actual champion vs. our preseason prediction. Run after the bowl games, before the transfer portal."
@@ -343,10 +387,12 @@ function ExportPage() {
             url={endOfSeasonReportCardsUrl}
             filename={`${season.year}_end-of-season-report-cards.${endOfSeasonReportCardsFormat === "markdown" ? "md" : "json"}`}
           />
+          )}
 
+          {activeTab === "portal_preview" && (
           <ExportCard
             title="Portal Preview"
-            description="Roster-planning preview for our coached teams ahead of the transfer portal — confirmed departures (graduating, drafted, or unpersuadable transfers), live at-risk transfer battles, the most important losses, and which position groups need a new starter or more depth."
+            description="Roster-planning preview for our coached teams ahead of the transfer portal — graduating seniors, early draft declarations, live in-portal storylines with a shot at returning, the most important losses, and which position groups need a new starter or more depth."
             format={portalPreviewFormat}
             setFormat={setPortalPreviewFormat}
             mode={portalPreviewMode}
@@ -354,6 +400,7 @@ function ExportPage() {
             url={portalPreviewUrl}
             filename={`${season.year}_portal-preview.${portalPreviewFormat === "markdown" ? "md" : "json"}`}
           />
+          )}
         </>
       )}
     </div>
