@@ -235,23 +235,105 @@ class SeasonWeeksSerializer
     { name: student_season.student.name, position: student_season.position, value: leader[:value] }
   end
 
-  # Injuries active as of this week (see Injury#active_as_of?).
+  # Injuries active as of this week (see Injury#active_as_of?). The whole
+  # roster is loaded once here (not just the injured players) so each entry
+  # can report the injured player's depth-chart role and who's behind/ahead
+  # of him without a query per injury.
   def injury_report_json(college_season, week)
-    college_season.student_seasons
-                  .includes(:student, injuries: { game: :week })
-                  .flat_map(&:injuries)
-                  .select { |injury| injury.active_as_of?(week) }
-                  .map { |injury| injury_report_entry_json(injury) }
+    roster = college_season.student_seasons
+                           .includes(:student, injuries: { game: :week })
+                           .to_a
+
+    roster.flat_map(&:injuries)
+          .select { |injury| injury.active_as_of?(week) }
+          .map { |injury| injury_report_entry_json(injury, roster, week) }
   end
 
-  def injury_report_entry_json(injury)
+  # "Starter" isn't a stored fact anywhere — the game doesn't expose a depth
+  # chart — so we use the same stand-in the rest of the app does (see
+  # PortalPreviewSerializer#top_player_at, WinTotals::Calculator): the
+  # highest-overall player listed at a position is that position's starter,
+  # and the next one down is the replacement. When the injured player is a
+  # backup, `replacement` is instead the starter ahead of him, which is the
+  # context that matters ("the guy who's actually playing is fine").
+  def injury_report_entry_json(injury, roster, week)
     student_season = injury.student_season
+    depth = roster.select { |ss| ss.position == student_season.position && ss.overall.present? }
+                  .sort_by { |ss| -ss.overall }
+    replacement = depth.find { |ss| ss.id != student_season.id }
+
     {
       name: student_season.student.name,
       position: student_season.position,
+      overall: student_season.overall,
+      starter: depth.first&.id == student_season.id,
       description: injury.description,
       injured_week_number: injury.game.week.number,
-      status: injury.out_for_season? ? "out_for_season" : "expected_back_week_#{injury.return_week_number}"
+      status: injury.out_for_season? ? "out_for_season" : "expected_back_week_#{injury.return_week_number}",
+      season_stats: injured_player_season_stats(student_season, week),
+      replacement: replacement && { name: replacement.student.name, overall: replacement.overall }
+    }
+  end
+
+  # This player's season-to-date box score through `week`, grouped into the
+  # same passing/rushing/receiving/defense buckets as everywhere else and
+  # aggregated by PlayerStatTotals. Only buckets with real production are
+  # kept; nil when the player has no recorded stats yet (e.g. an O-lineman,
+  # or someone hurt in week 1) so the presenter can stay silent.
+  def injured_player_season_stats(student_season, week)
+    rows = StudentGameStat.joins(game: :week)
+                          .where(student_season_id: student_season.id)
+                          .where(weeks: { number: ..week.number })
+                          .to_a
+    return nil if rows.empty?
+
+    totals = PlayerStatTotals.call(rows)
+    buckets = {
+      passing: passing_season_bucket(totals),
+      rushing: rushing_season_bucket(totals),
+      receiving: receiving_season_bucket(totals),
+      defense: defense_season_bucket(totals)
+    }.compact
+    return nil if buckets.empty?
+
+    { games_played: totals[:games_played] }.merge(buckets)
+  end
+
+  def passing_season_bucket(totals)
+    return nil unless totals[:passing_attempts].to_i.positive?
+
+    {
+      completions: totals[:passing_completions], attempts: totals[:passing_attempts],
+      yards: totals[:passing_yards], tds: totals[:passing_tds],
+      interceptions: totals[:passing_interceptions], rating: totals[:passing_rating]
+    }
+  end
+
+  def rushing_season_bucket(totals)
+    return nil unless totals[:rushing_carries].to_i.positive?
+
+    {
+      carries: totals[:rushing_carries], yards: totals[:rushing_yards],
+      avg: totals[:rushing_avg], tds: totals[:rushing_tds]
+    }
+  end
+
+  def receiving_season_bucket(totals)
+    return nil unless totals[:receiving_receptions].to_i.positive?
+
+    {
+      receptions: totals[:receiving_receptions], yards: totals[:receiving_yards],
+      avg: totals[:receiving_avg], tds: totals[:receiving_tds]
+    }
+  end
+
+  def defense_season_bucket(totals)
+    keys = %i[defense_tackles defense_tfl defense_sacks defense_interceptions]
+    return nil unless keys.any? { |key| totals[key].to_f.positive? }
+
+    {
+      tackles: totals[:defense_tackles], tfl: totals[:defense_tfl],
+      sacks: totals[:defense_sacks], interceptions: totals[:defense_interceptions]
     }
   end
 

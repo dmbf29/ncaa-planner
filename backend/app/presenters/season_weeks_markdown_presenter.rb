@@ -67,7 +67,8 @@ class SeasonWeeksMarkdownPresenter
       "#{current_label} Kickoff & Headlines",
       "Results Recap & Rival Matchups — Deep dive into the highlighted games.",
       "Around the #{conference_label} — Quick hits on other conference games.",
-      "Injury Report — Who's banged up, who's expected back, and how it affects the depth chart (if any injuries are active).",
+      "Injury Report — Who's banged up, who's expected back, and how it affects the depth chart: weigh each injury by " \
+        "whether the player is a starter, his overall rating and season production, and the drop-off to his replacement (if any injuries are active).",
       "Recruitment Trail — New recruits who signed with our programs heading into Week #{next_number} and what they add (if any signed).",
       "Winners & Losers - the hosts each pick 1 team/player who won the week, and 1 who lost",
       "#{poll_watch_label} — Discuss rankings and national standing shifts (if focused teams are included)",
@@ -614,7 +615,55 @@ class SeasonWeeksMarkdownPresenter
 
   def injury_report_line(injury)
     status = injury[:status] == "out_for_season" ? "out for the season" : injury[:status].tr("_", " ")
-    "#{injury[:name]} (#{injury[:position]}) — #{injury[:description]} (Week #{injury[:injured_week_number]} injury, #{status})"
+    role = injury[:starter] ? "starter" : "backup"
+    ovr = injury[:overall] ? ", #{injury[:overall]} OVR" : ""
+    headline = "#{injury[:name]} (#{injury[:position]}#{ovr}, #{role}) — " \
+               "#{injury[:description]} (Week #{injury[:injured_week_number]} injury, #{status})"
+
+    sub_lines = []
+    stat_line = injury_season_stats_line(injury[:season_stats])
+    sub_lines << "  - Season so far: #{stat_line}" if stat_line
+    sub_lines << "  - #{injury_replacement_line(injury)}" if injury[:replacement]
+
+    ([ headline ] + sub_lines).join("\n")
+  end
+
+  # "Next up" when the injured player is the starter; when he's a backup the
+  # replacement field carries the starter ahead of him instead (see
+  # SeasonWeeksSerializer#injury_report_entry_json), so frame it that way.
+  def injury_replacement_line(injury)
+    replacement = injury[:replacement]
+    ovr = replacement[:overall] ? " (#{replacement[:overall]} OVR)" : ""
+    label = injury[:starter] ? "Next man up" : "Starter ahead of him"
+    "#{label}: #{replacement[:name]}#{ovr}"
+  end
+
+  def injury_season_stats_line(season_stats)
+    return nil if season_stats.blank?
+
+    parts = []
+    if (p = season_stats[:passing])
+      rating = p[:rating] ? ", #{p[:rating]} rtg" : ""
+      parts << "#{p[:completions]}/#{p[:attempts]} passing, #{p[:yards]} yds, #{p[:tds]} TD, #{p[:interceptions]} INT#{rating}"
+    end
+    if (r = season_stats[:rushing])
+      parts << "#{r[:carries]} car, #{r[:yards]} rush yds, #{r[:tds]} TD (#{r[:avg]} avg)"
+    end
+    if (rec = season_stats[:receiving])
+      parts << "#{rec[:receptions]} rec, #{rec[:yards]} yds, #{rec[:tds]} TD (#{rec[:avg]} avg)"
+    end
+    if (d = season_stats[:defense])
+      defense = []
+      defense << "#{d[:tackles]} tkl" if d[:tackles].to_i.positive?
+      defense << "#{d[:tfl]} TFL" if d[:tfl].to_i.positive?
+      defense << "#{d[:sacks]} sacks" if d[:sacks].to_f.positive?
+      defense << "#{d[:interceptions]} INT" if d[:interceptions].to_i.positive?
+      parts << defense.join(", ")
+    end
+    return nil if parts.empty?
+
+    games = season_stats[:games_played]
+    "#{parts.join('; ')} in #{games} game#{'s' unless games == 1}"
   end
 
   # Only rendered when this team signed at least one recruit that was first
