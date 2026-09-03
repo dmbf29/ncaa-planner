@@ -33,3 +33,7 @@
 app/.DS_Store
 config/.DS_Store
 db/.DS_Store
+
+# Local database backups (dev only).
+/db/backups/*
+!/db/backups/.keep

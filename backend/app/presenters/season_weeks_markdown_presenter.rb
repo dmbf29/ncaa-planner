@@ -68,7 +68,7 @@ class SeasonWeeksMarkdownPresenter
       "Results Recap & Rival Matchups — Deep dive into the highlighted games.",
       "Around the #{conference_label} — Quick hits on other conference games.",
       "Injury Report — Who's banged up, who's expected back, and how it affects the depth chart (if any injuries are active).",
-      "Recruitment Trail — New recruits who signed with our programs this week and what they add (if any signed).",
+      "Recruitment Trail — New recruits who signed with our programs heading into Week #{next_number} and what they add (if any signed).",
       "Winners & Losers - the hosts each pick 1 team/player who won the week, and 1 who lost",
       "#{poll_watch_label} — Discuss rankings and national standing shifts (if focused teams are included)",
       "Week #{next_number} Preview — Look ahead to next week's opponents and the hosts make predictions"
@@ -618,8 +618,9 @@ class SeasonWeeksMarkdownPresenter
   end
 
   # Only rendered when this team signed at least one recruit that was first
-  # recorded this week — silent otherwise, same convention as every other
-  # optional section.
+  # recorded in the preview week (see SeasonWeeksSerializer#recruiting_trail_json
+  # for the N+1 convention) — silent otherwise, same convention as every
+  # other optional section.
   def recruiting_trail_lines(recruiting_trail)
     return [] if recruiting_trail.blank?
 

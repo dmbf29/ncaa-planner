@@ -146,6 +146,11 @@ class SeasonWeeksSerializer
   # week N's episode surfaces whichever projection screenshot was taken
   # going into week N+1. Empty (not included in the recap) unless that
   # next week actually has projections on record.
+  #
+  # Scoped to matchups the podcast audience actually cares about: a
+  # projection involving one of our coached teams, or any CFP first-round
+  # game (the bracket's entry point — worth calling out regardless of who's
+  # in it). Later CFP rounds and unrelated bowls are dropped.
   def bowl_projections_for_week(week)
     preview_week = @season.weeks.find_by(number: week.number + 1)
     return [] unless preview_week
@@ -153,7 +158,14 @@ class SeasonWeeksSerializer
     preview_week.bowl_projections
                 .includes(:projected_home_college, :projected_away_college)
                 .order(:time)
+                .select { |bp| relevant_bowl_projection?(bp) }
                 .map { |bp| bowl_projection_json(bp) }
+  end
+
+  def relevant_bowl_projection?(bp)
+    bp.first_round? ||
+      coached_college_ids.include?(bp.projected_home_college_id) ||
+      coached_college_ids.include?(bp.projected_away_college_id)
   end
 
   def bowl_projection_json(bp)
@@ -269,13 +281,19 @@ class SeasonWeeksSerializer
     }
   end
 
-  # Recruits this team signed that were first recorded in THIS week — the
-  # "newly signed this week" list, so a recap mentions each signing once,
-  # the week it happens, rather than re-reading the whole class every week.
-  # Silent (empty array) for a week with no new signings.
+  # Recruits this team signed that were first recorded in the week AFTER
+  # this one — same "N+1" convention as top_25_for_week /
+  # bowl_projections_for_week. Week N's episode previews week N+1, so a
+  # player signed on week N+1 belongs in that preview; the signing gets
+  # mentioned once, in the episode that goes out as it happens, rather than
+  # re-reading the whole class every week. Silent (empty array) for a
+  # preview week with no new signings, or when there is no next week.
   def recruiting_trail_json(college_season, week)
+    preview_week = @season.weeks.find_by(number: week.number + 1)
+    return [] unless preview_week
+
     college_season.signed_recruits
-                  .select { |recruit| recruit.week_id == week.id }
+                  .select { |recruit| recruit.week_id == preview_week.id }
                   .sort_by { |recruit| [ -(recruit.star_rating || 0), recruit.national_rank || Float::INFINITY, recruit.last_name.to_s ] }
                   .map { |recruit| recruit_json(recruit) }
   end
