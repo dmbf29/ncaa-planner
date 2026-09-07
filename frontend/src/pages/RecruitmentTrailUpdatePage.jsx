@@ -37,77 +37,86 @@ function CollegeSelect({ value, onChange, colleges }) {
   );
 }
 
-function TextInput({ value, onChange, className = inputClass, placeholder }) {
+function TextInput({ value, onChange, className = inputClass, placeholder, disabled }) {
   return (
     <input
       type="text"
       value={value ?? ""}
       placeholder={placeholder}
+      disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
-      className={className}
+      className={`${className} disabled:cursor-not-allowed disabled:opacity-60`}
     />
   );
 }
 
-function NumberInput({ value, onChange }) {
+function NumberInput({ value, onChange, disabled }) {
   return (
     <input
       type="number"
       value={value ?? ""}
+      disabled={disabled}
       onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
-      className={smallInputClass}
+      className={`${smallInputClass} disabled:cursor-not-allowed disabled:opacity-60`}
     />
   );
 }
 
-function CheckboxInput({ checked, onChange }) {
+function CheckboxInput({ checked, onChange, disabled }) {
   return (
     <input
       type="checkbox"
       checked={!!checked}
+      disabled={disabled}
       onChange={(e) => onChange(e.target.checked)}
-      className="h-4 w-4 rounded border-border accent-burnt dark:border-darkborder"
+      className="h-4 w-4 rounded border-border accent-burnt disabled:cursor-not-allowed disabled:opacity-60 dark:border-darkborder"
     />
   );
 }
 
+function weekSignedLabel(alreadySigned) {
+  return alreadySigned.weekName || `Week ${alreadySigned.weekNumber}`;
+}
+
 function RecruitRow({ row, onChange }) {
   const update = (patch) => onChange({ ...row, ...patch });
+  const locked = Boolean(row.alreadySigned);
 
   return (
-    <tr className="border-b border-border align-top dark:border-darkborder">
+    <tr className={`border-b border-border align-top dark:border-darkborder ${locked ? "opacity-60" : ""}`}>
       <td className="p-2">
         <TextInput
           value={row.firstName}
           onChange={(firstName) => update({ firstName })}
           className={`${inputClass} w-32`}
           placeholder={row.firstInitial ? `${row.firstInitial}.` : "First name"}
+          disabled={locked}
         />
-        {!row.firstName && <p className="mt-1 text-xs text-warning">Fill in the full first name</p>}
+        {!row.firstName && !locked && <p className="mt-1 text-xs text-warning">Fill in the full first name</p>}
       </td>
       <td className="p-2">
-        <TextInput value={row.lastName} onChange={(lastName) => update({ lastName })} className={`${inputClass} w-36`} />
+        <TextInput value={row.lastName} onChange={(lastName) => update({ lastName })} className={`${inputClass} w-36`} disabled={locked} />
       </td>
       <td className="p-2">
-        <TextInput value={row.position} onChange={(position) => update({ position })} className={`${inputClass} w-20`} />
+        <TextInput value={row.position} onChange={(position) => update({ position })} className={`${inputClass} w-20`} disabled={locked} />
       </td>
       <td className="p-2">
-        <NumberInput value={row.starRating} onChange={(starRating) => update({ starRating })} />
+        <NumberInput value={row.starRating} onChange={(starRating) => update({ starRating })} disabled={locked} />
       </td>
       <td className="p-2">
-        <NumberInput value={row.nilAmount} onChange={(nilAmount) => update({ nilAmount })} />
+        <NumberInput value={row.nilAmount} onChange={(nilAmount) => update({ nilAmount })} disabled={locked} />
       </td>
       <td className="p-2">
-        <NumberInput value={row.nationalRank} onChange={(nationalRank) => update({ nationalRank })} />
+        <NumberInput value={row.nationalRank} onChange={(nationalRank) => update({ nationalRank })} disabled={locked} />
       </td>
       <td className="p-2">
-        <NumberInput value={row.positionRank} onChange={(positionRank) => update({ positionRank })} />
+        <NumberInput value={row.positionRank} onChange={(positionRank) => update({ positionRank })} disabled={locked} />
       </td>
       <td className="p-2">
-        <NumberInput value={row.stateRank} onChange={(stateRank) => update({ stateRank })} />
+        <NumberInput value={row.stateRank} onChange={(stateRank) => update({ stateRank })} disabled={locked} />
       </td>
       <td className="p-2">
-        <TextInput value={row.state} onChange={(state) => update({ state })} className={`${inputClass} w-16`} />
+        <TextInput value={row.state} onChange={(state) => update({ state })} className={`${inputClass} w-16`} disabled={locked} />
       </td>
       <td className="p-2">
         <TextInput
@@ -115,15 +124,20 @@ function RecruitRow({ row, onChange }) {
           onChange={(classYear) => update({ classYear })}
           className={`${inputClass} w-20`}
           placeholder="HS"
+          disabled={locked}
         />
       </td>
       <td className="p-2 text-center">
-        <CheckboxInput checked={row.transfer} onChange={(transfer) => update({ transfer })} />
+        <CheckboxInput checked={row.transfer} onChange={(transfer) => update({ transfer })} disabled={locked} />
       </td>
-      <td className="p-2">
-        <button type="button" onClick={() => onChange(null)} className="text-xs text-danger hover:underline">
-          Remove
-        </button>
+      <td className="p-2 whitespace-nowrap">
+        {locked ? (
+          <span className="text-xs font-semibold text-textSecondary">Signed · {weekSignedLabel(row.alreadySigned)}</span>
+        ) : (
+          <button type="button" onClick={() => onChange(null)} className="text-xs text-danger hover:underline">
+            Remove
+          </button>
+        )}
       </td>
     </tr>
   );
@@ -148,6 +162,9 @@ function RecruitmentTrailReview({
       nextRow === null ? rows.filter((_, i) => i !== index) : rows.map((row, i) => (i === index ? nextRow : row));
     onChange(next);
   };
+
+  const alreadySignedRows = rows.filter((row) => row.alreadySigned);
+  const newRowCount = rows.length - alreadySignedRows.length;
 
   return (
     <Card>
@@ -193,6 +210,23 @@ function RecruitmentTrailReview({
           </label>
         </div>
 
+        {alreadySignedRows.length > 0 && (
+          <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-textPrimary dark:text-white">
+            <p className="font-semibold">
+              {alreadySignedRows.length} of {rows.length} already on record for this team — greyed out below and
+              skipped on save:
+            </p>
+            <ul className="mt-1 list-disc pl-5">
+              {alreadySignedRows.map((row, index) => (
+                <li key={index}>
+                  {(row.alreadySigned.firstName || (row.firstInitial ? `${row.firstInitial}.` : "")) + " " + row.lastName}{" "}
+                  ({row.position}) — signed {weekSignedLabel(row.alreadySigned)}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {rows.length === 0 ? (
           <p className="text-sm text-textSecondary">No recruits left to save.</p>
         ) : (
@@ -225,13 +259,17 @@ function RecruitmentTrailReview({
 
         {error && <p className="text-sm text-danger">{error}</p>}
 
+        {newRowCount === 0 && rows.length > 0 && (
+          <p className="text-sm text-textSecondary">Every recruit in this screenshot is already on record — nothing new to save.</p>
+        )}
+
         <button
           type="button"
           onClick={onCommit}
-          disabled={committing || rows.length === 0 || !collegeId}
+          disabled={committing || newRowCount === 0 || !collegeId}
           className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {committing ? "Saving..." : "Save Recruits"}
+          {committing ? "Saving..." : newRowCount === 1 ? "Save 1 Recruit" : `Save ${newRowCount} Recruits`}
         </button>
       </div>
     </Card>
@@ -261,6 +299,7 @@ function RecruitmentTrailUpdatePage() {
   const [commitError, setCommitError] = useState(null);
   const [saved, setSaved] = useState(false);
   const [warnings, setWarnings] = useState([]);
+  const [savedCounts, setSavedCounts] = useState({ saved: 0, skipped: 0 });
 
   useEffect(() => {
     const load = async () => {
@@ -329,9 +368,13 @@ function RecruitmentTrailUpdatePage() {
   const handleCommit = async () => {
     setCommitting(true);
     setCommitError(null);
+    // Recruits already on record for this team are shown greyed out for context
+    // but never re-sent — the AI flagged them against the existing signees.
+    const toSave = rows.filter((row) => !row.alreadySigned);
     try {
-      const result = await commitRecruitmentTrail(dynastyId, seasonId, collegeId, Number(weekNumber), rows);
+      const result = await commitRecruitmentTrail(dynastyId, seasonId, collegeId, Number(weekNumber), toSave);
       setWarnings(result.warnings || []);
+      setSavedCounts({ saved: toSave.length, skipped: rows.length - toSave.length });
       setSaved(true);
     } catch (err) {
       setCommitError(err.message);
@@ -377,8 +420,14 @@ function RecruitmentTrailUpdatePage() {
         <Card>
           <div className="p-5 space-y-2">
             <p className="text-sm font-semibold text-success">
-              Saved! {savedTeamName}&rsquo;s recruits for {weekName} have been recorded.
+              Saved! {savedCounts.saved} recruit{savedCounts.saved === 1 ? "" : "s"} recorded for {savedTeamName} in{" "}
+              {weekName}.
             </p>
+            {savedCounts.skipped > 0 && (
+              <p className="text-sm text-textSecondary">
+                {savedCounts.skipped} already-signed recruit{savedCounts.skipped === 1 ? " was" : "s were"} skipped.
+              </p>
+            )}
             {warnings.length > 0 && (
               <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-textPrimary dark:text-white">
                 <p className="font-semibold">

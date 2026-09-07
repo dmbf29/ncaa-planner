@@ -141,7 +141,7 @@ module Api
 
       def analyze_recruitment_trail
         authorize @season
-        result = RecruitmentTrail::Extractor.new.call(Array(params[:images]))
+        result = RecruitmentTrail::Extractor.new.call(Array(params[:images]), season: @season)
         render json: result
       rescue RubyLLM::Error => e
         render json: { error: "AI extraction failed: #{e.message}", code: "extraction_failed" }, status: :unprocessable_entity

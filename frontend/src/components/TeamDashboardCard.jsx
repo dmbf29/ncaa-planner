@@ -313,7 +313,7 @@ function TeamDashboardCard({ team, dynastyId, seasonId }) {
         <TeamStatsGroup teamStats={team.teamStats} />
       </div>
 
-      <div className="max-h-[385px] overflow-y-auto px-4 py-3">
+      <div className="max-h-[400px] overflow-y-auto px-4 py-3">
         <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-textSecondary flex justify-between">
           <span>Schedule</span>
           <span className="text-textPrimary dark:text-white">{record}</span>

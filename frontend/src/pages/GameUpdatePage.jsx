@@ -536,6 +536,11 @@ function GameUpdatePage() {
   const [committing, setCommitting] = useState(false);
   const [commitError, setCommitError] = useState(null);
   const [saved, setSaved] = useState(false);
+  // Armed by any AI pass that produced new review data (screenshot
+  // analyze / re-analyze / narrative); a dedicated effect commits once
+  // everything settles. Not armed by manual field edits — those still
+  // need a deliberate Save.
+  const [pendingAutoSave, setPendingAutoSave] = useState(false);
 
   // True while any of the three screenshot sections is mid-analyze — the
   // save button stays disabled during this window so a save can't race
@@ -556,6 +561,18 @@ function GameUpdatePage() {
       return () => clearTimeout(timer);
     }
   }, [anyAnalyzing]);
+
+  // Auto-commit as soon as an AI pass finishes and nothing else is still
+  // running — the user always saves anyway, so this just spares them from
+  // losing already-extracted data to an accidental refresh mid-review.
+  // Waits out any in-flight analyze so concurrent sections commit together
+  // rather than once each.
+  useEffect(() => {
+    if (!pendingAutoSave || anyAnalyzing || narrativeRunning || committing) return;
+    setPendingAutoSave(false);
+    commitAnalysis(analysis, { auto: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAutoSave, anyAnalyzing, narrativeRunning, committing]);
 
   // Any edit to the review data means the last save is now stale — used
   // instead of raw setAnalysis wherever the user (or a fresh AI pass)
@@ -613,6 +630,7 @@ function GameUpdatePage() {
       );
       setPendingFiles((prev) => ({ ...prev, [sectionKey]: [] }));
       setSectionStatus((prev) => ({ ...prev, [sectionKey]: { analyzing: false, error: null } }));
+      setPendingAutoSave(true);
     } catch (err) {
       setSectionStatus((prev) => ({ ...prev, [sectionKey]: { analyzing: false, error: err.message } }));
     }
@@ -639,6 +657,7 @@ function GameUpdatePage() {
             },
       );
       setSectionStatus((prev) => ({ ...prev, [sectionKey]: { analyzing: false, error: null } }));
+      setPendingAutoSave(true);
     } catch (err) {
       setSectionStatus((prev) => ({ ...prev, [sectionKey]: { analyzing: false, error: err.message } }));
     }
@@ -653,6 +672,7 @@ function GameUpdatePage() {
         playerStats: analysis.playerStats,
       });
       updateAnalysis((prev) => ({ ...prev, narrative: result.narrative }));
+      setPendingAutoSave(true);
     } catch (err) {
       setNarrativeError(err.message);
     } finally {
@@ -660,15 +680,35 @@ function GameUpdatePage() {
     }
   };
 
-  const handleCommit = async () => {
+  const commitAnalysis = async (analysisToSave, { auto = false } = {}) => {
+    if (!analysisToSave) return;
     setCommitting(true);
     setCommitError(null);
     try {
-      const updated = await commitGameStats(gameId, analysis);
+      const updated = await commitGameStats(gameId, analysisToSave);
       setGame(updated);
+      // Drop only the signed ids we just attached — a screenshot section
+      // analyzed while this commit was in flight has added its own ids to
+      // `analysis` since, and those still need to go up on the next save.
+      const sent = {
+        boxScore: analysisToSave.boxScoreScreenshotSignedIds || [],
+        home: analysisToSave.homeScreenshotSignedIds || [],
+        away: analysisToSave.awayScreenshotSignedIds || [],
+      };
+      const drop = (current, used) => (current || []).filter((id) => !used.includes(id));
+      setAnalysis((prev) =>
+        prev
+          ? {
+              ...prev,
+              boxScoreScreenshotSignedIds: drop(prev.boxScoreScreenshotSignedIds, sent.boxScore),
+              homeScreenshotSignedIds: drop(prev.homeScreenshotSignedIds, sent.home),
+              awayScreenshotSignedIds: drop(prev.awayScreenshotSignedIds, sent.away),
+            }
+          : prev,
+      );
       setSaved(true);
     } catch (err) {
-      setCommitError(err.message);
+      setCommitError(auto ? `Auto-save failed: ${err.message} — your review is intact, use Save to retry.` : err.message);
     } finally {
       setCommitting(false);
     }
@@ -816,7 +856,7 @@ function GameUpdatePage() {
             <div className="flex flex-wrap items-center gap-3 p-4">
               <button
                 type="button"
-                onClick={handleCommit}
+                onClick={() => commitAnalysis(analysis)}
                 disabled={committing || anyAnalyzing}
                 className={
                   (saved

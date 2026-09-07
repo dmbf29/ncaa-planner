@@ -57,9 +57,12 @@ module GameStats
     end
 
     def prompt(college_stats, player_stats)
+      progression = scoring_progression(college_stats)
+
       <<~PROMPT
         #{@home_college.name} (home) vs #{@away_college.name} (away)
 
+        #{progression}
         Team totals:
         #{college_stats.map { |row| team_line(row) }.join("\n")}
 
@@ -69,7 +72,37 @@ module GameStats
         Pick the offense and defense players of the game from either team. If the standout player has no
         student_season_id listed above, you may still mention them by name in the narrative summary, but
         leave the corresponding *_student_season_id field unset rather than guessing an id.
+        Do not describe any quarter or half as "scoreless" or a team as "shut out" over a span unless the
+        running score line above shows no change for that team across that exact span — check it, don't
+        infer it from the final margin.
       PROMPT
+    end
+
+    # Per-quarter point totals are correct in the data but the model has
+    # repeatedly failed to *sum* them correctly on its own (e.g. calling a
+    # half "scoreless" when a team scored in Q1) — so we do the addition
+    # ourselves and hand over an unambiguous running score instead of
+    # trusting the model to add four numbers per team.
+    def scoring_progression(college_stats)
+      quarter_keys = [ :points_in_quarter_1, :points_in_quarter_2, :points_in_quarter_3, :points_in_quarter_4 ]
+      teams = college_stats.filter_map do |row|
+        f = row[:fields]
+        next unless quarter_keys.any? { |key| present?(f[key]) }
+
+        quarters = quarter_keys.map { |key| f[key].to_i }
+        quarters << f[:points_in_overtime].to_i if present?(f[:points_in_overtime])
+        { team: row[:team], quarters: quarters }
+      end
+      return "" if teams.size < 2
+
+      labels = [ "after Q1", "after Q2 (halftime)", "after Q3", "after Q4" ]
+      running = Hash.new(0)
+      lines = (0...teams.map { |t| t[:quarters].size }.max).map do |i|
+        scores = teams.map { |t| "#{t[:team]} #{running[t[:team]] += t[:quarters][i].to_i}" }.join(" - ")
+        "#{labels[i] || "after OT"}: #{scores}"
+      end
+
+      "Running score by quarter:\n#{lines.join("\n")}\n"
     end
 
     # Emit as much of the team's box score as we actually have — the

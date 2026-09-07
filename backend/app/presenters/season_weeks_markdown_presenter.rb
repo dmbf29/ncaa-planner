@@ -41,7 +41,22 @@ class SeasonWeeksMarkdownPresenter
   end
 
   def opening_framing_hint
-    primary_week ? week_label(primary_week[:week]) : "this week's show"
+    reviewed_weeks_label
+  end
+
+  # "Week 13" for a single-week review; "Weeks 13–14" (or "Weeks 11, 13 &
+  # 14" when non-contiguous) when several weeks are bundled, so the opening
+  # and the run-of-show make the episode's scope clear rather than naming
+  # only the most recent week.
+  def reviewed_weeks_label
+    weeks = @data[:weeks]
+    return "this week's show" if weeks.blank?
+    return week_label(weeks.first[:week]) if weeks.size == 1
+
+    numbers = weeks.map { |week_data| week_data[:week][:number] }.sort
+    return "Weeks #{numbers.first}–#{numbers.last}" if numbers.each_cons(2).all? { |a, b| b == a + 1 }
+
+    "Weeks #{numbers[0..-2].join(', ')} & #{numbers.last}"
   end
 
   def producer_note
@@ -51,29 +66,75 @@ class SeasonWeeksMarkdownPresenter
     older_weeks = @data[:weeks][1..]
     if older_weeks.present?
       labels = older_weeks.map { |week_data| week_label(week_data[:week]) }.join(", ")
-      note += " #{labels} #{older_weeks.size == 1 ? 'is' : 'are'} included further down purely for background — " \
-              "don't dwell on it."
+      note +=
+        if primary_week_has_results?
+          " #{labels} #{older_weeks.size == 1 ? 'is' : 'are'} included further down purely for background — " \
+            "don't dwell on it."
+        else
+          " #{week_label(primary_week[:week])} had no games for our teams, so #{labels} " \
+            "#{older_weeks.size == 1 ? 'is' : 'are'} where the results are — cover #{older_weeks.size == 1 ? 'it' : 'them'} fully."
+        end
     end
 
     note
   end
 
+  def primary_week_has_results?
+    primary_week && primary_week[:teams].any? { |team| team[:game][:status] == "final" }
+  end
+
+  # Injury Report and Recruitment Trail only make the run-of-show when this
+  # week actually has fresh material — otherwise the hosts, told a segment
+  # is coming, feel obligated to fill it by re-litigating an injury or a
+  # signing from a prior episode. A lingering injury still gets a brief
+  # mention (see #next_up_lines), and a past signing was already covered in
+  # its own week — neither needs a whole segment revisited.
   def segments
     next_number = primary_week ? primary_week[:week][:number] + 1 : 1
-    current_label = primary_week ? week_label(primary_week[:week]) : "This Week"
+    current_label = primary_week ? reviewed_weeks_label : "This Week"
     poll_watch_label = cfp_poll?(next_number) ? "CFP Rankings Watch" : "Top 25 Poll Watch"
 
     [
       "#{current_label} Kickoff & Headlines",
       "Results Recap & Rival Matchups — Deep dive into the highlighted games.",
       "Around the #{conference_label} — Quick hits on other conference games.",
-      "Injury Report — Who's banged up, who's expected back, and how it affects the depth chart: weigh each injury by " \
-        "whether the player is a starter, his overall rating and season production, and the drop-off to his replacement (if any injuries are active).",
-      "Recruitment Trail — New recruits who signed with our programs heading into Week #{next_number} and what they add (if any signed).",
+      injury_report_segment,
+      recruitment_trail_segment(next_number),
       "Winners & Losers - the hosts each pick 1 team/player who won the week, and 1 who lost",
       "#{poll_watch_label} — Discuss rankings and national standing shifts (if focused teams are included)",
       "Week #{next_number} Preview — Look ahead to next week's opponents and the hosts make predictions"
-    ]
+    ].compact
+  end
+
+  # Scans every reviewed week, not just the primary one: when Week 13 + Week
+  # 14 are bundled, the fresh material (injuries, and — combined onto the
+  # primary week — signings) can belong to the earlier week.
+  def any_new_injuries?
+    all_teams.any? { |team| team[:injury_report].present? }
+  end
+
+  def any_new_recruits?
+    all_teams.any? { |team| team[:recruiting_trail].present? }
+  end
+
+  def all_teams
+    @data[:weeks].flat_map { |week_data| week_data[:teams] }
+  end
+
+  def injury_report_segment
+    return nil unless any_new_injuries?
+
+    "Injury Report — Who's banged up this week, who's expected back, and how it affects the depth chart: weigh each " \
+      "injury by whether the player is a starter, his overall rating and season production, and the drop-off to his " \
+      "replacement."
+  end
+
+  def recruitment_trail_segment(next_number)
+    return nil unless any_new_recruits?
+
+    "Recruitment Trail — New recruits who signed with our programs heading into Week #{next_number} and what they add: " \
+      "the depth-chart hole they fill (which graduating seniors, who they sit behind), and whether their NIL number is " \
+      "a bargain or a reach next to what that position group already costs."
   end
 
   # Whether the poll released in the given season week is a CFP committee
@@ -109,10 +170,51 @@ class SeasonWeeksMarkdownPresenter
     end
 
     lines.concat(conference_standings_lines(week_data[:conference_standings]))
+    lines.concat(conference_championship_lines(week_data[:conference_championships]))
     lines.concat(conference_top_25_lines(week_data[:conference_top_25], week[:number]))
     lines.concat(conference_heisman_lines(week_data[:conference_heisman_watch]))
 
     lines
+  end
+
+  # From the Week 11 recap on (see
+  # SeasonWeeksSerializer::MIN_WEEK_NUMBER_FOR_CHAMPIONSHIP_PROJECTION), one
+  # block per coached conference: CONFIRMED once the Week 15 game is on the
+  # schedule (with the final if it's been played), PROJECTED off the current
+  # standings until then. Only rendered for the primary (most recent)
+  # reviewed week.
+  def conference_championship_lines(entries)
+    return [] if entries.blank?
+
+    lines = []
+    entries.each do |entry|
+      confirmed = entry[:status] == "confirmed"
+      lines << "## 🏆 #{confirmed ? 'CONFIRMED' : 'PROJECTED'} #{entry[:conference].upcase} CHAMPIONSHIP"
+      lines << ""
+      lines << "- #{championship_matchup_line(entry[:teams])}"
+      if confirmed
+        lines << "- #{championship_result_line(entry[:result])}" if entry[:result]
+      elsif entry[:tiebreaker_note].present?
+        lines << "- #{entry[:tiebreaker_note]}"
+      end
+      lines << ""
+    end
+    lines
+  end
+
+  def championship_matchup_line(teams)
+    teams.map { |team| championship_team(team) }.join(" vs ")
+  end
+
+  def championship_team(team)
+    star = team[:coached_by_us] ? " ⭐" : ""
+    conf = record_str(team[:conference_record][:wins], team[:conference_record][:losses])
+    overall = record_str(team[:overall_record][:wins], team[:overall_record][:losses])
+    "#{team[:college][:name]}#{star} (#{conf} conf, #{overall} overall)"
+  end
+
+  def championship_result_line(result)
+    "Final: #{result[:winner]} def. #{result[:loser]} #{result[:winner_score]}-#{result[:loser_score]}"
   end
 
   # Only present from Week 4 on (see
@@ -328,7 +430,7 @@ class SeasonWeeksMarkdownPresenter
     lines.concat(season_stats_lines(team[:season_stats]))
 
     lines << "### 📅 Next Up"
-    lines.concat(next_up_lines(team[:next_game]))
+    lines.concat(next_up_lines(team[:next_game], team[:lingering_injuries], team[:season_outlook]))
     lines << ""
     lines
   end
@@ -521,9 +623,39 @@ class SeasonWeeksMarkdownPresenter
     "#{where} #{opponent[:name]}#{tag}"
   end
 
-  def next_up_lines(next_game)
-    return [ "- Nothing scheduled beyond this point yet." ] unless next_game
+  def next_up_lines(next_game, lingering_injuries, season_outlook)
+    lines =
+      if next_game
+        next_game_preview_lines(next_game)
+      elsif season_outlook
+        season_outlook_lines(season_outlook)
+      else
+        [ "- Nothing scheduled beyond this point yet." ]
+      end
+    lines.concat(lingering_injury_lines(lingering_injuries))
+    lines
+  end
 
+  # Shown once a team's season is finished (see
+  # SeasonWeeksSerializer#season_outlook_json). Bowl-eligible teams sit and
+  # wait for an invite — with the current projection if there is one — and
+  # everyone else is done for the year.
+  def season_outlook_lines(outlook)
+    record = record_str(outlook[:wins], outlook[:losses])
+    return [ "- Season over — finished #{record}, short of bowl eligibility." ] unless outlook[:bowl_eligible]
+
+    lines = [ "- Regular season done at #{record} — bowl eligible, waiting to get invited to a bowl." ]
+    lines << "  - Currently projected: #{projected_bowl_text(outlook[:projected_bowl])}" if outlook[:projected_bowl]
+    lines
+  end
+
+  def projected_bowl_text(bowl)
+    round = bowl[:cfp_round].present? ? " (#{bowl[:cfp_round].tr('_', ' ').upcase})" : ""
+    matchup = bowl[:opponent] ? " #{bowl[:home] ? 'vs' : '@'} #{bowl[:opponent]}" : ""
+    "#{bowl[:bowl_name]}#{round}#{matchup}"
+  end
+
+  def next_game_preview_lines(next_game)
     record = next_game[:opponent_record]
     record_str = record && record[:wins] && record[:losses] ? " (#{record[:wins]}-#{record[:losses]})" : ""
     lines = [ "- Week #{next_game[:week_number]} — #{opponent_line(next_game[:opponent])}#{record_str}" ]
@@ -531,6 +663,21 @@ class SeasonWeeksMarkdownPresenter
     lines.concat(opponent_schedule_lines(next_game[:opponent_schedule]))
     lines.concat(scouting_report_lines(next_game[:scouting_report]))
     lines
+  end
+
+  # Injuries carried over from an earlier week (see
+  # SeasonWeeksSerializer#injury_report_json) get one brief line here rather
+  # than a full Injury Report segment — they're still relevant to know
+  # about, but already got their moment in the episode they happened in.
+  def lingering_injury_lines(injuries)
+    return [] if injuries.blank?
+
+    injuries.map { |injury| "  - Still working back: #{lingering_injury_line(injury)}" }
+  end
+
+  def lingering_injury_line(injury)
+    status = injury[:status] == "out_for_season" ? "out for the season" : injury[:status].tr("_", " ")
+    "#{injury[:name]} (#{injury[:position]}) — #{injury[:description]} (Week #{injury[:injured_week_number]} injury, #{status})"
   end
 
   def opponent_last_result_line(last_result)
@@ -602,8 +749,11 @@ class SeasonWeeksMarkdownPresenter
     player[:stat_line].present? ? "#{base}: #{player[:stat_line]}" : base
   end
 
-  # Only rendered when this team has at least one currently-active injury —
-  # silent otherwise, same convention as every other optional section.
+  # Only rendered when this team suffered a NEW injury this week (see
+  # SeasonWeeksSerializer#injury_report_json) — silent otherwise, same
+  # convention as every other optional section. An injury still active from
+  # an earlier week gets a brief mention under Next Up instead (see
+  # #lingering_injury_lines), not a full segment revisit.
   def injury_report_lines(injury_report)
     return [] if injury_report.blank?
 
@@ -680,7 +830,7 @@ class SeasonWeeksMarkdownPresenter
   end
 
   def recruit_line(recruit)
-    parts = [ "#{recruit[:name]} (#{recruit[:position]})" ]
+    parts = [ "#{recruit[:name]} (#{recruit[:position]}, #{recruit_descriptor(recruit)})" ]
     parts << "#{recruit[:star_rating]}★" if recruit[:star_rating]
     ranks = []
     ranks << "#{ordinalize(recruit[:national_rank])} nationally" if recruit[:national_rank]
@@ -690,7 +840,83 @@ class SeasonWeeksMarkdownPresenter
     end
     parts << "(#{ranks.join(', ')})" if ranks.any?
     parts << "— NIL #{recruit[:nil_amount]}" if recruit[:nil_amount]
-    parts.join(" ")
+    headline = parts.join(" ")
+
+    sub_lines = recruit_context_lines(recruit[:roster_context])
+    return headline if sub_lines.empty?
+
+    ([ headline ] + sub_lines).join("\n")
+  end
+
+  # "HS" / "JUCO (JR)" for a traditional signee, "transfer, JR" for a portal
+  # add (class_year is the player's year at his previous school). class_year
+  # off the recruiting screen is "HS", "JC (..)", or a plain year — see
+  # SignedRecruit.
+  def recruit_descriptor(recruit)
+    year = recruit[:class_year].to_s.strip
+    return year.present? ? "transfer, #{year}" : "transfer" if recruit[:transfer]
+    return "JUCO (#{year})" if year.upcase.start_with?("JC")
+
+    "HS"
+  end
+
+  # Indented context on the position group the signee is joining — silent
+  # when SeasonWeeksSerializer couldn't map his position or the team has no
+  # scraped roster there.
+  def recruit_context_lines(context)
+    return [] if context.blank?
+
+    lines = [ "  - #{recruit_depth_line(context)}" ]
+    nil_line = recruit_nil_line(context[:nil_vs_roster])
+    lines << "  - #{nil_line}" if nil_line
+    lines
+  end
+
+  def recruit_depth_line(context)
+    base = "#{context[:position_group]}: #{context[:players_in_group]} on the roster now, " \
+           "#{context[:returning_next_season]} back next season"
+
+    seniors = context[:seniors_departing]
+    if seniors.present?
+      shown = seniors.first(3).map do |senior|
+        ovr = senior[:overall] ? ", #{senior[:overall]} OVR" : ""
+        "#{senior[:name]} (#{senior[:position]}#{ovr})"
+      end
+      remaining = seniors.size - shown.size
+      shown << "+#{remaining} more" if remaining.positive?
+      label = seniors.size == 1 ? "senior" : "seniors"
+      base += " — replacing graduating #{label} #{shown.join(', ')}"
+    else
+      base += " (no seniors graduating out of the group)"
+    end
+
+    signees = context[:signees_in_group_this_cycle].to_i
+    base += "; this class has signed #{signees} to the group" if signees > 1
+
+    base
+  end
+
+  # How the signee's NIL number compares to what the position group's
+  # veterans are already paid. That baseline skews high (established players
+  # out-earn incoming freshmen), so the verdict is framed as relative to the
+  # going rate, with a dedicated line for when nobody in the group carries
+  # NIL at all. nil when there's nothing to compare.
+  def recruit_nil_line(comparison)
+    return nil if comparison.blank?
+
+    recruit = comparison[:recruit]
+    if comparison[:standing] == "all_unpaid"
+      return "NIL #{recruit} — the group's veterans aren't on NIL deals#{recruit.zero? ? ' either' : ''}"
+    end
+
+    verdict =
+      case comparison[:standing]
+      when "below" then "a bargain"
+      when "above" then "a premium"
+      else "right in line"
+      end
+    "NIL #{recruit} vs. the group's veterans (avg #{comparison[:average]}, " \
+      "range #{comparison[:low]}–#{comparison[:high]}) — #{verdict}"
   end
 
   def ordinalize(number)

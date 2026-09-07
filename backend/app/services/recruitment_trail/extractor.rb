@@ -25,6 +25,14 @@ module RecruitmentTrail
   # collapsed here so the review table — and the commit — only ever see one
   # of each.
   #
+  # When `season:` is given and the header resolves to a coached team, every
+  # extracted row is cross-referenced against that CollegeSeason's existing
+  # SignedRecruits (same key as dedupe / CommitService's upsert) and tagged
+  # `already_signed: { week_number:, ... }` when it's a re-upload of a
+  # recruit already on record. The review screen uses that to say "already
+  # signed on Week N" and leave those rows out of the save, rather than
+  # silently re-processing them.
+  #
   # The screen has a filter pill in the top-right — OVERALL, RECRUITS, or
   # TRANSFERS — that's read once per call and applied to every row, same
   # simplification as team_raw_name (this assumes one upload = one filter
@@ -44,15 +52,17 @@ module RecruitmentTrail
       exact values shown. Only report a value if you can actually see it — never guess.
     PROMPT
 
-    def call(images)
+    def call(images, season: nil)
       return empty_result if images.blank?
 
       raw = chat.with_schema(schema).ask(prompt, with: images).content
       transfer = raw["filter_label"] == "transfers"
-      recruits = Array(raw["recruits"]).select { |row| row.is_a?(Hash) }.map { |row| build_row(row, transfer) }
+      college = resolve_college(raw["team_raw_name"], raw["team_college_name"])
+      existing = existing_signees(season, college)
+      recruits = Array(raw["recruits"]).select { |row| row.is_a?(Hash) }.map { |row| build_row(row, transfer, existing) }
 
       {
-        college_id: resolve_college(raw["team_raw_name"], raw["team_college_name"])&.id,
+        college_id: college&.id,
         college_raw_name: raw["team_raw_name"],
         filter_label: raw["filter_label"],
         recruits: dedupe(recruits),
@@ -110,7 +120,8 @@ module RecruitmentTrail
         "images. If the same player appears in more than one image, only report them once."
     end
 
-    def build_row(row, transfer)
+    def build_row(row, transfer, existing = {})
+      match = existing[signee_key(row["last_name"], row["position"], row["state"])]
       {
         first_initial: row["first_initial"],
         first_name: nil,
@@ -123,14 +134,37 @@ module RecruitmentTrail
         state_rank: row["state_rank"],
         state: row["state"],
         class_year: row["class_year"],
-        transfer: transfer
+        transfer: transfer,
+        already_signed: match && {
+          week_number: match.week.number,
+          week_name: match.week.name,
+          first_name: match.first_name
+        }
       }
+    end
+
+    # Recruits this CollegeSeason already has on record, keyed the same way
+    # dedupe / CommitService's upsert match them. Empty unless a season was
+    # passed and the header resolved to a college with a CollegeSeason.
+    def existing_signees(season, college)
+      return {} if season.nil? || college.nil?
+
+      college_season = season.college_seasons.find_by(college_id: college.id)
+      return {} if college_season.nil?
+
+      college_season.signed_recruits.includes(:week).each_with_object({}) do |recruit, hash|
+        hash[signee_key(recruit.last_name, recruit.position, recruit.state)] = recruit
+      end
     end
 
     # Same natural key the CommitService upserts on, so what the reviewer
     # sees is already the set that will actually be saved.
     def dedupe(recruits)
-      recruits.uniq { |row| [ row[:last_name].to_s.strip.downcase, row[:position].to_s.strip.downcase, row[:state].to_s.strip.downcase ] }
+      recruits.uniq { |row| signee_key(row[:last_name], row[:position], row[:state]) }
+    end
+
+    def signee_key(last_name, position, state)
+      [ last_name.to_s.strip.downcase, position.to_s.strip.downcase, state.to_s.strip.downcase ]
     end
   end
 end

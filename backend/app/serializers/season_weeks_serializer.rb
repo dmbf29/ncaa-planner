@@ -4,6 +4,19 @@ class SeasonWeeksSerializer
   # data behind it.
   MIN_WEEK_NUMBER_FOR_SEASON_STATS = 4
 
+  # The projected conference-championship matchup only shows up once the
+  # conference races have taken shape — from the Week 11 recap on.
+  MIN_WEEK_NUMBER_FOR_CHAMPIONSHIP_PROJECTION = 10
+
+  # Last week of the regular season (Season#create_weeks: 0–14 regular, 15
+  # conference championship, 16–19 bowls). Once a review is at or past this
+  # week and a team has no game scheduled beyond it, its season is treated
+  # as complete rather than "schedule not uploaded yet".
+  REGULAR_SEASON_FINAL_WEEK = 14
+
+  # Wins needed to be bowl eligible.
+  BOWL_ELIGIBILITY_WINS = 6
+
   def initialize(season, week_numbers)
     @season = season
     @week_numbers = week_numbers
@@ -30,11 +43,19 @@ class SeasonWeeksSerializer
     return { instructions: "No matching weeks were found for the requested week_numbers." } unless primary_week
 
     label = week_label(primary_week[:week])
-    {
-      current_week: primary_week[:week][:number],
-      instructions: "Focus primary commentary on #{label} below — its results and next-game previews. " \
-                    "Any earlier weeks included are historical context only, not the main story."
-    }
+    primary_has_results = primary_week[:teams].any? { |team| team[:game][:status] == "final" }
+
+    instructions =
+      if primary_has_results
+        "Focus primary commentary on #{label} below — its results and next-game previews. " \
+          "Any earlier weeks included are historical context only, not the main story."
+      else
+        "#{label} had no games for our coached teams, so the results to break down are in the earlier " \
+          "week(s) below — treat those as the main story. #{label} still carries the current standings, " \
+          "polls, bowl projections and championship picture, so lean on it for where things stand right now."
+      end
+
+    { current_week: primary_week[:week][:number], instructions: instructions }
   end
 
   def week_label(week)
@@ -46,7 +67,7 @@ class SeasonWeeksSerializer
 
   def coached_college_seasons
     @coached_college_seasons ||= @season.college_seasons
-                                         .includes(:college, :coach, :student_seasons, signed_recruits: :week)
+                                         .includes(:college, :coach, { student_seasons: :student }, { signed_recruits: :week })
                                          .where.not(coach_id: nil)
                                          .joins(:college)
                                          .order("colleges.name")
@@ -84,9 +105,25 @@ class SeasonWeeksSerializer
              .sort_by { |game| game.week.number }
   end
 
+  # The most recent week being reviewed — the one that carries the sections
+  # that aren't week-scoped or that should only appear once no matter how
+  # many weeks are bundled together: the national Top 25, bowl projections,
+  # conference standings, the championship picture, and the (combined)
+  # recruiting trail. Reviewing e.g. Week 13 + Week 14 together (Week 14
+  # being only Army–Navy) shouldn't produce two standings tables or two
+  # poll tables.
+  def primary_week_number
+    return @primary_week_number if defined?(@primary_week_number)
+
+    resolved = @week_numbers.select { |number| @season.weeks.exists?(number: number) }
+    @primary_week_number = resolved.max
+  end
+
   def week_json(number)
     week = @season.weeks.find_by(number: number)
     return nil unless week
+
+    primary = week.number == primary_week_number
 
     {
       week: {
@@ -96,14 +133,15 @@ class SeasonWeeksSerializer
         conference_championship: week.conference_championship,
         post_season: week.post_season
       },
-      teams: coached_college_seasons.map { |cs| team_week_json(cs, week) },
-      top_25: top_25_for_week(week),
-      bowl_projections: bowl_projections_for_week(week),
+      teams: coached_college_seasons.map { |cs| team_week_json(cs, week, primary: primary) },
+      top_25: primary ? top_25_for_week(week) : [],
+      bowl_projections: primary ? bowl_projections_for_week(week) : [],
       coached_matchups: coached_matchups_for_week(week),
       conference_results: conference_results_for_week(week),
       conference_top_25: conference_top_25_for_week(week),
       conference_heisman_watch: conference_heisman_watch_for_week(week),
-      conference_standings: week.number >= MIN_WEEK_NUMBER_FOR_SEASON_STATS ? conference_standings_json : nil
+      conference_standings: primary && week.number >= MIN_WEEK_NUMBER_FOR_SEASON_STATS ? conference_standings_json : nil,
+      conference_championships: primary ? conference_championships_json(week) : []
     }
   end
 
@@ -190,10 +228,12 @@ class SeasonWeeksSerializer
                                                                   .select { |c| coached_conferences.include?(c[:conference]) }
   end
 
-  def team_week_json(college_season, week)
+  def team_week_json(college_season, week, primary:)
     games = games_for_college(college_season.college_id)
     this_week_game = games.find { |game| game.week_id == week.id }
     next_game = games.find { |game| game.week.number > week.number }
+    injuries = injury_report_json(college_season, week)
+    played_this_week = this_week_game && game_result(this_week_game, college_season.college_id).present?
 
     {
       college: { id: college_season.college.id, name: college_season.college.name },
@@ -203,11 +243,57 @@ class SeasonWeeksSerializer
       game: this_week_game_json(this_week_game, college_season.college_id),
       top_performers: top_performers_json(this_week_game, college_season),
       players_of_the_week: players_of_the_week_json(college_season, week),
-      recruiting_trail: recruiting_trail_json(college_season, week),
-      injury_report: injury_report_json(college_season, week),
+      recruiting_trail: primary ? combined_recruiting_trail_json(college_season) : [],
+      injury_report: injuries[:new],
+      lingering_injuries: injuries[:lingering],
       next_game: next_game && upcoming_game_json(next_game, college_season.college_id),
-      season_stats: week.number >= MIN_WEEK_NUMBER_FOR_SEASON_STATS ? season_stats_json(college_season) : nil
+      season_outlook: season_outlook_json(college_season, games, week, next_game),
+      # Season-to-date numbers only move when the team plays — re-showing an
+      # identical block for a week the team was idle (e.g. everyone but
+      # Army/Navy in Week 14) is just noise, so gate on an actual result.
+      season_stats: played_this_week && week.number >= MIN_WEEK_NUMBER_FOR_SEASON_STATS ? season_stats_json(college_season) : nil
     }
+  end
+
+  # nil unless the team's season is genuinely finished: no game scheduled
+  # past the reviewed week AND the review as a whole is at/after the
+  # regular-season finale (so an un-uploaded late-season schedule mid-year
+  # doesn't read as "season over"). Bowl-eligible teams wait on an invite;
+  # the rest are done. `projected_bowl` is the most recent projection that
+  # names them.
+  def season_outlook_json(college_season, games, week, next_game)
+    return nil if next_game || primary_week_number.to_i < REGULAR_SEASON_FINAL_WEEK
+
+    record = record_before(college_season.college_id, games, week.number + 1)
+    {
+      wins: record[:wins],
+      losses: record[:losses],
+      bowl_eligible: record[:wins] >= BOWL_ELIGIBILITY_WINS,
+      projected_bowl: projected_bowl_for(college_season.college_id)
+    }
+  end
+
+  def projected_bowl_for(college_id)
+    projection = latest_bowl_projections.find do |bp|
+      bp.projected_home_college_id == college_id || bp.projected_away_college_id == college_id
+    end
+    return nil unless projection
+
+    home = projection.projected_home_college_id == college_id
+    opponent = home ? projection.projected_away_college : projection.projected_home_college
+    { bowl_name: projection.bowl_name, cfp_round: projection.cfp_round, home: home, opponent: opponent&.name }
+  end
+
+  # The freshest bowl-projection screenshot on record for this season —
+  # projections are captured in bunches on a handful of weeks (see
+  # BowlProjection), so "most recent week that has any" is the current
+  # picture.
+  def latest_bowl_projections
+    return @latest_bowl_projections if defined?(@latest_bowl_projections)
+
+    week = @season.weeks.where(id: BowlProjection.select(:week_id)).order(number: :desc).first
+    @latest_bowl_projections =
+      week ? week.bowl_projections.includes(:projected_home_college, :projected_away_college).to_a : []
   end
 
   # Same season-to-date numbers as the dashboard's team card ("Stat Leaders"
@@ -235,18 +321,38 @@ class SeasonWeeksSerializer
     { name: student_season.student.name, position: student_season.position, value: leader[:value] }
   end
 
-  # Injuries active as of this week (see Injury#active_as_of?). The whole
-  # roster is loaded once here (not just the injured players) so each entry
-  # can report the injured player's depth-chart role and who's behind/ahead
-  # of him without a query per injury.
+  # Injuries active as of this week (see Injury#active_as_of?), split into
+  # ones that happened THIS week — full context (starter/overall/season
+  # stats/replacement) for the Injury Report segment — and ones carried over
+  # from an earlier week, which already got that treatment in their own
+  # episode. Re-running the full segment on a lingering injury is what led
+  # the hosts to repeat themselves week after week; the presenter instead
+  # folds `lingering` into a one-line mention under Next Up (see
+  # SeasonWeeksMarkdownPresenter#next_up_lines). The whole roster is loaded
+  # once here (not just the injured players) so each new-injury entry can
+  # report depth-chart context without a query per injury.
   def injury_report_json(college_season, week)
     roster = college_season.student_seasons
                            .includes(:student, injuries: { game: :week })
                            .to_a
+    active = roster.flat_map(&:injuries).select { |injury| injury.active_as_of?(week) }
+    new_this_week, lingering = active.partition { |injury| injury.game.week.number == week.number }
 
-    roster.flat_map(&:injuries)
-          .select { |injury| injury.active_as_of?(week) }
-          .map { |injury| injury_report_entry_json(injury, roster, week) }
+    {
+      new: new_this_week.map { |injury| injury_report_entry_json(injury, roster, week) },
+      lingering: lingering.map { |injury| lingering_injury_json(injury) }
+    }
+  end
+
+  def lingering_injury_json(injury)
+    student_season = injury.student_season
+    {
+      name: student_season.student.name,
+      position: student_season.position,
+      description: injury.description,
+      injured_week_number: injury.game.week.number,
+      status: injury.out_for_season? ? "out_for_season" : "expected_back_week_#{injury.return_week_number}"
+    }
   end
 
   # "Starter" isn't a stored fact anywhere — the game doesn't expose a depth
@@ -363,34 +469,143 @@ class SeasonWeeksSerializer
     }
   end
 
-  # Recruits this team signed that were first recorded in the week AFTER
-  # this one — same "N+1" convention as top_25_for_week /
-  # bowl_projections_for_week. Week N's episode previews week N+1, so a
-  # player signed on week N+1 belongs in that preview; the signing gets
-  # mentioned once, in the episode that goes out as it happens, rather than
-  # re-reading the whole class every week. Silent (empty array) for a
-  # preview week with no new signings, or when there is no next week.
-  def recruiting_trail_json(college_season, week)
-    preview_week = @season.weeks.find_by(number: week.number + 1)
-    return [] unless preview_week
+  # Recruits first recorded in the week AFTER a reviewed week — the "N+1"
+  # convention (week N's episode previews week N+1, so a signing recorded on
+  # week N+1 belongs in that episode, mentioned once). When several weeks
+  # are reviewed together the preview weeks are combined: reviewing Week 13
+  # + Week 14 picks up players inked after Week 13 wrapped (Week 14) and
+  # after Week 14 wrapped (Week 15) alike. Rendered only in the primary
+  # week's section (see team_week_json) so it isn't repeated. Silent (empty
+  # array) when no reviewed week has a preview week with signings.
+  def combined_recruiting_trail_json(college_season)
+    week_ids = recruiting_preview_week_ids
+    return [] if week_ids.empty?
 
     college_season.signed_recruits
-                  .select { |recruit| recruit.week_id == preview_week.id }
+                  .select { |recruit| week_ids.include?(recruit.week_id) }
                   .sort_by { |recruit| [ -(recruit.star_rating || 0), recruit.national_rank || Float::INFINITY, recruit.last_name.to_s ] }
-                  .map { |recruit| recruit_json(recruit) }
+                  .map { |recruit| recruit_json(recruit, college_season) }
   end
 
-  def recruit_json(recruit)
+  def recruiting_preview_week_ids
+    @recruiting_preview_week_ids ||= @week_numbers.filter_map { |number| @season.weeks.find_by(number: number + 1)&.id }
+  end
+
+  def recruit_json(recruit, college_season)
     {
       name: recruit.name,
       position: recruit.position,
+      transfer: recruit.transfer,
+      class_year: recruit.class_year,
       star_rating: recruit.star_rating,
       nil_amount: recruit.nil_amount,
       national_rank: recruit.national_rank,
       position_rank: recruit.position_rank,
       state_rank: recruit.state_rank,
-      state: recruit.state
+      state: recruit.state,
+      roster_context: recruit_roster_context_json(recruit, college_season)
     }
+  end
+
+  # EA's recruiting-screen POS codes (read as free text by
+  # RecruitmentTrail::Extractor — "LEDG", "REDG", "OT", "ATH"…) use a
+  # different vocabulary than roster positions (LE/RE, LT/LG/C/RG/RT), so
+  # this bridges a signee to the CollegeSeason::POSITION_GROUPS bucket he
+  # slots into. Anything unrecognized (e.g. "ATH") maps to nil and simply
+  # gets no roster context.
+  RECRUIT_POSITION_GROUPS = {
+    "QB" => "Quarterbacks",
+    "HB" => "Running Backs", "RB" => "Running Backs", "FB" => "Running Backs",
+    "WR" => "Wide Receivers",
+    "TE" => "Tight Ends",
+    "OT" => "Offensive Line", "OG" => "Offensive Line", "OC" => "Offensive Line", "C" => "Offensive Line",
+    "OL" => "Offensive Line", "LT" => "Offensive Line", "RT" => "Offensive Line",
+    "LG" => "Offensive Line", "RG" => "Offensive Line",
+    "LEDG" => "Defensive Line", "REDG" => "Defensive Line", "EDGE" => "Defensive Line",
+    "DE" => "Defensive Line", "DT" => "Defensive Line", "DL" => "Defensive Line",
+    "LE" => "Defensive Line", "RE" => "Defensive Line",
+    "LOLB" => "Linebackers", "ROLB" => "Linebackers", "MLB" => "Linebackers", "OLB" => "Linebackers",
+    "ILB" => "Linebackers", "LB" => "Linebackers", "MIKE" => "Linebackers",
+    "WILL" => "Linebackers", "SAM" => "Linebackers",
+    "CB" => "Secondary", "FS" => "Secondary", "SS" => "Secondary", "S" => "Secondary", "DB" => "Secondary",
+    "K" => "Kickers/Punters", "P" => "Kickers/Punters"
+  }.freeze
+
+  # Roster situation at the position group this signee is walking into: how
+  # crowded it is, which seniors are graduating out of it (the spot he's
+  # most likely "replacing"), how many other signees this class has already
+  # added to the same group, and how his NIL number compares to what that
+  # group's veterans are paid. nil when the position doesn't map or the team
+  # has no scraped roster at that group. "Departing" is graduating seniors
+  # only (class_year starting "SR") — it doesn't try to predict
+  # underclassmen leaving early or via the portal the way
+  # PortalPreviewSerializer does.
+  def recruit_roster_context_json(recruit, college_season)
+    group = RECRUIT_POSITION_GROUPS[recruit.position.to_s.upcase.strip]
+    return nil unless group
+
+    positions = CollegeSeason::POSITION_GROUPS.fetch(group)
+    group_players = college_season.student_seasons.select { |ss| positions.include?(ss.position) }
+    return nil if group_players.empty?
+
+    seniors = group_players.select { |ss| ss.class_year.to_s.start_with?("SR") }
+    returners = group_players - seniors
+    group_signees = signees_in_group(college_season, group)
+
+    {
+      position_group: group,
+      players_in_group: group_players.size,
+      returning_next_season: returners.size,
+      seniors_departing: seniors.sort_by { |ss| -(ss.overall || 0) }.map { |ss| roster_player_brief(ss) },
+      signees_in_group_this_cycle: group_signees.size,
+      nil_vs_roster: nil_comparison_hash(recruit.nil_amount, group_players.filter_map(&:nil_amount))
+    }
+  end
+
+  # Every recruit this college_season has signed this cycle whose position
+  # maps into `group` (across all weeks, not just the one being recapped —
+  # a signing class spans the whole season).
+  def signees_in_group(college_season, group)
+    college_season.signed_recruits.select do |sr|
+      RECRUIT_POSITION_GROUPS[sr.position.to_s.upcase.strip] == group
+    end
+  end
+
+  def roster_player_brief(student_season)
+    {
+      name: student_season.student.name,
+      position: student_season.position,
+      overall: student_season.overall,
+      class_year: student_season.class_year
+    }
+  end
+
+  # The signee's NIL number against the NIL amounts of the roster veterans
+  # in his position group. nil when the signee has no NIL figure or nobody
+  # in the group is on record. "all_unpaid" — everyone in the group is on
+  # zero NIL, so there's no "going rate" and the presenter handles it
+  # separately; otherwise a wide 75–125% band around the average.
+  def nil_comparison_hash(recruit_amount, amounts)
+    return nil if recruit_amount.nil? || amounts.empty?
+
+    average = (amounts.sum.to_f / amounts.size).round
+    {
+      recruit: recruit_amount,
+      average: average,
+      low: amounts.min,
+      high: amounts.max,
+      standing: nil_standing(recruit_amount, amounts, average)
+    }
+  end
+
+  def nil_standing(amount, amounts, average)
+    return "all_unpaid" if amounts.all?(&:zero?)
+
+    ratio = average.zero? ? 0 : amount.to_f / average
+    return "below" if ratio < 0.75
+    return "above" if ratio > 1.25
+
+    "in_line"
   end
 
   def coach_json(coach)
@@ -664,6 +879,202 @@ class SeasonWeeksSerializer
       away: { id: game.away_college.id, name: game.away_college.name },
       result: { home_score: home_stat.final_score, away_score: away_stat.final_score }
     }
+  end
+
+  # The conference-championship matchup for each conference our coached
+  # teams play in. CONFIRMED once the Week 15 game is on the schedule
+  # (whether or not it's been played) — no more "projected" once the real
+  # matchup is known. PROJECTED from standings until then: the two teams
+  # with the best conference record right now, tiebroken (in order) by
+  # head-to-head, then overall record, then name (see
+  # #compare_for_championship_seeding). Only from the Week 11 recap on.
+  # Records are derived from played games, not the
+  # college_season.conference_wins/losses columns, which lag a gameweek
+  # behind (see ConferenceStandings::CommitService).
+  def conference_championships_json(week)
+    return [] unless week.number > MIN_WEEK_NUMBER_FOR_CHAMPIONSHIP_PROJECTION
+
+    coached_conferences.compact.filter_map do |conference|
+      confirmed_conference_championship_json(conference) || projected_conference_championship_json(conference)
+    end
+  end
+
+  def confirmed_conference_championship_json(conference)
+    game = scheduled_conference_championship_game(conference)
+    return nil unless game
+
+    finalists = [ game.home_college_id, game.away_college_id ].filter_map { |id| college_seasons_by_college_id[id] }
+    {
+      conference: conference,
+      status: "confirmed",
+      teams: finalists.map { |cs| projected_finalist_json(cs, conference_team_record(cs.college_id, conference)) },
+      result: championship_result_json(game)
+    }
+  end
+
+  def championship_result_json(game)
+    result = game_result(game, game.home_college_id)
+    return nil unless result
+
+    home_won = result[:won]
+    {
+      winner: (home_won ? game.home_college : game.away_college).name,
+      loser: (home_won ? game.away_college : game.home_college).name,
+      winner_score: [ result[:team_score], result[:opponent_score] ].max,
+      loser_score: [ result[:team_score], result[:opponent_score] ].min
+    }
+  end
+
+  def scheduled_conference_championship_game(conference)
+    week = conference_championship_week
+    return nil unless week
+
+    all_games.find do |game|
+      game.week_id == week.id &&
+        conference_for(game.home_college_id) == conference &&
+        conference_for(game.away_college_id) == conference
+    end
+  end
+
+  def projected_conference_championship_json(conference)
+    college_seasons = conference_college_seasons(conference)
+    return nil if college_seasons.size < 2
+
+    records = college_seasons.to_h { |cs| [ cs.college_id, conference_team_record(cs.college_id, conference) ] }
+    head_to_head = conference_head_to_head(conference)
+    seeded = college_seasons.sort { |a, b| compare_for_championship_seeding(a, b, records, head_to_head) }
+
+    {
+      conference: conference,
+      status: "projected",
+      teams: seeded.first(2).map { |cs| projected_finalist_json(cs, records[cs.college_id]) },
+      tiebreaker_note: championship_bubble_note(seeded, records, head_to_head)
+    }
+  end
+
+  def projected_finalist_json(college_season, record)
+    {
+      college: { id: college_season.college.id, name: college_season.college.name },
+      coached_by_us: coached_college_ids.include?(college_season.college_id),
+      conference_record: { wins: record[:conference_wins], losses: record[:conference_losses] },
+      overall_record: { wins: record[:overall_wins], losses: record[:overall_losses] }
+    }
+  end
+
+  def conference_college_seasons(conference)
+    college_seasons_by_college_id.values.select { |cs| cs.conference == conference }
+  end
+
+  # Conference and overall W-L from this team's completed regular-season
+  # games (a conference game = both sides in the same conference). Bowl and
+  # conference-championship weeks are excluded so this stays a regular-season
+  # standings picture.
+  def conference_team_record(college_id, conference)
+    conference_wins = conference_losses = overall_wins = overall_losses = 0
+
+    regular_season_games_for(college_id).each do |game|
+      result = game_result(game, college_id)
+      next unless result
+
+      opponent_id = game.home_college_id == college_id ? game.away_college_id : game.home_college_id
+      conference_game = conference_for(opponent_id) == conference
+
+      if result[:won]
+        overall_wins += 1
+        conference_wins += 1 if conference_game
+      else
+        overall_losses += 1
+        conference_losses += 1 if conference_game
+      end
+    end
+
+    { conference_wins: conference_wins, conference_losses: conference_losses,
+      overall_wins: overall_wins, overall_losses: overall_losses }
+  end
+
+  def regular_season_games_for(college_id)
+    games_for_college(college_id).reject { |game| game.week.post_season || game.week.conference_championship }
+  end
+
+  # { [winner_college_id, loser_college_id] => times it happened } across
+  # this conference's completed regular-season games.
+  def conference_head_to_head(conference)
+    outcomes = Hash.new(0)
+
+    all_games.each do |game|
+      next if game.week.post_season || game.week.conference_championship
+      next unless conference_for(game.home_college_id) == conference && conference_for(game.away_college_id) == conference
+
+      result = game_result(game, game.home_college_id)
+      next unless result
+
+      winner_id, loser_id = result[:won] ? [ game.home_college_id, game.away_college_id ] : [ game.away_college_id, game.home_college_id ]
+      outcomes[[ winner_id, loser_id ]] += 1
+    end
+
+    outcomes
+  end
+
+  # Sort comparator implementing the seeding priority the user asked for:
+  # conference win pct, then head-to-head, then overall win pct, then name.
+  # Head-to-head is only a pairwise signal, so for a 3+ way tie the result
+  # can be order-dependent — acceptable here, since anything past "who are
+  # the top two" is explicitly don't-care.
+  def compare_for_championship_seeding(a, b, records, head_to_head)
+    a_record = records[a.college_id]
+    b_record = records[b.college_id]
+
+    by_conference = win_pct(b_record[:conference_wins], b_record[:conference_losses]) <=>
+                    win_pct(a_record[:conference_wins], a_record[:conference_losses])
+    return by_conference unless by_conference.zero?
+
+    by_head_to_head = head_to_head[[ b.college_id, a.college_id ]] <=> head_to_head[[ a.college_id, b.college_id ]]
+    return by_head_to_head unless by_head_to_head.zero?
+
+    by_overall = win_pct(b_record[:overall_wins], b_record[:overall_losses]) <=>
+                 win_pct(a_record[:overall_wins], a_record[:overall_losses])
+    return by_overall unless by_overall.zero?
+
+    a.college.name <=> b.college.name
+  end
+
+  # How the #2 seed is holding off the first team out, when the two are
+  # level on conference record — the bit of the projection worth explaining
+  # on air. nil when the #2/#3 gap isn't actually a tiebreaker.
+  def championship_bubble_note(seeded, records, head_to_head)
+    return nil if seeded.size < 3
+
+    in_team = seeded[1]
+    out_team = seeded[2]
+    in_record = records[in_team.college_id]
+    out_record = records[out_team.college_id]
+
+    return nil unless in_record[:conference_wins] == out_record[:conference_wins] &&
+                      in_record[:conference_losses] == out_record[:conference_losses]
+
+    basis =
+      if head_to_head[[ in_team.college_id, out_team.college_id ]] > head_to_head[[ out_team.college_id, in_team.college_id ]]
+        "a head-to-head win"
+      elsif win_pct(in_record[:overall_wins], in_record[:overall_losses]) >
+            win_pct(out_record[:overall_wins], out_record[:overall_losses])
+        "a better overall record (#{in_record[:overall_wins]}-#{in_record[:overall_losses]} to " \
+          "#{out_record[:overall_wins]}-#{out_record[:overall_losses]})"
+      else
+        "the tiebreaker"
+      end
+
+    "#{in_team.college.name} holds the second spot over #{out_team.college.name} on #{basis}"
+  end
+
+  def win_pct(wins, losses)
+    total = wins + losses
+    total.zero? ? 0.0 : wins.to_f / total
+  end
+
+  def conference_championship_week
+    return @conference_championship_week if defined?(@conference_championship_week)
+
+    @conference_championship_week = @season.weeks.find_by(conference_championship: true)
   end
 
   # Top 25 movement for conference rivals (excludes our own coached teams,
