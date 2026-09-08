@@ -27,6 +27,7 @@ class SeasonWeeksSerializer
 
     {
       focus: focus_json(weeks.first),
+      podcast_date: podcast_date_json,
       season: {
         id: @season.id,
         year: @season.year,
@@ -38,6 +39,40 @@ class SeasonWeeksSerializer
   end
 
   private
+
+  # The in-world date the episode is being recorded, so the hosts have a
+  # concrete "when": the day after the primary week's last game. If that
+  # week has no game with a known kickoff on record (e.g. Week 14, which is
+  # just Army–Navy and often has no time set), fall back to the day before
+  # the first game of the week being previewed. nil when neither week has a
+  # game time to anchor to. Game times carry a real calendar year off the
+  # season (see TeamSchedule::CommitService / ScheduleStats::CommitService),
+  # so this stays correct across seasons.
+  def podcast_date_json
+    number = primary_week_number
+    return nil unless number
+
+    last_game = latest_game_time_in_week(@season.weeks.find_by(number: number))
+    return { date: (last_game.to_date + 1).iso8601, anchor_week: number, position: "after" } if last_game
+
+    preview_number = number + 1
+    first_game = earliest_game_time_in_week(@season.weeks.find_by(number: preview_number))
+    return nil unless first_game
+
+    { date: (first_game.to_date - 1).iso8601, anchor_week: preview_number, position: "before" }
+  end
+
+  def latest_game_time_in_week(week)
+    return nil unless week
+
+    all_games.filter_map { |game| game.time if game.week_id == week.id }.max
+  end
+
+  def earliest_game_time_in_week(week)
+    return nil unless week
+
+    all_games.filter_map { |game| game.time if game.week_id == week.id }.min
+  end
 
   def focus_json(primary_week)
     return { instructions: "No matching weeks were found for the requested week_numbers." } unless primary_week

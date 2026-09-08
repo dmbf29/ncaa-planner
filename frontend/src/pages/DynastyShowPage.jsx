@@ -200,13 +200,13 @@ function DynastyShowPage() {
           </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <HeismanWatch heismanWatch={dashboard.heismanWatch} />
-            <PlayersOfTheWeek playersOfTheWeek={dashboard.playersOfTheWeek} />
+            <NilSquadSpending teams={dashboard.teams} />
+            <TeamStatsComparison teams={dashboard.teams} />
           </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <NilSquadSpending teams={dashboard.teams} />
-            <TeamStatsComparison teams={dashboard.teams} />
+            <HeismanWatch heismanWatch={dashboard.heismanWatch} />
+            <PlayersOfTheWeek playersOfTheWeek={dashboard.playersOfTheWeek} />
           </div>
 
           <div className="mt-6">

@@ -20,6 +20,10 @@ class SeasonWeeksMarkdownPresenter
     lines.concat(PodcastShow.run_of_show_lines(segments))
     lines << "# 🎙️ WEEKLY BROADCAST DATA"
     lines << ""
+    if (date_line = broadcast_date_line)
+      lines << date_line
+      lines << ""
+    end
     lines << "> #{producer_note}"
     lines << ""
 
@@ -81,6 +85,25 @@ class SeasonWeeksMarkdownPresenter
 
   def primary_week_has_results?
     primary_week && primary_week[:teams].any? { |team| team[:game][:status] == "final" }
+  end
+
+  # A concrete in-world date so the hosts know "when" they are and can
+  # anchor time references ("this weekend", "last night") consistently. nil
+  # when the serializer had no game time to anchor to (see
+  # SeasonWeeksSerializer#podcast_date_json).
+  def broadcast_date_line
+    info = @data[:podcast_date]
+    return nil if info.blank?
+
+    pretty = Date.parse(info[:date]).strftime("%A, %B %-d, %Y")
+    context =
+      if info[:position] == "after"
+        "the day after Week #{info[:anchor_week]}'s last game"
+      else
+        "the day before Week #{info[:anchor_week]} kicks off"
+      end
+    "**Broadcast date:** #{pretty} (#{context}). Anchor every \"when\" reference — " \
+      "\"this weekend\", \"last night\", \"next Saturday\" — to this date."
   end
 
   # Injury Report and Recruitment Trail only make the run-of-show when this
