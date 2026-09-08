@@ -25,18 +25,22 @@ class SeasonDashboardSerializer
       around_the_league: around_the_league_json,
       current_week_number: current_week_number,
       last_played_week_number: last_played_week_number,
-      signed_recruits_last_week_number: signed_recruits_last_week_number
+      signed_recruits_last_week_number: signed_recruits_last_week_number,
+      recruits: recruits_json,
+      postseason_recap: postseason_recap_json
     }
   end
 
   private
 
   def coached_college_seasons
-    @season.college_seasons
-           .includes(:college, :coach, :student_seasons, :recruiting_season)
-           .where.not(coach_id: nil)
-           .joins(:college)
-           .order("colleges.name")
+    @coached_college_seasons ||= @season.college_seasons
+                                        .includes(:college, :coach, :student_seasons, :recruiting_season,
+                                                  signed_recruits: :week)
+                                        .where.not(coach_id: nil)
+                                        .joins(:college)
+                                        .order("colleges.name")
+                                        .to_a
   end
 
   # The highest week number any coached team has a signed recruit recorded
@@ -47,6 +51,172 @@ class SeasonDashboardSerializer
         .where(season_id: @season.id)
         .where(signed_recruits: { college_season_id: @season.college_seasons.where.not(coach_id: nil).select(:id) })
         .maximum(:number)
+  end
+
+  # Every signed recruit (HS/JUCO signees and portal transfers alike) for
+  # each coached team this season, grouped by team, best classes' headline
+  # names first: star rating desc, then last name. Teams with nothing signed
+  # yet are still listed so the card can show them at zero.
+  def recruits_json
+    coached_college_seasons.map do |college_season|
+      recruits = college_season.signed_recruits
+                               .sort_by { |sr| [ -(sr.star_rating || 0), sr.last_name.to_s.downcase ] }
+
+      {
+        college: { id: college_season.college.id, name: college_season.college.name },
+        coach: { id: college_season.coach.id, name: college_season.coach.name },
+        recruits: recruits.map { |sr| recruit_json(sr) }
+      }
+    end
+  end
+
+  def recruit_json(signed_recruit)
+    {
+      id: signed_recruit.id,
+      name: signed_recruit.name,
+      position: signed_recruit.position,
+      star_rating: signed_recruit.star_rating,
+      class_year: signed_recruit.class_year,
+      transfer: signed_recruit.transfer,
+      state: signed_recruit.state,
+      national_rank: signed_recruit.national_rank,
+      position_rank: signed_recruit.position_rank,
+      nil_amount: signed_recruit.nil_amount,
+      week: { id: signed_recruit.week.id, number: signed_recruit.week.number, name: signed_recruit.week.name }
+    }
+  end
+
+  # The dashboard's one time-of-year-dependent card. It surfaces whichever
+  # of these three has become available, most-recent stage winning:
+  #   1. award winners recorded for this season           -> "awards"
+  #   2. else this season has bowl projections on record  -> "bowl_projections"
+  #   3. else last season's finished recruiting classes   -> "recruiting_recap"
+  # In a dynasty's very first season there's no previous recruiting recap
+  # either, so mode 3 just comes back empty.
+  def postseason_recap_json
+    return { mode: "awards", awards: award_winners_json } if season_award_winners.any?
+    return { mode: "bowl_projections", bowl_projections: bowl_projections_json } if dashboard_bowl_projections.any?
+
+    { mode: "recruiting_recap", recruiting_recap: previous_recruiting_recap_json }
+  end
+
+  def season_award_winners
+    @season_award_winners ||= @season.season_awards
+                                     .includes(:award, :coach, student_season: [ :student, { college_season: :college } ])
+                                     .sort_by { |season_award| season_award.award.sort_order }
+  end
+
+  def award_winners_json
+    season_award_winners.map do |season_award|
+      student_season = season_award.student_season
+      {
+        id: season_award.id,
+        award: { id: season_award.award.id, name: season_award.award.name },
+        recipient_type: season_award.award.recipient_type,
+        name: season_award.recipient_name,
+        stat_line: season_award.stat_line,
+        player: student_season && player_json(student_season).merge(
+          college: student_college_json(student_season),
+          coached_by_us: coached_by_us?(student_season)
+        ),
+        coach: season_award.coach && award_coach_json(season_award.coach)
+      }
+    end
+  end
+
+  def award_coach_json(coach)
+    college_season = coached_college_seasons.find { |cs| cs.coach_id == coach.id }
+    {
+      id: coach.id,
+      name: coach.name,
+      college: college_season && { id: college_season.college.id, name: college_season.college.name },
+      coached_by_us: college_season.present?
+    }
+  end
+
+  # The freshest bowl-projection snapshot on record for this season —
+  # projections are captured in bunches on a handful of weeks (see
+  # BowlProjection), so "most recent week that has any" is the current
+  # picture. Scoped like the broadcast recap: any CFP game (the whole
+  # bracket is dashboard-worthy) plus any bowl involving a coached team.
+  def latest_bowl_projection_week
+    return @latest_bowl_projection_week if defined?(@latest_bowl_projection_week)
+
+    @latest_bowl_projection_week = @season.weeks
+                                          .where(id: BowlProjection.select(:week_id))
+                                          .order(number: :desc)
+                                          .first
+  end
+
+  def dashboard_bowl_projections
+    return @dashboard_bowl_projections if defined?(@dashboard_bowl_projections)
+    return @dashboard_bowl_projections = [] unless latest_bowl_projection_week
+
+    @dashboard_bowl_projections = latest_bowl_projection_week.bowl_projections
+                                                            .includes(:projected_home_college, :projected_away_college)
+                                                            .select do |bp|
+      bp.cfp_round.present? ||
+        coached_college_ids.include?(bp.projected_home_college_id) ||
+        coached_college_ids.include?(bp.projected_away_college_id)
+    end
+  end
+
+  def bowl_projections_json
+    dashboard_bowl_projections
+      .sort_by { |bp| [ bp.cfp_round ? 0 : 1, bp.cfp_round_before_type_cast || 0, bp.time&.to_i || 0, bp.bowl_name ] }
+      .map do |bp|
+        {
+          id: bp.id,
+          bowl_name: bp.bowl_name,
+          cfp_round: bp.cfp_round,
+          home: bowl_projection_side_json(bp.projected_home_college),
+          away: bowl_projection_side_json(bp.projected_away_college)
+        }
+      end
+  end
+
+  def bowl_projection_side_json(college)
+    return nil unless college
+
+    {
+      id: college.id,
+      name: college.name,
+      rank: rank_for_college(college.id),
+      coached_by_us: coached_college_ids.include?(college.id)
+    }
+  end
+
+  # Last season's final recruiting-class summaries for the teams coached
+  # then (rank, points, star breakdown) — the "how did the class I just
+  # signed turn out" recap that fills this card until the current season
+  # has any postseason data of its own. Empty in a dynasty's first season.
+  def previous_recruiting_recap_json
+    previous_season = @season.previous_season
+    return [] unless previous_season
+
+    previous_season.college_seasons
+                   .includes(:college, :coach, :recruiting_season)
+                   .where.not(coach_id: nil)
+                   .joins(:college)
+                   .order("colleges.name")
+                   .filter_map do |college_season|
+      recruiting_season = college_season.recruiting_season
+      next unless recruiting_season
+
+      {
+        college: { id: college_season.college.id, name: college_season.college.name },
+        coach: college_season.coach && { id: college_season.coach.id, name: college_season.coach.name },
+        ranking: recruiting_season.ranking,
+        points: recruiting_season.points,
+        total_signed: recruiting_season.total_signed,
+        nil_spent: recruiting_season.nil_spent,
+        five_stars: recruiting_season.five_stars,
+        four_stars: recruiting_season.four_stars,
+        three_stars: recruiting_season.three_stars,
+        two_stars: recruiting_season.two_stars,
+        one_stars: recruiting_season.one_stars
+      }
+    end
   end
 
   # The most recent week (by number) that actually has rankings/candidates
