@@ -5,7 +5,7 @@ default: &default
 
 development:
   <<: *default
-  database: ncaa_planner_development
+  database: ncaa_planner_dev
 
 test:
   <<: *default
