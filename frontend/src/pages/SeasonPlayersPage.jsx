@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import MultiSelect from "../components/MultiSelect";
+import OverallBadge from "../components/OverallBadge";
 import { API_BASE_URL, fetchSeasonStudentSeasons } from "../lib/apiClient";
 
 // The full season pool is ~11k players — never render all of them. Filters
@@ -24,31 +25,6 @@ const emptyFilters = () => ({
   conferences: [],
   minOverall: "",
 });
-
-// Overall rating → heat-map chip. Ascending tiers: black, two reds, two
-// ambers, two greens, purple for elite.
-const OVERALL_TIERS = [
-  { min: 90, className: "bg-purple-600 text-white" },
-  { min: 85, className: "bg-emerald-400 text-white" },
-  { min: 80, className: "bg-green-700 text-white" },
-  { min: 75, className: "bg-yellow-400 text-neutral-900" },
-  { min: 70, className: "bg-amber-500 text-neutral-900" },
-  { min: 65, className: "bg-red-500 text-white" },
-  { min: 60, className: "bg-red-700 text-white" },
-  { min: 0, className: "bg-neutral-900 text-white" },
-];
-
-function OverallBadge({ value }) {
-  if (value == null) return <span className="text-textSecondary">—</span>;
-  const tier = OVERALL_TIERS.find((t) => value >= t.min) ?? OVERALL_TIERS.at(-1);
-  return (
-    <span
-      className={`text-shadow-lg inline-flex w-9 items-center justify-center rounded-md px-2 py-1 text-sm font-bold tabular-nums ${tier.className}`}
-    >
-      {value}
-    </span>
-  );
-}
 
 function sortValueFor(player, field) {
   if (field === "team") return player.team;

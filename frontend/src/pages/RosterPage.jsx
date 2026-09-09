@@ -2,12 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
+import OverallBadge from "../components/OverallBadge";
 import {
   fetchRoster,
   createInjury,
   updateInjury,
   deleteInjury,
-  updateStudentSeasonName,
+  updateStudentSeason,
   analyzeRosterImport,
   commitRosterImport,
 } from "../lib/apiClient";
@@ -26,6 +27,16 @@ const STATUS_LABELS = {
   new: "New Player",
   ambiguous: "Needs Review",
 };
+
+// Rating columns shown after OVR, matching the All Players search page.
+const STAT_COLUMNS = [
+  { field: "speed", label: "Spd" },
+  { field: "acceleration", label: "Acc" },
+  { field: "agility", label: "Agi" },
+  { field: "changeOfDirection", label: "CoD" },
+  { field: "strength", label: "Str" },
+  { field: "awareness", label: "Awr" },
+];
 
 function ClassBreakdownChart({ classBreakdown }) {
   if (!classBreakdown) return null;
@@ -78,7 +89,7 @@ function PlayerNameCell({ player }) {
     saveTimer.current = setTimeout(async () => {
       try {
         setError(null);
-        await updateStudentSeasonName(player.id, { firstName: nextFirstName, lastName: nextLastName });
+        await updateStudentSeason(player.id, { firstName: nextFirstName, lastName: nextLastName });
       } catch (err) {
         setError(err.message);
       }
@@ -114,39 +125,69 @@ function PlayerNameCell({ player }) {
   );
 }
 
+function PlayerOverallCell({ player }) {
+  const [overall, setOverall] = useState(player.overall ?? "");
+  const [error, setError] = useState(null);
+  const saveTimer = useRef(null);
+
+  const scheduleSave = (nextOverall) => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      try {
+        setError(null);
+        await updateStudentSeason(player.id, { overall: nextOverall === "" ? null : Number(nextOverall) });
+      } catch (err) {
+        setError(err.message);
+      }
+    }, 600);
+  };
+
+  useEffect(() => () => saveTimer.current && clearTimeout(saveTimer.current), []);
+
+  return (
+    <div className="inline-block">
+      <input
+        type="number"
+        min={0}
+        max={99}
+        value={overall}
+        onChange={(e) => {
+          setOverall(e.target.value);
+          scheduleSave(e.target.value);
+        }}
+        className={`${nameInputClass} w-12 text-center`}
+        aria-label="Overall"
+      />
+      {error && <p className="text-xs text-danger">{error}</p>}
+    </div>
+  );
+}
+
 function PositionGroupTable({ group, authed, onReportInjury }) {
   if (group.players.length === 0) return null;
 
   return (
-    <Card className="overflow-hidden">
-      <div className="border-b border-border bg-charcoal px-4 py-3 text-white dark:border-darkborder">
+    <Card className="-mx-4 overflow-hidden rounded-none border-x-0 sm:mx-0 sm:rounded-xl sm:border-x">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-border bg-charcoal px-4 py-3 text-white dark:border-darkborder">
         <h3 className="font-varsity text-lg uppercase tracking-[0.06em]">{group.positionGroup}</h3>
-      </div>
-      <div className="flex flex-wrap gap-x-4 gap-y-1 border-b border-border bg-charcoal/5 px-4 py-2 text-xs text-textSecondary dark:border-darkborder dark:bg-white/5">
-        <span>
-          Avg <strong className="font-semibold text-textPrimary dark:text-white">{group.averageOverall ?? "—"}</strong>
-        </span>
-        <span>
-          High <strong className="font-semibold text-textPrimary dark:text-white">{group.highOverall ?? "—"}</strong>
-        </span>
-        <span>
-          Low <strong className="font-semibold text-textPrimary dark:text-white">{group.lowOverall ?? "—"}</strong>
-        </span>
-        <span>
-          Avg Spd <strong className="font-semibold text-textPrimary dark:text-white">{group.averageSpeed ?? "—"}</strong>
+        <span className="text-xs text-white/70">
+          Avg {group.averageOverall ?? "—"} &middot; High {group.highOverall ?? "—"} &middot; Low{" "}
+          {group.lowOverall ?? "—"} &middot; Avg Spd {group.averageSpeed ?? "—"}
         </span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-xs md:text-sm">
           <thead>
-            <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-textSecondary dark:border-darkborder">
-              <th className="px-4 py-2 font-semibold">Name</th>
-              <th className="px-2 py-2 font-semibold">Pos</th>
-              <th className="px-2 py-2 font-semibold">Yr</th>
-              <th className="px-2 py-2 font-semibold text-right">OVR</th>
-              <th className="px-2 py-2 font-semibold text-right">Spd</th>
-              <th className="px-4 py-2 font-semibold">Dev</th>
-              {authed && <th className="px-2 py-2 font-semibold text-center">Injury</th>}
+            <tr className="border-b border-border text-xs uppercase tracking-wide text-textSecondary dark:border-darkborder">
+              <th className="px-3 py-2 text-left font-semibold">Player</th>
+              <th className="px-3 py-2 text-center font-semibold">OVR</th>
+              {STAT_COLUMNS.map((col) => (
+                <th key={col.field} className="px-3 py-2 text-right font-semibold">
+                  {col.label}
+                </th>
+              ))}
+              <th className="px-3 py-2 text-left font-semibold">Dev</th>
+              {authed && <th className="px-3 py-2 text-center font-semibold">Injury</th>}
             </tr>
           </thead>
           <tbody>
@@ -154,16 +195,27 @@ function PositionGroupTable({ group, authed, onReportInjury }) {
               const currentInjury = latestInjury(player.injuries);
               return (
                 <tr key={player.id} className="border-b border-border/60 last:border-0 dark:border-darkborder/60">
-                  <td className="px-1 py-1.5 text-textPrimary dark:text-white">
-                    {authed ? <PlayerNameCell player={player} /> : player.name}
+                  <td className="px-3 py-2">
+                    {authed ? (
+                      <PlayerNameCell player={player} />
+                    ) : (
+                      <div className="font-semibold text-textPrimary dark:text-white">{player.name}</div>
+                    )}
+                    <div className="text-xs font-normal text-textSecondary">
+                      {player.position} &middot; {player.classYear}
+                    </div>
                   </td>
-                  <td className="px-2 py-1.5 text-textSecondary">{player.position}</td>
-                  <td className="px-2 py-1.5 text-textSecondary">{player.classYear}</td>
-                  <td className="px-2 py-1.5 text-right font-semibold">{player.overall ?? "—"}</td>
-                  <td className="px-2 py-1.5 text-right text-textSecondary">{player.speed ?? "—"}</td>
-                  <td className="px-4 py-1.5 text-textSecondary">{player.devTrait ?? "—"}</td>
+                  <td className="px-3 py-2 text-center">
+                    {authed ? <PlayerOverallCell player={player} /> : <OverallBadge value={player.overall} />}
+                  </td>
+                  {STAT_COLUMNS.map((col) => (
+                    <td key={col.field} className="px-3 py-2 text-right tabular-nums text-textSecondary">
+                      {player[col.field] ?? "—"}
+                    </td>
+                  ))}
+                  <td className="px-3 py-2 text-textSecondary">{player.devTrait ?? "—"}</td>
                   {authed && (
-                    <td className="px-2 py-1.5 text-center">
+                    <td className="px-3 py-2 text-center">
                       <button
                         type="button"
                         onClick={() => onReportInjury(player, currentInjury)}
@@ -564,7 +616,7 @@ function RosterPage() {
   }, [reload]);
 
   return (
-    <div className="max-w-4xl mx-auto px-4">
+    <div className="mx-auto max-w-4xl">
       <PageHeader
         eyebrow={data ? `${data.collegeSeason.season.year} Season` : undefined}
         title={data ? `${data.collegeSeason.college.name} Roster` : "Roster"}

@@ -165,7 +165,7 @@ const playerStatsParams = (scope) => {
 export const fetchPlayerStats = (dynastyId, scope) =>
   api.get(`/api/v1/dynasties/${dynastyId}/player_stats`, { params: playerStatsParams(scope) }).then((r) => r.data);
 
-export const updateStudentSeasonName = (id, payload) =>
+export const updateStudentSeason = (id, payload) =>
   api.put(`/api/v1/student_seasons/${id}`, { studentSeason: payload }).then((r) => r.data);
 
 export const analyzeRosterImport = (dynastyId, seasonId, collegeSeasonId, players) =>

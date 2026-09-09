@@ -7,12 +7,16 @@ module Api
 
       def update
         authorize @student_season
-        if @student_season.student.update(student_params)
-          render json: { id: @student_season.id, name: @student_season.student.name }
-        else
-          render json: { error: @student_season.student.errors.full_messages.to_sentence, code: "unprocessable_entity" },
-                 status: :unprocessable_entity
+
+        StudentSeason.transaction do
+          @student_season.student.update!(student_params) if student_params.present?
+          @student_season.update!(student_season_params) if student_season_params.present?
         end
+
+        render json: { id: @student_season.id, name: @student_season.student.name, overall: @student_season.overall }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { error: e.record.errors.full_messages.to_sentence, code: "unprocessable_entity" },
+               status: :unprocessable_entity
       end
 
       private
@@ -23,6 +27,10 @@ module Api
 
       def student_params
         params.require(:student_season).permit(:first_name, :last_name)
+      end
+
+      def student_season_params
+        params.require(:student_season).permit(:overall)
       end
     end
   end

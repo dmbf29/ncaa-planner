@@ -90,6 +90,11 @@ class CollegeSeasonRosterSerializer
       overall: student_season.overall,
       dev_trait: student_season.dev_trait,
       speed: student_season.speed,
+      acceleration: student_season.acceleration,
+      agility: student_season.agility,
+      change_of_direction: student_season.change_of_direction,
+      strength: student_season.strength,
+      awareness: student_season.awareness,
       nil_amount: student_season.nil_amount,
       injuries: student_season.injuries.map { |injury| injury_json(injury) }
     }
