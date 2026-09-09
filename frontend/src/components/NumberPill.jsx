@@ -14,10 +14,10 @@ function NumberPill({ label, value, bold = null }) {
   };
 
   const positionAverageToneClasses = {
-    muted: "bg-textSecondary/10 text-gray-500 text-shadow-lg",
-    positive: "bg-success/10 text-gray-500 text-shadow-lg",
-    warning: "bg-warning/10 text-gray-500 text-shadow-lg",
-    danger: "bg-danger/10 text-gray-500 text-shadow-lg",
+    muted: "bg-textSecondary/10 text-gray-500 text-shadow-sm",
+    positive: "bg-success/10 text-gray-500 text-shadow-sm",
+    warning: "bg-warning/10 text-gray-500 text-shadow-sm",
+    danger: "bg-danger/10 text-gray-500 text-shadow-sm",
   };
 
   const positionAverageTone = (value) => {
