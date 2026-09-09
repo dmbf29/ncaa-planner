@@ -136,7 +136,7 @@ function DynastyShowPage() {
   };
 
   return (
-    <div className="max-w-[1420px] mx-auto px-4">
+    <div className="max-w-[1420px] mx-auto md:px-4">
       <PageHeader
         title={dashboard ? dashboard.dynasty.name : portal?.name || "Dynasty"}
         actions={
