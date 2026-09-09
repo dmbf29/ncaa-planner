@@ -24,7 +24,10 @@ class Game < ApplicationRecord
   validate :colleges_not_already_scheduled_this_week
 
   def played?
-    college_game_stats.count == 2
+    # .size (not .count) so a preloaded college_game_stats association is
+    # reused instead of firing a COUNT(*) per call — Game#played? is called
+    # in tight loops across the dashboard/roster serializers.
+    college_game_stats.size == 2
   end
 
   private

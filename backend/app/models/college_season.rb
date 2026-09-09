@@ -38,11 +38,11 @@ class CollegeSeason < ApplicationRecord
   end
 
   def best_offensive_players(limit: 3)
-    student_seasons.where(position: OFFENSE_POSITIONS).order(overall: :desc).limit(limit)
+    student_seasons.where(position: OFFENSE_POSITIONS).includes(:student).order(overall: :desc).limit(limit)
   end
 
   def best_defensive_players(limit: 3)
-    student_seasons.where(position: DEFENSE_POSITIONS).order(overall: :desc).limit(limit)
+    student_seasons.where(position: DEFENSE_POSITIONS).includes(:student).order(overall: :desc).limit(limit)
   end
 
   def position_group_averages

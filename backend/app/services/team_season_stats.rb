@@ -22,16 +22,20 @@ class TeamSeasonStats
     passing: 1, rushing: 2, receiving: 3, sacks: 2, tackles: 3, interceptions: 2
   }.freeze
 
-  def initialize(college_season)
+  # `games:` lets a caller that has already loaded this team's games (with
+  # :college_game_stats preloaded) pass them in, so played_games doesn't
+  # re-run CollegeSeason#games — SeasonDashboardSerializer does this to
+  # avoid an N+1 across every coached team. Left nil elsewhere.
+  def initialize(college_season, games: nil)
     @college_season = college_season
+    @games = games
   end
 
   # Every played game for this team, paired with both sides' box score.
   def played_games
-    @played_games ||= @college_season.games
-                                      .includes(:college_game_stats)
-                                      .map { |g| game_stat_pair(g) }
-                                      .compact
+    @played_games ||= (@games || @college_season.games.includes(:college_game_stats))
+                      .map { |g| game_stat_pair(g) }
+                      .compact
   end
 
   # Team-level box score averages (yards/points per game), once this team

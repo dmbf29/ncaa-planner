@@ -8,7 +8,7 @@ module Api
 
       def show
         authorize @season
-        render json: ::SeasonDashboardSerializer.new(@season).as_json
+        render json: ::SeasonDashboardSerializer.cached(@season)
       end
 
       def create

@@ -7,6 +7,22 @@ class SeasonDashboardSerializer
   # ignored here so it doesn't flag every game as "missing" on the dashboard.
   REQUIRED_COLLEGE_STAT_FIELDS = (GameStats::StatFields::COLLEGE_FIELDS - %i[points_in_overtime]).freeze
 
+  # Both entry points to this serializer — DynastyPortalsController#dashboard
+  # (public) and SeasonsController#show (authed) — build the identical
+  # payload, so they share one cache entry: whichever is hit first warms it
+  # for the other. Even with its N+1s removed the serializer runs ~75
+  # queries, and on a cross-region DB every query is a ~65ms round trip, so
+  # the cold build is a few seconds. Data entry happens in bursts; a coach
+  # who just uploaded sees it after CACHE_TTL lapses (shorten it, or bust
+  # from the commit services, if that lag ever bites).
+  CACHE_TTL = 3.minutes
+
+  def self.cached(season)
+    Rails.cache.fetch([ "season_dashboard", "v1", season.id, season.updated_at.to_i ], expires_in: CACHE_TTL) do
+      new(season).as_json
+    end
+  end
+
   def initialize(season)
     @season = season
   end
@@ -41,6 +57,43 @@ class SeasonDashboardSerializer
                                         .joins(:college)
                                         .order("colleges.name")
                                         .to_a
+  end
+
+  # Every Game in the season, loaded once with the union of associations the
+  # dashboard cards touch. CollegeSeason#games is a plain finder (not an
+  # association), so it can't be preloaded — before this, the per-team and
+  # per-ranked-college cards each re-ran it, which was the bulk of the
+  # endpoint's query count. The lookup helpers below filter this in memory.
+  def all_season_games
+    @all_season_games ||= Game
+                          .where(week_id: @season.week_ids)
+                          .includes(:week, :home_college, :away_college, :college_game_stats,
+                                    student_game_stats: { student_season: %i[student college_season] })
+                          .order(:id)
+                          .to_a
+  end
+
+  # college_id => [Game, ...] for every game that college played in the
+  # season, home or away — the in-memory stand-in for CollegeSeason#games.
+  def season_games_by_college_id
+    @season_games_by_college_id ||= begin
+      map = Hash.new { |hash, key| hash[key] = [] }
+      all_season_games.each do |game|
+        map[game.home_college_id] << game
+        map[game.away_college_id] << game
+      end
+      map
+    end
+  end
+
+  def weeks_by_number
+    @weeks_by_number ||= @season.weeks.index_by(&:number)
+  end
+
+  # weeks_json runs once per coached team; without this each pass re-ran the
+  # ordered weeks query.
+  def ordered_weeks
+    @ordered_weeks ||= @season.weeks.order(:number).to_a
   end
 
   # The highest week number any coached team has a signed recruit recorded
@@ -338,10 +391,9 @@ class SeasonDashboardSerializer
   # The most recent played game through the latest ranked week — "how'd
   # they do last time out."
   def top_25_last_result_json(college_season)
-    game = college_season.games
-                          .includes(:home_college, :away_college, :college_game_stats, :week)
-                          .select { |g| g.week.number <= latest_ranked_week.number && g.played? }
-                          .max_by { |g| g.week.number }
+    game = season_games_by_college_id[college_season.college_id]
+           .select { |g| g.week.number <= latest_ranked_week.number && g.played? }
+           .max_by { |g| g.week.number }
     return nil unless game
 
     stats = game.college_game_stats.index_by(&:college_id)
@@ -401,7 +453,7 @@ class SeasonDashboardSerializer
     return @current_week_number if defined?(@current_week_number)
 
     next_game_weeks = coached_college_seasons.filter_map do |cs|
-      cs.games.includes(:college_game_stats, :week)
+      season_games_by_college_id[cs.college_id]
         .sort_by { |g| g.week.number }
         .find { |g| !g.played? }
         &.week&.number
@@ -506,7 +558,7 @@ class SeasonDashboardSerializer
   end
 
   def team_json(college_season)
-    season_stats = TeamSeasonStats.new(college_season)
+    season_stats = TeamSeasonStats.new(college_season, games: season_games_by_college_id[college_season.college_id])
     played_games = season_stats.played_games
     record = effective_record(college_season, played_games)
 
@@ -536,7 +588,7 @@ class SeasonDashboardSerializer
       stat_leaders: stat_leaders_json(season_stats.stat_leaders),
       team_stats: season_stats.team_stats,
       team_totals: season_stats.team_totals,
-      position_group_averages: college_season.position_group_averages,
+      position_group_averages: position_group_averages_for(college_season),
       weeks: weeks_json(college_season)
     }
   end
@@ -564,6 +616,20 @@ class SeasonDashboardSerializer
       next if points.blank?
 
       { position: position, points: points, dollars: nil_spend_dollars(points) }
+    end
+  end
+
+  # Computed from the already-preloaded student_seasons rather than
+  # CollegeSeason#position_group_averages, which fires a .average(:overall)
+  # query per group (9 x every coached team) — the same swap
+  # TeamBreakdownSerializer makes for the same reason.
+  def position_group_averages_for(college_season)
+    by_position = college_season.student_seasons.group_by(&:position)
+    CollegeSeason::POSITION_GROUPS.transform_values do |positions|
+      rated = positions.flat_map { |pos| by_position[pos] || [] }.select { |ss| ss.overall.present? }
+      next nil if rated.empty?
+
+      (rated.sum(&:overall).to_f / rated.size).round
     end
   end
 
@@ -625,10 +691,9 @@ class SeasonDashboardSerializer
   # Uses Game#played? (rather than duplicating its "2 stat rows" logic in
   # SQL) since the number of games per team per season is small.
   def next_game_json(college_season)
-    upcoming = college_season.games
-                              .includes(:home_college, :away_college, :college_game_stats, :week)
-                              .sort_by { |g| g.week.number }
-                              .find { |g| !g.played? }
+    upcoming = season_games_by_college_id[college_season.college_id]
+               .sort_by { |g| g.week.number }
+               .find { |g| !g.played? }
     return nil unless upcoming
 
     opponent_id = upcoming.home_college_id == college_season.college_id ? upcoming.away_college_id : upcoming.home_college_id
@@ -639,7 +704,10 @@ class SeasonDashboardSerializer
       opponent: opponent_json(upcoming, college_season.college_id),
       active_injury_count: active_injury_count(college_season, upcoming.week),
       opponent_overall: opponent_season&.overall,
-      opponent_record: opponent_season && effective_record(opponent_season, TeamSeasonStats.new(opponent_season).played_games),
+      opponent_record: opponent_season && effective_record(
+        opponent_season,
+        TeamSeasonStats.new(opponent_season, games: season_games_by_college_id[opponent_season.college_id]).played_games
+      ),
       opponent_last_result: opponent_season && opponent_last_result_json(opponent_season, upcoming.week.number)
     }
   end
@@ -653,12 +721,10 @@ class SeasonDashboardSerializer
   # team's data for that week just hasn't been uploaded yet. nil when
   # before_week_number is the season's first week (nothing came before it).
   def opponent_last_result_json(opponent_season, before_week_number)
-    week = @season.weeks.find_by(number: before_week_number - 1)
+    week = weeks_by_number[before_week_number - 1]
     return nil unless week
 
-    game = opponent_season.games
-                           .includes(:home_college, :away_college, :college_game_stats)
-                           .find { |g| g.week_id == week.id }
+    game = season_games_by_college_id[opponent_season.college_id].find { |g| g.week_id == week.id }
     result = game && result_json(game, opponent_season.college_id)
     week_json = { id: week.id, number: week.number, name: week.name }
 
@@ -691,12 +757,9 @@ class SeasonDashboardSerializer
   end
 
   def weeks_json(college_season)
-    games_by_week = college_season.games
-                                  .includes(:home_college, :away_college, :college_game_stats,
-                                            student_game_stats: { student_season: :college_season })
-                                  .index_by(&:week_id)
+    games_by_week = season_games_by_college_id[college_season.college_id].index_by(&:week_id)
 
-    @season.weeks.order(:number).map do |week|
+    ordered_weeks.map do |week|
       game = games_by_week[week.id]
       {
         id: week.id,

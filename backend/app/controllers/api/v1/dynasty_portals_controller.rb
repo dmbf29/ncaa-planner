@@ -15,7 +15,7 @@ module Api
       end
 
       def dashboard
-        render json: ::SeasonDashboardSerializer.new(set_season).as_json
+        render json: ::SeasonDashboardSerializer.cached(set_season)
       end
 
       def standings
