@@ -152,6 +152,9 @@ export const fetchRoster = (dynastyId, seasonId, collegeSeasonId) =>
 export const fetchDynastyTeams = (dynastyId) =>
   api.get(`/api/v1/dynasties/${dynastyId}/teams`).then((r) => r.data);
 
+export const fetchSeasonStudentSeasons = (dynastyId, seasonId) =>
+  api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/student_seasons`).then((r) => r.data);
+
 const playerStatsParams = (scope) => {
   if (scope.type === "conference") return { scope: "conference", conference: scope.conference };
   if (scope.type === "national") return { scope: "national" };

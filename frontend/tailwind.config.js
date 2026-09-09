@@ -32,5 +32,23 @@ export default {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    function ({ addUtilities }) {
+      addUtilities({
+        ".text-shadow-sm": {
+          textShadow:
+            "0px 1px 0px rgb(0 0 0 / 0.075), 0px 1px 1px rgb(0 0 0 / 0.075), 0px 2px 2px rgb(0 0 0 / 0.075)",
+        },
+        ".text-shadow-md": {
+          textShadow:
+            "0px 1px 1px rgb(0 0 0 / 0.1), 0px 1px 2px rgb(0 0 0 / 0.1), 0px 2px 4px rgb(0 0 0 / 0.1)",
+        },
+        ".text-shadow-lg": {
+          textShadow:
+            "0px 1px 2px rgb(0 0 0 / 0.1), 0px 3px 2px rgb(0 0 0 / 0.1), 0px 4px 8px rgb(0 0 0 / 0.1)",
+        },
+        ".text-shadow-none": { textShadow: "none" },
+      });
+    },
+  ],
 };

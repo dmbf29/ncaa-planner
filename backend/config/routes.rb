@@ -108,6 +108,7 @@ Rails.application.routes.draw do
           to: "dynasty_portals#roster"
       get "dynasties/:dynasty_id/teams", to: "dynasty_portals#teams"
       get "dynasties/:dynasty_id/player_stats", to: "dynasty_portals#player_stats"
+      get "dynasties/:dynasty_id/seasons/:season_id/student_seasons", to: "dynasty_portals#student_seasons"
       get "dynasties/:dynasty_id/seasons/:season_id/weeks/:week_number/games", to: "dynasty_portals#week_games"
     end
   end

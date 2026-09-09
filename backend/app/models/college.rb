@@ -1,4 +1,6 @@
 class College < ApplicationRecord
+  has_one_attached :logo
+
   has_many :teams
   has_many :college_seasons, dependent: :destroy
   has_many :college_week_rankings, dependent: :destroy

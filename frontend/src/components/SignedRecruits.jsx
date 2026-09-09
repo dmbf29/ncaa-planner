@@ -1,4 +1,6 @@
+import { useState } from "react";
 import Card from "./Card";
+import ImportRecruitModal from "./ImportRecruitModal";
 import { weekLabel } from "./LeagueGameRow";
 
 // The screen's CLASS column, kept verbatim by the backend: "HS" for a high
@@ -10,7 +12,7 @@ function classYearLabel(recruit) {
   return recruit.classYear.replace(/^JC\s*\((\w+)\)$/i, "JUCO $1");
 }
 
-function RecruitRow({ recruit }) {
+function RecruitRow({ recruit, imported, onImportClick }) {
   const classLabel = classYearLabel(recruit);
 
   return (
@@ -20,9 +22,19 @@ function RecruitRow({ recruit }) {
           <span className="shrink-0 text-xs font-semibold text-burnt">{recruit.starRating}★</span>
         ) : null}
         <span className="text-xs text-textSecondary">{recruit.position}</span>
-        <span className="truncate text-textPrimary dark:text-white">{recruit.name}</span>
+        <button
+          type="button"
+          onClick={onImportClick}
+          className="truncate text-left text-textPrimary underline-offset-2 hover:text-burnt hover:underline dark:text-white"
+          title="Import into a squad board"
+        >
+          {recruit.name}
+        </button>
         {recruit.transfer && (
           <i className="fa-solid fa-right-left shrink-0 text-[10px] text-textSecondary" title="Portal transfer" />
+        )}
+        {imported && (
+          <i className="fa-solid fa-check shrink-0 text-[10px] text-success" title="Imported into a squad board" />
         )}
       </div>
       <span className="flex shrink-0 items-center gap-1.5 text-xs text-textSecondary">
@@ -34,17 +46,20 @@ function RecruitRow({ recruit }) {
   );
 }
 
-function TeamRecruits({ group }) {
+function TeamRecruits({ group, importedIds, onImportClick }) {
   return (
     <div className="mb-3 last:mb-0">
       <p className="mb-1 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-textSecondary">
         <span>{group.college.name}</span>
-        <span className="normal-case text-textSecondary/70">
-          {group.recruits.length} signed
-        </span>
+        <span className="normal-case text-textSecondary/70">{group.recruits.length} signed</span>
       </p>
       {group.recruits.map((recruit) => (
-        <RecruitRow key={recruit.id} recruit={recruit} />
+        <RecruitRow
+          key={recruit.id}
+          recruit={recruit}
+          imported={importedIds.has(recruit.id)}
+          onImportClick={() => onImportClick({ ...recruit, collegeName: group.college.name })}
+        />
       ))}
     </div>
   );
@@ -52,6 +67,8 @@ function TeamRecruits({ group }) {
 
 function SignedRecruits({ recruits }) {
   const groups = (recruits || []).filter((group) => group.recruits.length > 0);
+  const [activeRecruit, setActiveRecruit] = useState(null);
+  const [importedIds, setImportedIds] = useState(() => new Set());
 
   return (
     <Card className="overflow-hidden">
@@ -60,11 +77,26 @@ function SignedRecruits({ recruits }) {
       </div>
       <div className="px-4 py-3">
         {groups.length > 0 ? (
-          groups.map((group) => <TeamRecruits key={group.college.id} group={group} />)
+          groups.map((group) => (
+            <TeamRecruits
+              key={group.college.id}
+              group={group}
+              importedIds={importedIds}
+              onImportClick={setActiveRecruit}
+            />
+          ))
         ) : (
           <p className="text-sm text-textSecondary">No recruits signed yet this season.</p>
         )}
       </div>
+
+      {activeRecruit && (
+        <ImportRecruitModal
+          recruit={activeRecruit}
+          onClose={() => setActiveRecruit(null)}
+          onImported={(recruit) => setImportedIds((prev) => new Set(prev).add(recruit.id))}
+        />
+      )}
     </Card>
   );
 }

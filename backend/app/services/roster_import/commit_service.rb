@@ -27,6 +27,11 @@ module RosterImport
       student_season.overall = row[:overall].presence&.to_i
       student_season.nil_amount = row[:nil_amount].presence&.to_i
       student_season.speed = row[:speed].presence&.to_i
+      student_season.acceleration = row[:acceleration].presence&.to_i
+      student_season.agility = row[:agility].presence&.to_i
+      student_season.change_of_direction = row[:change_of_direction].presence&.to_i
+      student_season.strength = row[:strength].presence&.to_i
+      student_season.awareness = row[:awareness].presence&.to_i
       student_season.save!
       nil
     rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound => e

@@ -130,4 +130,138 @@ namespace :dynasty do
       sleep(5)
     end
   end
+
+  # One-off: the first season's student_seasons were scraped before the
+  # combine-attribute columns existed, so ScrapeStudentsJob only kept SPD.
+  # This re-fetches each roster from the same source and fills ONLY the new
+  # columns (strength/agility/acceleration/change_of_direction/awareness) on
+  # student_seasons that already exist — it never creates rows and never
+  # touches overall/class_year/position/nil_amount/dev_trait, so anything
+  # hand-corrected since the initial scrape is left alone.
+  #
+  #   rake dynasty:backfill_combine_attributes                 # every college in 2026
+  #   rake "dynasty:backfill_combine_attributes[2026,Georgia]" # one college, to spot-check
+  #   DRY_RUN=1 rake "dynasty:backfill_combine_attributes[2026,Georgia]"
+  desc "Backfill combine-attribute columns on the first season's rosters from the scrape source"
+  task :backfill_combine_attributes, [ :year, :college ] => :environment do |_task, args|
+    require "open-uri"
+    require "nokogiri"
+
+    year = (args[:year] || 2026).to_i
+    dry_run = ENV["DRY_RUN"].present?
+
+    # Scrape header text => student_seasons column. SPD is included only as a
+    # match check — it should already equal the stored speed, so a mismatch
+    # means we lined up the wrong player and should skip that row.
+    header_to_column = {
+      "SPD" => :speed,
+      "STR" => :strength,
+      "AGI" => :agility,
+      "ACC" => :acceleration,
+      "COD" => :change_of_direction,
+      "AWR" => :awareness
+    }
+    new_columns = %i[strength agility acceleration change_of_direction awareness]
+
+    scrape_rows = lambda do |url|
+      doc = Nokogiri::HTML.parse(URI.parse(url).open)
+      table = doc.at_css("table")
+      return [] unless table
+
+      headers = table.css("thead th").map { |th| th.text.strip }
+      attribute_headers = headers[4..] || []
+
+      table.css("tbody tr").filter_map do |row|
+        cells = row.css("> td")
+        name = cells[0].at_css("a")&.text&.strip&.sub(/\*+\z/, "")&.strip
+        next if name.blank?
+
+        values = attribute_headers.each_with_index.each_with_object({}) do |(header, i), acc|
+          column = header_to_column[header]
+          acc[column] = cells[4 + i].text.strip.to_i if column
+        end
+        [ name, values ]
+      end.to_h
+    end
+
+    college_seasons = CollegeSeason.joins(:season).where(seasons: { year: year }).includes(:college, student_seasons: :student)
+    college_seasons = college_seasons.where(colleges: { name: args[:college] }) if args[:college].present?
+    college_seasons = college_seasons.to_a
+
+    puts "#{dry_run ? '[DRY RUN] ' : ''}Backfilling #{new_columns.join(', ')} for #{college_seasons.size} college season(s) in #{year}"
+
+    totals = Hash.new(0)
+
+    college_seasons.each do |college_season|
+      college = college_season.college
+      unless college.api_id
+        puts "  #{college.name}: no api_id, skipping"
+        next
+      end
+
+      begin
+        scraped = scrape_rows.call(college.scraping_url)
+      rescue OpenURI::HTTPError, SocketError, Errno::ECONNRESET => e
+        puts "  #{college.name}: fetch failed (#{e.class}: #{e.message}), skipping"
+        totals[:fetch_failed] += 1
+        next
+      end
+
+      if scraped.empty?
+        puts "  #{college.name}: no rows parsed from #{college.scraping_url}, skipping"
+        totals[:empty] += 1
+        next
+      end
+
+      updated = 0
+      unmatched = []
+      speed_mismatch = []
+      by_name = college_season.student_seasons.group_by { |ss| ss.student.name.downcase }
+
+      scraped.each do |name, values|
+        matches = by_name[name.downcase]
+        if matches.blank?
+          next
+        elsif matches.size > 1
+          # Same display name twice on one roster — can't safely pick, leave for manual review.
+          unmatched << "#{name} (#{matches.size} student_seasons share this name)"
+          next
+        end
+
+        student_season = matches.first
+        if values[:speed] && student_season.speed && values[:speed] != student_season.speed
+          speed_mismatch << "#{name} (scrape SPD #{values[:speed]} vs stored #{student_season.speed})"
+          next
+        end
+
+        attrs = values.slice(*new_columns)
+        next if attrs.empty?
+
+        student_season.assign_attributes(attrs)
+        if student_season.changed?
+          student_season.save!(validate: false) unless dry_run
+          updated += 1
+        end
+      end
+
+      scraped_names = scraped.keys.map(&:downcase).to_set
+      missing_from_scrape = college_season.student_seasons.count { |ss| scraped_names.exclude?(ss.student.name.downcase) }
+
+      puts "  #{college.name}: #{updated} updated, #{missing_from_scrape} roster player(s) not on scrape page" \
+           "#{unmatched.any? ? ", #{unmatched.size} ambiguous" : ''}" \
+           "#{speed_mismatch.any? ? ", #{speed_mismatch.size} SPD mismatch" : ''}"
+      unmatched.each { |line| puts "      ambiguous: #{line}" }
+      speed_mismatch.each { |line| puts "      SPD mismatch (skipped): #{line}" }
+
+      totals[:updated] += updated
+      totals[:ambiguous] += unmatched.size
+      totals[:speed_mismatch] += speed_mismatch.size
+      totals[:colleges] += 1
+
+      sleep(3) if college_seasons.size > 1
+    end
+
+    puts "#{dry_run ? '[DRY RUN] ' : ''}Done. #{totals[:colleges]} college season(s), #{totals[:updated]} student_seasons updated, " \
+         "#{totals[:ambiguous]} ambiguous, #{totals[:speed_mismatch]} SPD mismatch, #{totals[:fetch_failed]} fetch failures, #{totals[:empty]} empty."
+  end
 end

@@ -15,6 +15,7 @@ import ConferenceStandingsPage from "./pages/ConferenceStandingsPage";
 import Top25Page from "./pages/Top25Page";
 import AllAmericansPage from "./pages/AllAmericansPage";
 import RosterPage from "./pages/RosterPage";
+import SeasonPlayersPage from "./pages/SeasonPlayersPage";
 import PlayerStatsPage from "./pages/PlayerStatsPage";
 import WeekResultsPage from "./pages/WeekResultsPage";
 import ExportPage from "./pages/ExportPage";
@@ -60,6 +61,7 @@ function App() {
           path="/dynasty/:dynastyId/seasons/:seasonId/college_seasons/:collegeSeasonId/roster"
           element={<RosterPage />}
         />
+        <Route path="/dynasty/:dynastyId/seasons/:seasonId/players" element={<SeasonPlayersPage />} />
         <Route path="/dynasty/:dynastyId/player-stats" element={<PlayerStatsPage />} />
         <Route path="/dynasty/:dynastyId/seasons/:seasonId/weeks/:weekNumber/games" element={<WeekResultsPage />} />
         <Route path="/dynasty/export" element={<ExportPage />} />
