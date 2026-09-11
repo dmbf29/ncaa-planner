@@ -39,9 +39,18 @@ module ScheduleStats
     def call(images)
       return { week_number: nil, rows: [], colleges: colleges_json } if images.blank?
 
-      week_number = fetch_week_number(images)
-      matchups = fetch_matchups(images)
-      results_by_row_number = fetch_results(images).index_by { |row| row["row_number"] }
+      # These three Claude calls don't depend on each other's output, so run
+      # them concurrently rather than back-to-back — sequentially they can
+      # add up to more than Heroku's 30s request timeout even though each
+      # call alone is well within it. Thread#value re-raises inside the
+      # caller, same as a plain sequential call would.
+      week_number_thread = Thread.new { fetch_week_number(images) }
+      matchups_thread = Thread.new { fetch_matchups(images) }
+      results_thread = Thread.new { fetch_results(images) }
+
+      week_number = week_number_thread.value
+      matchups = matchups_thread.value
+      results_by_row_number = results_thread.value.index_by { |row| row["row_number"] }
 
       rows = matchups.map { |row| build_row(row, results_by_row_number[row["row_number"]]) }
 
