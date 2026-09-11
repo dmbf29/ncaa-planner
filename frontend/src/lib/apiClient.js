@@ -193,11 +193,12 @@ export const deleteSeason = (dynastyId, seasonId) =>
 export const analyzeSchedule = (dynastyId, seasonId, files) => {
   const formData = new FormData();
   files.forEach((file) => formData.append("images[]", file));
+  const statusPath = `/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/analyze_schedule_status`;
   return api
     .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/analyze_schedule`, formData, {
       headers: { "Content-Type": "multipart/form-data" },
     })
-    .then((r) => r.data);
+    .then((r) => pollAnalysis(statusPath, r.data.token));
 };
 
 export const commitSchedule = (dynastyId, seasonId, weekId, rows) =>
@@ -362,19 +363,20 @@ export const fetchPortalStatuses = (dynastyId, seasonId, collegeId) =>
 
 export const fetchGame = (id) => api.get(`/api/v1/games/${id}`).then((r) => r.data);
 
-// Box score / player-stat extraction is ~20+ sequential Claude calls, run
-// in a background job rather than inline (see backend GameAnalysisJob) —
-// analyze/reanalyze return a token right away and this polls
-// analyze_status until the job finishes, so callers still just get back a
-// Promise<analysis> exactly like when this was synchronous.
+// Some AI extractions run long enough (many sequential Claude calls) that
+// the backend runs them as a background job instead of inline — see
+// GameAnalysisJob / ScheduleAnalysisJob. Those endpoints return a token
+// right away; this polls the matching *_status endpoint until the job
+// finishes, so callers still just get back a Promise<analysis> exactly
+// like when these were synchronous.
 const ANALYSIS_POLL_INTERVAL_MS = 1500;
 const ANALYSIS_POLL_TIMEOUT_MS = 5 * 60 * 1000;
 
-const pollGameAnalysis = async (id, token) => {
+const pollAnalysis = async (statusPath, token) => {
   const startedAt = Date.now();
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    const { data } = await api.get(`/api/v1/games/${id}/analyze_status`, { params: { token } });
+    const { data } = await api.get(statusPath, { params: { token } });
     if (data.status === "completed") return data.analysis;
     if (data.status === "failed") throw new Error(data.error || "AI extraction failed");
     if (Date.now() - startedAt > ANALYSIS_POLL_TIMEOUT_MS) {
@@ -391,7 +393,7 @@ export const analyzeGameStats = (id, buckets) => {
   buckets.away.forEach((file) => formData.append("away_images[]", file));
   return api
     .post(`/api/v1/games/${id}/analyze`, formData, { headers: { "Content-Type": "multipart/form-data" } })
-    .then((r) => pollGameAnalysis(id, r.data.token));
+    .then((r) => pollAnalysis(`/api/v1/games/${id}/analyze_status`, r.data.token));
 };
 
 // section is "boxScore" | "home" | "away" — re-runs extraction on that
@@ -399,7 +401,7 @@ export const analyzeGameStats = (id, buckets) => {
 export const reanalyzeGameStats = (id, section) =>
   api
     .post(`/api/v1/games/${id}/reanalyze`, { section: section === "boxScore" ? "box_score" : section })
-    .then((r) => pollGameAnalysis(id, r.data.token));
+    .then((r) => pollAnalysis(`/api/v1/games/${id}/analyze_status`, r.data.token));
 
 export const analyzeGameNarrative = (id, { collegeStats, playerStats }) =>
   api.post(`/api/v1/games/${id}/analyze_narrative`, { analysis: { collegeStats, playerStats } }).then((r) => r.data);

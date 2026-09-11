@@ -29,11 +29,11 @@ module Api
       def analyze
         authorize @game
         token = SecureRandom.uuid
-        box_score_blobs = GameStats::ExtractionService.attach_blobs(Array(params[:box_score_images]))
-        home_blobs = GameStats::ExtractionService.attach_blobs(Array(params[:home_images]))
-        away_blobs = GameStats::ExtractionService.attach_blobs(Array(params[:away_images]))
+        box_score_blobs = BlobUploader.attach_blobs(Array(params[:box_score_images]))
+        home_blobs = BlobUploader.attach_blobs(Array(params[:home_images]))
+        away_blobs = BlobUploader.attach_blobs(Array(params[:away_images]))
 
-        GameStats::AnalysisStatus.pending!(token)
+        AnalysisStatus.pending!(token)
         GameAnalysisJob.perform_later(
           game_id: @game.id,
           token: token,
@@ -57,7 +57,7 @@ module Api
         token = SecureRandom.uuid
         signed_ids = @game.public_send(attachment_name).map { |screenshot| screenshot.blob.signed_id }
 
-        GameStats::AnalysisStatus.pending!(token)
+        AnalysisStatus.pending!(token)
         GameAnalysisJob.perform_later(
           game_id: @game.id,
           token: token,
@@ -74,7 +74,7 @@ module Api
       # infinite poll.
       def analyze_status
         authorize @game
-        status = GameStats::AnalysisStatus.read(params[:token])
+        status = AnalysisStatus.read(params[:token])
 
         case status[:status]
         when "completed"

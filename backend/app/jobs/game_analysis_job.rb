@@ -3,7 +3,7 @@
 # Heroku's fixed 30s router timeout, which local dev (no such timeout) never
 # surfaced. GamesController#analyze/#reanalyze upload screenshots as blobs
 # and enqueue this job with their signed_ids (plain strings — ActiveJob
-# can't serialize a raw uploaded-file object); GameStats::AnalysisStatus is
+# can't serialize a raw uploaded-file object); AnalysisStatus is
 # how the controller's #analyze_status poll action reads the result back.
 class GameAnalysisJob < ApplicationJob
   queue_as :default
@@ -15,9 +15,9 @@ class GameAnalysisJob < ApplicationJob
       home_files: resolve_blobs(home_signed_ids),
       away_files: resolve_blobs(away_signed_ids)
     )
-    GameStats::AnalysisStatus.complete!(token, result)
+    AnalysisStatus.complete!(token, result)
   rescue RubyLLM::Error => e
-    GameStats::AnalysisStatus.failed!(token, "AI extraction failed: #{e.message}")
+    AnalysisStatus.failed!(token, "AI extraction failed: #{e.message}")
   end
 
   private

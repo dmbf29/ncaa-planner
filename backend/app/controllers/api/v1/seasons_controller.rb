@@ -20,12 +20,35 @@ module Api
         render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
       end
 
+      # Backgrounded — see ScheduleAnalysisJob for why. Uploads the
+      # screenshots as blobs right away (fast, no LLM call) and hands their
+      # signed_ids to the job; the frontend polls #analyze_schedule_status
+      # with the returned token for the result.
       def analyze_schedule
         authorize @season
-        result = ScheduleStats::WeekScheduleExtractor.new.call(Array(params[:images]))
-        render json: result
-      rescue RubyLLM::Error => e
-        render json: { error: "AI extraction failed: #{e.message}", code: "extraction_failed" }, status: :unprocessable_entity
+        token = SecureRandom.uuid
+        blobs = BlobUploader.attach_blobs(Array(params[:images]))
+
+        AnalysisStatus.pending!(token)
+        ScheduleAnalysisJob.perform_later(token: token, image_signed_ids: blobs.map(&:signed_id))
+        render json: { token: token, status: "pending" }, status: :accepted
+      end
+
+      def analyze_schedule_status
+        authorize @season
+        status = AnalysisStatus.read(params[:token])
+
+        case status[:status]
+        when "completed"
+          render json: { status: "completed", analysis: status[:result] }
+        when "failed"
+          render json: { status: "failed", error: status[:error], code: "extraction_failed" }, status: :unprocessable_entity
+        when "not_found"
+          render json: { status: "failed", error: "Analysis expired or not found — try again.", code: "extraction_failed" },
+                 status: :unprocessable_entity
+        else
+          render json: { status: "pending" }
+        end
       end
 
       def commit_schedule

@@ -34,6 +34,7 @@ Rails.application.routes.draw do
           member do
             get :team_attributes
             post :analyze_schedule
+            get :analyze_schedule_status
             post :commit_schedule
             post :analyze_all_americans
             post :commit_all_americans

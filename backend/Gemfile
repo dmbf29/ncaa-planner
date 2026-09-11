@@ -54,4 +54,5 @@ end
 
 # Custom Added
 gem "cloudinary"
+gem 'csv'
 gem "ruby_llm"

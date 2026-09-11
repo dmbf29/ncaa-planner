@@ -12,28 +12,14 @@ module GameStats
   # of-the-game pass is a separate opt-in step (see GamesController#analyze_narrative)
   # so games the user doesn't care to write up skip that extra AI call.
   class ExtractionService
-    # Turns freshly uploaded files into ActiveStorage blobs (Blobs already
-    # in the array — e.g. a reanalyze request — pass through untouched).
-    # Public and callable without an instance so GamesController can upload
-    # eagerly (fast, no LLM call) before handing signed_ids off to
-    # GameAnalysisJob, which can't serialize raw uploaded-file objects onto
-    # the job queue the way it can a plain string id.
-    def self.attach_blobs(files_or_blobs)
-      Array(files_or_blobs).map do |file|
-        next file if file.is_a?(ActiveStorage::Blob)
-
-        ActiveStorage::Blob.create_and_upload!(io: file, filename: file.original_filename, content_type: file.content_type)
-      end
-    end
-
     def initialize(game)
       @game = game
     end
 
     def call(box_score_files:, home_files:, away_files:)
-      box_score_blobs = self.class.attach_blobs(box_score_files)
-      home_blobs = self.class.attach_blobs(home_files)
-      away_blobs = self.class.attach_blobs(away_files)
+      box_score_blobs = BlobUploader.attach_blobs(box_score_files)
+      home_blobs = BlobUploader.attach_blobs(home_files)
+      away_blobs = BlobUploader.attach_blobs(away_files)
 
       home_roster = Roster.for(@game.home_college, season)
       away_roster = Roster.for(@game.away_college, season)

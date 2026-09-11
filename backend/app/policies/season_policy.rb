@@ -15,6 +15,10 @@ class SeasonPolicy < ApplicationPolicy
     owner?
   end
 
+  def analyze_schedule_status?
+    owner?
+  end
+
   def commit_schedule?
     owner?
   end
