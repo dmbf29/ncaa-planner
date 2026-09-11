@@ -362,6 +362,28 @@ export const fetchPortalStatuses = (dynastyId, seasonId, collegeId) =>
 
 export const fetchGame = (id) => api.get(`/api/v1/games/${id}`).then((r) => r.data);
 
+// Box score / player-stat extraction is ~20+ sequential Claude calls, run
+// in a background job rather than inline (see backend GameAnalysisJob) —
+// analyze/reanalyze return a token right away and this polls
+// analyze_status until the job finishes, so callers still just get back a
+// Promise<analysis> exactly like when this was synchronous.
+const ANALYSIS_POLL_INTERVAL_MS = 1500;
+const ANALYSIS_POLL_TIMEOUT_MS = 5 * 60 * 1000;
+
+const pollGameAnalysis = async (id, token) => {
+  const startedAt = Date.now();
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const { data } = await api.get(`/api/v1/games/${id}/analyze_status`, { params: { token } });
+    if (data.status === "completed") return data.analysis;
+    if (data.status === "failed") throw new Error(data.error || "AI extraction failed");
+    if (Date.now() - startedAt > ANALYSIS_POLL_TIMEOUT_MS) {
+      throw new Error("Analysis is taking longer than expected — try again in a bit.");
+    }
+    await new Promise((resolve) => setTimeout(resolve, ANALYSIS_POLL_INTERVAL_MS));
+  }
+};
+
 export const analyzeGameStats = (id, buckets) => {
   const formData = new FormData();
   buckets.boxScore.forEach((file) => formData.append("box_score_images[]", file));
@@ -369,13 +391,15 @@ export const analyzeGameStats = (id, buckets) => {
   buckets.away.forEach((file) => formData.append("away_images[]", file));
   return api
     .post(`/api/v1/games/${id}/analyze`, formData, { headers: { "Content-Type": "multipart/form-data" } })
-    .then((r) => r.data);
+    .then((r) => pollGameAnalysis(id, r.data.token));
 };
 
 // section is "boxScore" | "home" | "away" — re-runs extraction on that
 // section's already-attached screenshots instead of requiring a re-upload.
 export const reanalyzeGameStats = (id, section) =>
-  api.post(`/api/v1/games/${id}/reanalyze`, { section: section === "boxScore" ? "box_score" : section }).then((r) => r.data);
+  api
+    .post(`/api/v1/games/${id}/reanalyze`, { section: section === "boxScore" ? "box_score" : section })
+    .then((r) => pollGameAnalysis(id, r.data.token));
 
 export const analyzeGameNarrative = (id, { collegeStats, playerStats }) =>
   api.post(`/api/v1/games/${id}/analyze_narrative`, { analysis: { collegeStats, playerStats } }).then((r) => r.data);

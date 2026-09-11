@@ -11,6 +11,10 @@ class GamePolicy < ApplicationPolicy
     owner?
   end
 
+  def analyze_status?
+    owner?
+  end
+
   def analyze_narrative?
     owner?
   end
