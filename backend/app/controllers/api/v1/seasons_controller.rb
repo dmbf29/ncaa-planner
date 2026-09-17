@@ -30,7 +30,7 @@ module Api
         blobs = BlobUploader.attach_blobs(Array(params[:images]))
 
         AnalysisStatus.pending!(token)
-        ScheduleAnalysisJob.perform_later(token: token, image_signed_ids: blobs.map(&:signed_id))
+        ScheduleAnalysisJob.perform_later(token: token, season_id: @season.id, image_signed_ids: blobs.map(&:signed_id))
         render json: { token: token, status: "pending" }, status: :accepted
       end
 

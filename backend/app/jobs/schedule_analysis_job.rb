@@ -6,9 +6,10 @@
 class ScheduleAnalysisJob < ApplicationJob
   queue_as :default
 
-  def perform(token:, image_signed_ids:)
+  def perform(token:, season_id:, image_signed_ids:)
     images = Array(image_signed_ids).map { |signed_id| ActiveStorage::Blob.find_signed!(signed_id) }
-    result = ScheduleStats::WeekScheduleExtractor.new.call(images)
+    season = Season.find(season_id)
+    result = ScheduleStats::WeekScheduleExtractor.new.call(images, season: season)
     AnalysisStatus.complete!(token, result)
   rescue RubyLLM::Error => e
     AnalysisStatus.failed!(token, "AI extraction failed: #{e.message}")

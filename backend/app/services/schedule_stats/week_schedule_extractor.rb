@@ -36,25 +36,26 @@ module ScheduleStats
       the exact values shown. Only report a value if you can actually see it — never guess.
     PROMPT
 
-    def call(images)
-      return { week_number: nil, rows: [], colleges: colleges_json } if images.blank?
+    def call(images, season: nil)
+      return { week_id: nil, week_number: nil, week_label: nil, rows: [], colleges: colleges_json } if images.blank?
 
-      # These three Claude calls don't depend on each other's output, so run
-      # them concurrently rather than back-to-back — sequentially they can
-      # add up to more than Heroku's 30s request timeout even though each
-      # call alone is well within it. Thread#value re-raises inside the
-      # caller, same as a plain sequential call would.
-      week_number_thread = Thread.new { fetch_week_number(images) }
-      matchups_thread = Thread.new { fetch_matchups(images) }
-      results_thread = Thread.new { fetch_results(images) }
-
-      week_number = week_number_thread.value
-      matchups = matchups_thread.value
-      results_by_row_number = results_thread.value.index_by { |row| row["row_number"] }
+      # These three Claude calls don't depend on each other's output, but
+      # this now runs inside ScheduleAnalysisJob rather than an HTTP
+      # request, so there's no 30s deadline pushing them to run
+      # concurrently — sequential keeps memory flat (one image payload in
+      # flight at a time) and avoids fetch_matchups's college_names query
+      # (a real ActiveRecord call) running on an ad-hoc Thread.new spawned
+      # from a Solid Queue worker thread, which was leaving jobs stuck
+      # forever instead of failing cleanly, most likely an Active Record
+      # connection-pool deadlock from that pattern.
+      week_label = fetch_week_label(images)
+      week = resolve_week(season, week_label)
+      matchups = fetch_matchups(images)
+      results_by_row_number = fetch_results(images, matchups).index_by { |row| row["row_number"] }
 
       rows = matchups.map { |row| build_row(row, results_by_row_number[row["row_number"]]) }
 
-      { week_number: week_number, rows: rows, colleges: colleges_json }
+      { week_id: week&.id, week_number: week&.number, week_label: week_label, rows: rows, colleges: colleges_json }
     end
 
     private
@@ -63,12 +64,41 @@ module ScheduleStats
       RubyLLM.chat.with_instructions(SYSTEM_PROMPT)
     end
 
-    def fetch_week_number(images)
+    # Read as the raw header text rather than just the trailing digit — a
+    # bowl week's header reads "BOWL WEEK 1", which prints the same digit as
+    # regular-season "WEEK 1" but is a different Week record entirely (see
+    # Season#create_weeks: regular weeks are number 0-14, bowl weeks are
+    # number 16-19 with a "Bowl Week N" name). resolve_week below is what
+    # actually tells the two apart.
+    def fetch_week_label(images)
       schema = RubyLLM::Schema.create do
-        integer :week_number, description: "The number shown after 'WEEK' in the top-left header, e.g. 0 for 'WEEK 0'"
+        string :week_label, description: "The full header text shown at the top-left of these schedule screenshots, " \
+                                         "exactly as printed, e.g. 'WEEK 5', 'BOWL WEEK 1', or 'CONFERENCE CHAMPIONSHIP'."
       end
-      raw = chat.with_schema(schema).ask("What week number is shown at the top of these schedule screenshots?", with: images).content
-      raw["week_number"]
+      raw = chat.with_schema(schema).ask("What header text is shown at the top-left of these schedule screenshots?", with: images).content
+      raw["week_label"]
+    end
+
+    # Same deterministic label -> Week mapping idea as
+    # TeamSchedule::ScheduleExtractor#resolve_week, adapted to this screen's
+    # header format ("WEEK 5" / "BOWL WEEK 1" / "CONFERENCE CHAMPIONSHIP")
+    # rather than that one's WEEK-column format ("5" / "Bowl Week 1" / "Conf
+    # Champ"). A plain "WEEK N" is only matched against a regular-season
+    # week (not post_season/conference_championship) so it can never
+    # resolve to the same row a "BOWL WEEK N" header would.
+    def resolve_week(season, raw_label)
+      return nil if season.nil? || raw_label.blank?
+
+      normalized = raw_label.strip
+      return season.weeks.find_by(conference_championship: true) if normalized.match?(/conf(erence)?\s*champ/i)
+
+      bowl_match = normalized.match(/bowl\s*week\s*(\d+)/i)
+      return season.weeks.find_by(name: "Bowl Week #{bowl_match[1]}") if bowl_match
+
+      number_match = normalized.match(/\d+/)
+      return nil unless number_match
+
+      season.weeks.find_by(number: number_match[0].to_i, post_season: false, conference_championship: false)
     end
 
     def fetch_matchups(images)
@@ -106,7 +136,7 @@ module ScheduleStats
     # away-then-home order, confirmed against real screenshots. Asking the
     # model which side the first number belongs to (rather than assuming a
     # fixed order) is what actually resolves it correctly either way.
-    def fetch_results(images)
+    def fetch_results(images, matchups)
       schema = RubyLLM::Schema.create do
         array :games, description: "One entry per row in the TIME(ET)/RESULT column, in the same top-to-bottom order as the matchup table." do
           object do
@@ -128,7 +158,7 @@ module ScheduleStats
           end
         end
       end
-      raw = chat.with_schema(schema).ask(result_prompt, with: images).content
+      raw = chat.with_schema(schema).ask(result_prompt(matchups), with: images).content
       Array(raw["games"]).select { |row| row.is_a?(Hash) && row["row_number"].is_a?(Integer) }
     end
 
@@ -137,10 +167,22 @@ module ScheduleStats
         "Read every row in the GAME (if present), MATCHUP, and DATE columns, top to bottom, across all images."
     end
 
-    def result_prompt
+    # Grounds the away/home judgment in the matchup call's own (already
+    # correct) transcription instead of leaving this call to independently
+    # re-derive "which side is away" from the image on its own — without
+    # this, first_score_is_away has been observed getting flipped on
+    # individual rows even though the scores/abbreviations themselves are
+    # read correctly.
+    def result_prompt(matchups)
+      context = matchups.map { |row| "Row #{row['row_number']}: away team is #{row['away_raw_name']}, home team is #{row['home_raw_name']}." }
+                         .join("\n")
+
       "These screenshots together show one week's full schedule. For each row, read the TIME(ET)/RESULT " \
         "column: it shows a kickoff time if the game hasn't been played, or a final score (two team " \
-        "abbreviations each with a number) if it has."
+        "abbreviations each with a number) if it has. Here is which team is away and which is home for " \
+        "each row, already read from the MATCHUP column — use it to determine which side each score " \
+        "belongs to, since the two numbers are printed in whichever order the winner comes first, not a " \
+        "fixed away-then-home order:\n#{context}"
     end
 
     def build_row(matchup, result)

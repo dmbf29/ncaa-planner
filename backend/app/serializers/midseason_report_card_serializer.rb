@@ -149,14 +149,18 @@ class MidseasonReportCardSerializer
 
   # Every regular-season game (week 0 is preseason/exhibition, so it's
   # excluded same as the other broadcast serializers), tagged with whether
-  # it's been played and, if so, the result.
+  # it's been played and, if so, the result. Memoized per college_season
+  # since EndOfSeasonReportCardSerializer looks this up again for an
+  # opponent's own record (see opponent_final_record) — often the same
+  # opponent across several of our teams' schedules.
   def scheduled_games(college_season)
-    college_season.games
-                   .includes(:home_college, :away_college, :college_game_stats, week: :season)
-                   .map { |game| [ game, game.week ] }
-                   .reject { |_game, week| week.number.zero? }
-                   .sort_by { |_game, week| week.number }
-                   .map { |game, week| game_context(college_season, game, week) }
+    @scheduled_games_cache ||= {}
+    @scheduled_games_cache[college_season.id] ||= college_season.games
+                                                                  .includes(:home_college, :away_college, :college_game_stats, week: :season)
+                                                                  .map { |game| [ game, game.week ] }
+                                                                  .reject { |_game, week| week.number.zero? }
+                                                                  .sort_by { |_game, week| week.number }
+                                                                  .map { |game, week| game_context(college_season, game, week) }
   end
 
   def game_context(college_season, game, week)
@@ -225,10 +229,21 @@ class MidseasonReportCardSerializer
   def notable_game_json(game)
     {
       week_number: game[:week].number,
+      week_label: week_label_for(game[:week]),
       home: game[:home],
       opponent: college_json(game[:opponent_college], game[:opponent]&.conference),
       score: { team: game[:result][:team_score], opponent: game[:result][:opponent_score] }
     }
+  end
+
+  # A conference championship or bowl week reads better by its actual name
+  # than a bare week number — mirrors the same labeling SeasonWeeksSerializer
+  # uses for the weekly recap show.
+  def week_label_for(week)
+    return "Conference Championship" if week.conference_championship
+    return week.name.presence || "Bowl Game" if week.post_season
+
+    "Week #{week.number}"
   end
 
   def team_stats_json(college_season, games_played)
@@ -320,6 +335,7 @@ class MidseasonReportCardSerializer
   def played_game_json(game)
     {
       week_number: game[:week].number,
+      week_label: week_label_for(game[:week]),
       home: game[:home],
       opponent: college_json(game[:opponent_college], game[:opponent]&.conference),
       opponent_ratings: ratings_json(game[:opponent]),
@@ -331,6 +347,7 @@ class MidseasonReportCardSerializer
   def remaining_game_json(game)
     {
       week_number: game[:week].number,
+      week_label: week_label_for(game[:week]),
       home: game[:home],
       opponent: college_json(game[:opponent_college], game[:opponent]&.conference),
       opponent_ratings: ratings_json(game[:opponent]),

@@ -174,7 +174,8 @@ class PortalPreviewMarkdownPresenter
     detail = entry[:detail].present? ? " (#{entry[:detail]})" : ""
     persuasion = show_persuasion ? " — persuasion chance: #{PERSUASION_LABELS.fetch(entry[:persuasion_chance], entry[:persuasion_chance])}" : ""
     unmatched_note = entry[:matched] ? "" : " [unmatched to a roster record — verify]"
-    "- #{entry[:name]} (#{entry[:position]}, #{entry[:class_year]}, #{entry[:overall]} OVR) — #{status}#{detail}#{persuasion}#{unmatched_note}"
+    games_played = entry[:games_played].present? ? ", #{entry[:games_played]} GP" : ""
+    "- #{entry[:name]} (#{entry[:position]}, #{entry[:class_year]}, #{entry[:overall]} OVR#{games_played}) — #{status}#{detail}#{persuasion}#{unmatched_note}"
   end
 
   def most_important_section(entries)

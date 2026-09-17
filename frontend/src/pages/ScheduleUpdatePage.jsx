@@ -96,7 +96,7 @@ function GameRow({ row, colleges, onChange }) {
   );
 }
 
-function ScheduleReview({ weekNumber, weeks, selectedWeekId, onWeekChange, rows, colleges, onChange, onCommit, committing, error }) {
+function ScheduleReview({ weekNumber, detectedWeekLabel, weeks, selectedWeekId, onWeekChange, rows, colleges, onChange, onCommit, committing, error }) {
   const updateRow = (index, nextRow) => {
     if (nextRow === null) {
       onChange(rows.filter((_, i) => i !== index));
@@ -110,8 +110,8 @@ function ScheduleReview({ weekNumber, weeks, selectedWeekId, onWeekChange, rows,
       <div className="p-5 space-y-4">
         <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">Review Schedule</h3>
         <p className="text-sm text-textSecondary">
-          Detected <strong>Week {weekNumber ?? "?"}</strong> from the screenshots — confirm it below, fix any unmatched
-          colleges, then save.
+          Detected <strong>{detectedWeekLabel || `Week ${weekNumber ?? "?"}`}</strong> from the screenshots — confirm it below,
+          fix any unmatched colleges, then save.
         </p>
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-xs uppercase tracking-wide text-textSecondary">Week</span>
@@ -176,6 +176,7 @@ function ScheduleUpdatePage() {
   const [analyzeError, setAnalyzeError] = useState(null);
 
   const [weekNumber, setWeekNumber] = useState(null);
+  const [detectedWeekLabel, setDetectedWeekLabel] = useState(null);
   const [selectedWeekId, setSelectedWeekId] = useState("");
   const [rows, setRows] = useState(null);
   const [colleges, setColleges] = useState([]);
@@ -222,9 +223,18 @@ function ScheduleUpdatePage() {
     try {
       const result = await analyzeSchedule(dynastyId, seasonId, files);
       setWeekNumber(result.weekNumber);
+      setDetectedWeekLabel(result.weekLabel);
       setRows(result.rows);
       setColleges(result.colleges);
-      const matched = weeks.find((week) => week.number === result.weekNumber);
+      // result.weekId is resolved server-side against the season's real
+      // Week records (see WeekScheduleExtractor#resolve_week), which is
+      // what correctly tells a "BOWL WEEK 1" header apart from a regular
+      // "WEEK 1" one — both read the digit 1, but only one has week.number
+      // === 1. Only fall back to matching on the bare number (which can't
+      // make that distinction) if the backend couldn't resolve it at all.
+      const matched = result.weekId
+        ? weeks.find((week) => week.id === result.weekId)
+        : weeks.find((week) => week.number === result.weekNumber);
       const fallback = lastPlayedWeekNumber == null ? weeks[0] : weeks.find((week) => week.number === lastPlayedWeekNumber + 1);
       setSelectedWeekId(matched?.id || fallback?.id || "");
     } catch (err) {
@@ -334,6 +344,7 @@ function ScheduleUpdatePage() {
       ) : (
         <ScheduleReview
           weekNumber={weekNumber}
+          detectedWeekLabel={detectedWeekLabel}
           weeks={weeks}
           selectedWeekId={selectedWeekId}
           onWeekChange={setSelectedWeekId}

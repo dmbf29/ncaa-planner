@@ -85,16 +85,30 @@ class MidseasonReportCardMarkdownPresenter
 
   def grading_format_lines
     lines = [ "## 📋 GRADING FORMAT (PRODUCER NOTE, DO NOT READ ALOUD)", "" ]
-    GRADING_RULES.each { |rule| lines << "- #{rule}" }
+    grading_rules.each { |rule| lines << "- #{rule}" }
     lines << ""
     lines
   end
 
+  # Override point for EndOfSeasonReportCardMarkdownPresenter — the
+  # constant is referenced through a method (rather than directly in
+  # grading_format_lines above) so the subclass's own evidence list
+  # actually takes effect; a subclass redefining GRADING_RULES itself
+  # wouldn't, since Ruby resolves that constant lexically to whichever
+  # class the method body is written in.
+  def grading_rules
+    GRADING_RULES
+  end
+
   def pace_tone_lines
     lines = [ "## 🎰 TONE — NO STATS-SPEAK ON THE PACE TALK (PRODUCER NOTE, DO NOT READ ALOUD)", "" ]
-    PACE_TONE_RULES.each { |rule| lines << "- #{rule}" }
+    pace_tone_rules.each { |rule| lines << "- #{rule}" }
     lines << ""
     lines
+  end
+
+  def pace_tone_rules
+    PACE_TONE_RULES
   end
 
   def segments
@@ -196,7 +210,7 @@ class MidseasonReportCardMarkdownPresenter
 
   def notable_result_line(game)
     where = game[:home] ? "vs" : "@"
-    "Week #{game[:week_number]} #{where} #{game[:opponent][:name]} (#{game[:score][:team]}-#{game[:score][:opponent]})"
+    "#{game[:week_label]} #{where} #{game[:opponent][:name]} (#{game[:score][:team]}-#{game[:score][:opponent]})"
   end
 
   def team_stats_section(stats)
@@ -213,7 +227,7 @@ class MidseasonReportCardMarkdownPresenter
   end
 
   def stat_group_bullets(group)
-    return [ "- No stats logged yet" ] if group.blank? || group.values.all?(&:nil?)
+    return [ "- #{no_stats_message}" ] if group.blank? || group.values.all?(&:nil?)
 
     group.filter_map do |key, value|
       next unless value
@@ -226,6 +240,10 @@ class MidseasonReportCardMarkdownPresenter
         "- #{label}: #{value[:total]} total (#{value[:per_game]}/game)#{rank}"
       end
     end
+  end
+
+  def no_stats_message
+    "No stats logged yet"
   end
 
   def rank_suffix(rank)
@@ -250,7 +268,7 @@ class MidseasonReportCardMarkdownPresenter
     opp_ratings = g[:opponent_ratings]
     opp_summary = opp_ratings ? " (#{opp_ratings[:overall]} OVR)" : ""
     label = PROJECTION_LABELS.fetch(g[:pregame_projection], "")
-    "- #{outcome} #{score} — Week #{g[:week_number]} #{where} #{g[:opponent][:name]}#{opp_summary} — preseason had this as a #{label}"
+    "- #{outcome} #{score} — #{g[:week_label]} #{where} #{g[:opponent][:name]}#{opp_summary} — preseason had this as a #{label}"
   end
 
   def improve_your_grade_section
@@ -276,7 +294,7 @@ class MidseasonReportCardMarkdownPresenter
     opp_ratings = g[:opponent_ratings]
     opp_summary = opp_ratings ? " (#{opp_ratings[:overall]} OVR)" : ""
     label = PROJECTION_LABELS.fetch(g[:projection], "")
-    "- Week #{g[:week_number]} #{where} #{g[:opponent][:name]}#{opp_summary} — #{label}"
+    "- #{g[:week_label]} #{where} #{g[:opponent][:name]}#{opp_summary} — #{label}"
   end
 
   def ordinal(number)

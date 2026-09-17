@@ -72,7 +72,7 @@ module ScheduleStats
     def update_bowl(game, bowl_name)
       return if bowl_name.blank?
 
-      game.update!(bowl_name: bowl_name, cfp_round: CfpRoundInference.call(bowl_name))
+      game.update!(bowl_name: bowl_name, cfp_round: CfpRoundInference.call(bowl_name, week_number: @week.number))
     end
 
     def update_score(game, college, score)

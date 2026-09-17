@@ -104,7 +104,7 @@ class PortalPreviewSerializer
 
   def coached_college_seasons
     @coached_college_seasons ||= @season.college_seasons
-                                         .includes(:college, :coach, student_seasons: :student, portal_statuses: {})
+                                         .includes(:college, :coach, student_seasons: %i[student student_game_stats], portal_statuses: {})
                                          .where.not(coach_id: nil)
                                          .joins(:college)
                                          .order("colleges.name")
@@ -234,6 +234,7 @@ class PortalPreviewSerializer
       position: student_season ? student_season.position : portal_status.position,
       class_year: student_season ? student_season.class_year : portal_status.class_year,
       overall: student_season ? student_season.overall : portal_status.overall,
+      games_played: student_season&.student_game_stats&.size,
       status: portal_status.status,
       detail: detail_line(portal_status),
       persuasion_chance: portal_status.persuasion_chance,
