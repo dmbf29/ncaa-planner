@@ -363,6 +363,9 @@ export const fetchPortalStatuses = (dynastyId, seasonId, collegeId) =>
 
 export const fetchGame = (id) => api.get(`/api/v1/games/${id}`).then((r) => r.data);
 
+// attributes: { homeCollegeId, awayCollegeId, bowlName, cfpRound } — any subset.
+export const updateGame = (id, attributes) => api.patch(`/api/v1/games/${id}`, { game: attributes }).then((r) => r.data);
+
 // Some AI extractions run long enough (many sequential Claude calls) that
 // the backend runs them as a background job instead of inline — see
 // GameAnalysisJob / ScheduleAnalysisJob. Those endpoints return a token

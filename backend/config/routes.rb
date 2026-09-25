@@ -65,7 +65,7 @@ Rails.application.routes.draw do
         end
       end
 
-      resources :games, only: %i[show] do
+      resources :games, only: %i[show update] do
         member do
           post :analyze
           get :analyze_status

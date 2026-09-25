@@ -20,6 +20,17 @@ module Api
         render json: game_json
       end
 
+      # Manual matchup correction (wrong team matched on a schedule upload,
+      # bowl name typo, ...). See GameStats::UpdateGameService for what
+      # happens to already-saved stats when a team is swapped out.
+      def update
+        authorize @game
+        GameStats::UpdateGameService.new(@game).call(game_params)
+        render json: game_json(reload: true)
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { error: e.record.errors.full_messages.to_sentence, code: "unprocessable_entity" }, status: :unprocessable_entity
+      end
+
       # Extraction is ~20+ sequential Claude calls (box score field-groups +
       # per-team, per-category player stats) — too slow to run inline within
       # Heroku's fixed 30s request timeout. Uploads the screenshots as blobs
@@ -125,12 +136,22 @@ module Api
         @game = Game.find(params[:id])
       end
 
+      def game_params
+        attributes = params.require(:game).permit(:home_college_id, :away_college_id, :bowl_name, :cfp_round)
+        attributes[:bowl_name] = attributes[:bowl_name].presence if attributes.key?(:bowl_name)
+        attributes[:cfp_round] = attributes[:cfp_round].presence if attributes.key?(:cfp_round)
+        attributes
+      end
+
       def analysis_params
         params.require(:analysis).to_unsafe_h.deep_symbolize_keys
       end
 
       def game_json(reload: false)
-        @game.reload if reload
+        if reload
+          @game.reload
+          @home_roster = @away_roster = nil
+        end
 
         {
           id: @game.id,
@@ -143,6 +164,10 @@ module Api
           box_score_screenshots: screenshots_json(@game.box_score_screenshots),
           home_screenshots: screenshots_json(@game.home_stat_screenshots),
           away_screenshots: screenshots_json(@game.away_stat_screenshots),
+          # Top-level (not just inside existing_analysis) so a never-touched
+          # game can start a blank review for manual score/stat entry.
+          home_roster: home_roster,
+          away_roster: away_roster,
           existing_analysis: existing_analysis_json
         }
       end
@@ -170,9 +195,17 @@ module Api
             defense_player_of_game_id: @game.defensive_player_of_game_id,
             defense_player_stat_line: @game.defensive_player_stat_line
           },
-          home_roster: GameStats::Roster.for(@game.home_college, @game.week.season),
-          away_roster: GameStats::Roster.for(@game.away_college, @game.week.season)
+          home_roster: home_roster,
+          away_roster: away_roster
         }
+      end
+
+      def home_roster
+        @home_roster ||= GameStats::Roster.for(@game.home_college, @game.week.season)
+      end
+
+      def away_roster
+        @away_roster ||= GameStats::Roster.for(@game.away_college, @game.week.season)
       end
 
       def existing_college_stat_json(stat)

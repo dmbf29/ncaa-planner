@@ -4,7 +4,16 @@ import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import GameSummary from "../components/GameSummary";
 import ScreenshotLightbox from "../components/ScreenshotLightbox";
-import { analyzeGameNarrative, analyzeGameStats, reanalyzeGameStats, commitGameStats, fetchGame, API_BASE_URL } from "../lib/apiClient";
+import {
+  analyzeGameNarrative,
+  analyzeGameStats,
+  reanalyzeGameStats,
+  commitGameStats,
+  fetchColleges,
+  fetchGame,
+  updateGame,
+  API_BASE_URL,
+} from "../lib/apiClient";
 import {
   TEAM_STAT_GROUPS,
   FIELD_LABELS,
@@ -26,6 +35,14 @@ const EMPTY_NARRATIVE = {
 
 const EMPTY_PENDING_FILES = { boxScore: [], home: [], away: [] };
 const EMPTY_SECTION_STATUS = { boxScore: {}, home: {}, away: {} };
+
+const CFP_ROUND_OPTIONS = [
+  { value: "", label: "Not a CFP game" },
+  { value: "first_round", label: "First Round" },
+  { value: "quarterfinal", label: "Quarterfinal" },
+  { value: "semifinal", label: "Semifinal" },
+  { value: "championship", label: "National Championship" },
+];
 
 const PLAYER_CATEGORY_ORDER = ["passing", "rushing", "receiving", "defense"];
 const PLAYER_CATEGORY_LABELS = { passing: "Passing", rushing: "Rushing", receiving: "Receiving", defense: "Defense" };
@@ -513,6 +530,167 @@ function TeamPlayerStatsBody({ team, playerStats, onChange, roster }) {
   );
 }
 
+// Review-form state built from a fetched game. Rebuilt (not merged) after
+// a matchup edit, since team names key every stat row.
+const analysisFromGame = (data) =>
+  data.existingAnalysis
+    ? {
+        ...data.existingAnalysis,
+        collegeStats: normalizeCollegeStats(data.existingAnalysis.collegeStats, data.awayCollege, data.homeCollege),
+        boxScoreScreenshotSignedIds: [],
+        homeScreenshotSignedIds: [],
+        awayScreenshotSignedIds: [],
+      }
+    : null;
+
+// A never-touched game (no screenshots, no stats) starts with no review
+// form at all — this is the blank one for typing a score in by hand.
+const blankAnalysis = (game) => ({
+  boxScoreScreenshotSignedIds: [],
+  homeScreenshotSignedIds: [],
+  awayScreenshotSignedIds: [],
+  narrative: EMPTY_NARRATIVE,
+  collegeStats: normalizeCollegeStats([], game.awayCollege, game.homeCollege),
+  playerStats: [],
+  homeRoster: game.homeRoster || [],
+  awayRoster: game.awayRoster || [],
+});
+
+const matchupFormFromGame = (game) => ({
+  awayCollegeId: game.awayCollege.id,
+  homeCollegeId: game.homeCollege.id,
+  bowlName: game.bowlName || "",
+  cfpRound: game.cfpRound || "",
+});
+
+// Fixes a game's teams/bowl details by hand — e.g. a schedule upload that
+// matched "Arizona" when the screenshot said "Arizona St". Only mounted
+// while open, so colleges are only fetched when actually needed.
+function MatchupEditor({ game, hasUnsavedStats, onSaved, onClose }) {
+  const [colleges, setColleges] = useState([]);
+  const [form, setForm] = useState(() => matchupFormFromGame(game));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchColleges()
+      .then(setColleges)
+      .catch((err) => setError(err.message));
+  }, []);
+
+  const oldIds = [game.awayCollege.id, game.homeCollege.id];
+  const newIds = [form.awayCollegeId, form.homeCollegeId];
+  const replacedTeams = [game.awayCollege, game.homeCollege].filter((college) => !newIds.includes(college.id));
+  const hasPlayerStats = Boolean(game.existingAnalysis?.playerStats?.length || game.existingAnalysis?.narrative?.offensePlayerOfGameId);
+  const unchanged =
+    newIds.every((id, i) => id === oldIds[i]) &&
+    form.bowlName === (game.bowlName || "") &&
+    form.cfpRound === (game.cfpRound || "");
+
+  const handleSave = async () => {
+    if (hasUnsavedStats && !window.confirm("You have unsaved stat edits below — they'll be discarded. Continue?")) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = await updateGame(game.id, {
+        awayCollegeId: form.awayCollegeId,
+        homeCollegeId: form.homeCollegeId,
+        bowlName: form.bowlName,
+        cfpRound: form.cfpRound,
+      });
+      onSaved(updated);
+    } catch (err) {
+      setError(err.response?.data?.error || err.message);
+      setSaving(false);
+    }
+  };
+
+  const collegeSelect = (key) => (
+    <select
+      value={form[key] ?? ""}
+      onChange={(e) => setForm((prev) => ({ ...prev, [key]: Number(e.target.value) }))}
+      className={`${inputClass} border border-border ps-2`}
+    >
+      {colleges.length === 0 && <option value={form[key]}>Loading...</option>}
+      {colleges.map((college) => (
+        <option key={college.id} value={college.id}>
+          {college.name}
+        </option>
+      ))}
+    </select>
+  );
+
+  return (
+    <Card>
+      <div className="space-y-4 p-5">
+        <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">Edit Matchup</h3>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="flex flex-col gap-1 text-xs text-textSecondary">
+            <span>Away</span>
+            {collegeSelect("awayCollegeId")}
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-textSecondary">
+            <span>Home</span>
+            {collegeSelect("homeCollegeId")}
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-textSecondary">
+            <span>Bowl Name</span>
+            <input
+              type="text"
+              value={form.bowlName}
+              onChange={(e) => setForm((prev) => ({ ...prev, bowlName: e.target.value }))}
+              placeholder="Regular season game"
+              className={`${inputClass} border border-border ps-2`}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-textSecondary">
+            <span>CFP Round</span>
+            <select
+              value={form.cfpRound}
+              onChange={(e) => setForm((prev) => ({ ...prev, cfpRound: e.target.value }))}
+              className={`${inputClass} border border-border ps-2`}
+            >
+              {CFP_ROUND_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        {game.played && replacedTeams.length > 0 && (
+          <p className="rounded-md bg-warning/10 p-3 text-sm text-charcoal dark:text-white">
+            {replacedTeams.map((college) => college.name).join(" and ")}&rsquo;s team stats (score, yards, etc.) will carry
+            over to the replacement.
+            {hasPlayerStats && " Their player stats, injuries and player-of-the-game picks will be removed — re-upload that side's screenshots afterward."}
+          </p>
+        )}
+
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || unchanged || form.awayCollegeId === form.homeCollegeId}
+            className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {saving ? "Saving..." : "Save Matchup"}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-border px-4 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+          >
+            Cancel
+          </button>
+          {form.awayCollegeId === form.homeCollegeId && <p className="text-sm text-danger">Pick two different teams.</p>}
+          {error && <p className="w-full text-sm text-danger">{error}</p>}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function GameUpdatePage() {
   const { gameId } = useParams();
   const authed = Boolean(localStorage.getItem("jwt"));
@@ -531,6 +709,7 @@ function GameUpdatePage() {
   const openLightbox = (images, index) => setLightbox({ images, index });
 
   const [analysis, setAnalysis] = useState(null);
+  const [editingMatchup, setEditingMatchup] = useState(false);
   const [narrativeRunning, setNarrativeRunning] = useState(false);
   const [narrativeError, setNarrativeError] = useState(null);
   const [committing, setCommitting] = useState(false);
@@ -590,13 +769,7 @@ function GameUpdatePage() {
         const data = await fetchGame(gameId);
         setGame(data);
         if (authed && data.existingAnalysis) {
-          setAnalysis({
-            ...data.existingAnalysis,
-            collegeStats: normalizeCollegeStats(data.existingAnalysis.collegeStats, data.awayCollege, data.homeCollege),
-            boxScoreScreenshotSignedIds: [],
-            homeScreenshotSignedIds: [],
-            awayScreenshotSignedIds: [],
-          });
+          setAnalysis(analysisFromGame(data));
           // This is exactly what's in the DB — nothing to save until the
           // user edits something, so the button shouldn't open in "unsaved" state.
           setSaved(true);
@@ -714,6 +887,14 @@ function GameUpdatePage() {
     }
   };
 
+  const handleMatchupSaved = (updated) => {
+    setEditingMatchup(false);
+    setGame(updated);
+    setAnalysis(analysisFromGame(updated));
+    setSaved(true);
+    setCommitError(null);
+  };
+
   if (loading) {
     return (
       <div className="max-w-5xl mx-auto px-4">
@@ -736,12 +917,23 @@ function GameUpdatePage() {
         title={`${game.awayCollege.name} @ ${game.homeCollege.name}`}
         eyebrow={game.bowlName ? `${game.bowlName} · Week ${game.week.number}` : `Week ${game.week.number}`}
         actions={
-          <Link
-            to="/dynasty"
-            className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
-          >
-            Back to Dashboard
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            {authed && !editingMatchup && (
+              <button
+                type="button"
+                onClick={() => setEditingMatchup(true)}
+                className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+              >
+                Edit Matchup
+              </button>
+            )}
+            <Link
+              to="/dynasty"
+              className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+            >
+              Back to Dashboard
+            </Link>
+          </div>
         }
       />
 
@@ -749,6 +941,15 @@ function GameUpdatePage() {
         <GameSummary game={game} />
       ) : (
         <>
+          {editingMatchup && (
+            <MatchupEditor
+              game={game}
+              hasUnsavedStats={Boolean(analysis) && !saved}
+              onSaved={handleMatchupSaved}
+              onClose={() => setEditingMatchup(false)}
+            />
+          )}
+
           {game.played && (
             <p className="text-sm text-textSecondary">
               This game already has recorded stats — edit the fields below and save to update them.
@@ -767,7 +968,8 @@ function GameUpdatePage() {
               />
             ) : (
               <p className="text-sm text-textSecondary">
-                Upload and analyze the box score or player stats below first, then come back here to write a recap.
+                Upload and analyze the box score or player stats below (or enter them by hand) first, then come back here to
+                write a recap.
               </p>
             )}
           </AccordionSection>
@@ -784,6 +986,15 @@ function GameUpdatePage() {
               error={sectionStatus.boxScore.error}
               onOpenLightbox={openLightbox}
             />
+            {!analysis && (
+              <button
+                type="button"
+                onClick={() => updateAnalysis(blankAnalysis(game))}
+                className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+              >
+                Enter Stats Manually
+              </button>
+            )}
             {analysis && (
               <TeamStatsBody
                 collegeStats={analysis.collegeStats}

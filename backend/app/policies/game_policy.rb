@@ -3,6 +3,10 @@ class GamePolicy < ApplicationPolicy
     owner?
   end
 
+  def update?
+    owner?
+  end
+
   def analyze?
     owner?
   end
