@@ -1,18 +1,11 @@
 # "Portal Preview" episode: reviews our coached teams' roster status right
 # before the transfer portal opens, using PortalStatus rows uploaded from
-# each team's "players leaving" screen. A "transfer" or "pro_draft" status
-# means that player has ALREADY entered the portal/declared — there's no
-# "keep them from leaving" moment left to have. persuasion_chance is the
-# odds of talking them into RETURNING to campus instead, which is why
-# every player gets sorted into a risk tier: confirmed gone (graduating,
-# or already out with no real shot at a return), a genuine uncertain
-# return (already out, but a real shot at coming back), a likely return
-# (already out, but the numbers say they're probably coming back), or
-# presumed staying (never left at all). That tier drives the departure
-# lists and one half of position needs (a group's remaining depth once
-# every likely-gone player — confirmed departures AND uncertain returns —
-# is subtracted out; a below-medium persuasion chance rarely actually
-# converts in practice, so it's planned around as a loss, not a maybe).
+# each team's "players leaving" screen. Any "transfer", "pro_draft", or
+# "graduation" status is treated as a player who is leaving; "staying"
+# means the player considered leaving but decided to stay, and is listed
+# separately as a close call without counting as a loss. Leaving players
+# drive the departure lists and one half of position needs (a group's
+# remaining depth once every leaving player is subtracted out).
 # The other half of position needs has nothing to do with who's leaving:
 # it compares our starter at each individual position against the
 # conference-wide average starter at that same position, so a position
@@ -41,18 +34,7 @@ class PortalPreviewSerializer
   # counts as a real talent gap worth flagging, not just roster noise.
   STARTER_GAP_THRESHOLD = 5
 
-  # Persuasion chance bands, for a player already in the portal/draft
-  # (persuasion_chance is the odds of getting them back to campus, not the
-  # odds of having kept them from leaving in the first place):
-  # - not_applicable/none: no realistic path back — as good as gone.
-  # - extremely_low through medium: a genuine uncertain return, worth
-  #   tracking.
-  # - high and up: the numbers say they're probably coming back — still
-  #   worth a mention (they DID enter the portal), but not treated as a
-  #   real loss anywhere in the roster math.
-  CONFIRMED_PERSUASION = %w[not_applicable none].freeze
-  UNCERTAIN_RETURN_PERSUASION = %w[extremely_low very_low low medium].freeze
-  LIKELY_RETURN_PERSUASION = %w[high very_high extremely_high guaranteed].freeze
+  LEAVING_STATUSES = %w[transfer pro_draft graduation].freeze
 
   # A senior (no eligibility left regardless of the draft) who's also
   # pro_draft isn't an early exit — he was leaving via graduation either
@@ -92,8 +74,8 @@ class PortalPreviewSerializer
     {
       instructions: "Portal Preview for our #{coached_college_seasons.size} coached teams — a roster-planning " \
                     "look at who's graduating (seniors, whether or not they're also declaring for the draft), " \
-                    "who's declaring for the draft early as an underclassman with no real shot of coming back, " \
-                    "who's already in the portal with a genuine chance of returning to campus, which starters " \
+                    "who's declaring for the draft early as an underclassman, who's transferring out and why, " \
+                    "which starters " \
                     "are simply below the conference average at their position (whether they're leaving or " \
                     "not), which position groups are thin on bodies, and how much scholarship/roster room each " \
                     "coach has to fix it all, right before the transfer portal opens. Each team's segment ends " \
@@ -139,28 +121,8 @@ class PortalPreviewSerializer
     @college_seasons_by_conference ||= all_college_seasons.group_by(&:conference)
   end
 
-  def risk_tier(portal_status)
-    return "on_roster" unless portal_status
-    return "confirmed" if portal_status.status == "graduation"
-
-    if %w[transfer pro_draft].include?(portal_status.status)
-      return "confirmed" if CONFIRMED_PERSUASION.include?(portal_status.persuasion_chance)
-      return "uncertain_return" if UNCERTAIN_RETURN_PERSUASION.include?(portal_status.persuasion_chance)
-      return "likely_return" if LIKELY_RETURN_PERSUASION.include?(portal_status.persuasion_chance)
-    end
-
-    "likely_staying"
-  end
-
-  # For every roster-planning purpose (depth counts, roster-size math, the
-  # per-position starter flag) a confirmed departure and an uncertain
-  # return are treated identically — a below-medium persuasion chance
-  # rarely actually converts (in practice more like 1 in 15 than a coin
-  # flip), so planning around "he might come back" is planning around a
-  # long shot, not a real possibility. Only likely_return (high+) is
-  # treated as staying.
-  def likely_gone?(portal_status)
-    %w[confirmed uncertain_return].include?(risk_tier(portal_status))
+  def leaving?(portal_status)
+    LEAVING_STATUSES.include?(portal_status&.status)
   end
 
   # Prefers the matched student_season's class_year (authoritative) over
@@ -174,71 +136,66 @@ class PortalPreviewSerializer
   end
 
   def summary_json(enriched, departures)
-    tiers = enriched.map { |e| risk_tier(e[:portal_status]) }
-    severity_score = (departures[:graduating_seniors] + departures[:declaring_early] + departures[:slim_chance_of_return])
+    severity_score = (departures[:graduating_seniors] + departures[:declaring_early] + departures[:transferring])
                       .sum { |d| d[:overall] || 0 }
 
     {
       roster_size: enriched.size,
       graduating_seniors: departures[:graduating_seniors].size,
       declaring_early: departures[:declaring_early].size,
-      slim_chance_of_return: departures[:slim_chance_of_return].size,
-      likely_return: tiers.count("likely_return"),
-      likely_staying: tiers.count { |t| %w[on_roster likely_staying].include?(t) },
+      transferring: departures[:transferring].size,
+      decided_to_stay: departures[:decided_to_stay].size,
+      staying: enriched.count { |e| !leaving?(e[:portal_status]) },
       severity_score: severity_score
     }
   end
 
-  # Four narrative buckets, in order from "settled, no real drama" to
-  # "still a live storyline":
+  # Three departure buckets:
   # - graduating_seniors: a senior's career is over regardless of the
   #   draft — plain graduation and a senior's pro_draft entry are the same
   #   story, just with an extra draft-round detail on the latter.
-  # - declaring_early: an underclassman pro_draft entry with no realistic
-  #   persuasion path back — a real early exit, no drama left in it.
-  # - slim_chance_of_return: everyone still genuinely uncertain — an
-  #   uncertain_return entry (transfer or pro_draft) or the rare
-  #   unpersuadable transfer (no dedicated "settled" bucket of its own,
-  #   since transfer never implies a graduation/draft story the way
-  #   pro_draft or graduation do).
-  # - likely_return: unchanged — probably coming back.
+  # - declaring_early: an underclassman pro_draft entry — a real early
+  #   exit with eligibility left on the table.
+  # - transferring: in the portal, with the reason they gave.
+  # decided_to_stay isn't a departure at all — players who considered
+  # leaving but stayed — but it's built from the same rows, so it travels
+  # here as a close-calls list and is excluded from most_important.
   def departures_json(enriched, unmatched_statuses)
     matched = enriched.filter_map { |e| departure_entry(e[:student_season], e[:portal_status]) }
     unmatched = unmatched_statuses.filter_map { |ps| departure_entry(nil, ps) }
-    all = (matched + unmatched).sort_by { |d| -(d[:overall] || 0) }
+    listed = (matched + unmatched).sort_by { |d| -(d[:overall] || 0) }
+    decided_to_stay = listed.select { |d| d[:status] == "staying" }
+    all = listed - decided_to_stay
 
-    graduating_seniors = all.select { |d| d[:risk_tier] == "confirmed" && (d[:status] == "graduation" || d[:senior]) }
-    declaring_early = all.select { |d| d[:risk_tier] == "confirmed" && d[:status] == "pro_draft" && !d[:senior] }
-    confirmed_transfers = all.select { |d| d[:risk_tier] == "confirmed" && d[:status] == "transfer" }
-    slim_chance_of_return = (all.select { |d| d[:risk_tier] == "uncertain_return" } + confirmed_transfers)
-                             .sort_by { |d| -(d[:overall] || 0) }
-    likely_return = all.select { |d| d[:risk_tier] == "likely_return" }
+    graduating_seniors = all.select { |d| d[:status] == "graduation" || (d[:status] == "pro_draft" && d[:senior]) }
+    declaring_early = all.select { |d| d[:status] == "pro_draft" && !d[:senior] }
+    transferring = all.select { |d| d[:status] == "transfer" }
 
     {
       graduating_seniors: graduating_seniors,
       declaring_early: declaring_early,
-      slim_chance_of_return: slim_chance_of_return,
-      likely_return: likely_return,
-      most_important: (graduating_seniors + declaring_early + slim_chance_of_return).sort_by { |d| -(d[:overall] || 0) }.first(5)
+      transferring: transferring,
+      decided_to_stay: decided_to_stay,
+      most_important: all.first(5)
     }
   end
 
+  # overall prefers the screenshot's value: the portal screen is read at
+  # the end of the season, while the roster's overall is usually from the
+  # start of it, so the screenshot reflects in-season progression. Starter
+  # comparisons (starter_entries) stay on roster overalls, since the other
+  # teams in the conference only have roster data to compare against.
   def departure_entry(student_season, portal_status)
-    return nil unless portal_status
-
-    tier = risk_tier(portal_status)
-    return nil unless %w[confirmed uncertain_return likely_return].include?(tier)
+    return nil unless leaving?(portal_status) || portal_status&.status == "staying"
 
     {
       name: student_season ? student_season.student.name : portal_status.display_name,
       position: student_season ? student_season.position : portal_status.position,
       class_year: student_season ? student_season.class_year : portal_status.class_year,
-      overall: student_season ? student_season.overall : portal_status.overall,
+      overall: portal_status.overall || student_season&.overall,
       games_played: student_season&.student_game_stats&.size,
       status: portal_status.status,
       detail: detail_line(portal_status),
-      persuasion_chance: portal_status.persuasion_chance,
-      risk_tier: tier,
       senior: senior?(student_season, portal_status),
       matched: student_season.present?
     }
@@ -272,7 +229,7 @@ class PortalPreviewSerializer
     DEPTH_GROUPS.map do |group, config|
       positions = config[:positions]
       group_entries = enriched.select { |e| positions.include?(e[:student_season].position) }
-      remaining_entries = group_entries.reject { |e| likely_gone?(e[:portal_status]) }
+      remaining_entries = group_entries.reject { |e| leaving?(e[:portal_status]) }
 
       {
         position_group: group,
@@ -301,16 +258,15 @@ class PortalPreviewSerializer
       conf = conference_starter_average(college_season.conference, position)
       gap = conf[:average] && (conf[:average] - starter.overall).round(1)
       status = statuses_by_student_season_id[starter.id]
-      tier = risk_tier(status)
 
       {
         position: position,
-        starter: { name: starter.student.name, overall: starter.overall, risk_tier: tier },
+        starter: { name: starter.student.name, overall: starter.overall },
         conference_avg_starter_overall: conf[:average],
         conference_sample_size: conf[:sample_size],
         gap_to_average: gap,
         below_average: gap.present? && gap >= STARTER_GAP_THRESHOLD,
-        starter_leaving: likely_gone?(status)
+        starter_leaving: leaving?(status)
       }
     end
   end
@@ -344,14 +300,12 @@ class PortalPreviewSerializer
   # transfer both burn the same scholarship slot. roster_room_before_cuts_needed
   # is informational (the 85 cap is a trim-by-season-start deadline, not a
   # signing blocker), so it can go negative without meaning anything's
-  # actually wrong yet. Like the position-need depth math, this assumes
-  # every likely-gone player (confirmed + uncertain return) actually
-  # leaves — see likely_gone?.
+  # actually wrong yet.
   def roster_math_json(college_season, enriched)
     scholarships_used = college_season.signed_recruits.count
     current_roster_size = enriched.size
-    likely_departures = enriched.count { |e| likely_gone?(e[:portal_status]) }
-    projected_before_signees = current_roster_size - likely_departures
+    departures = enriched.count { |e| leaving?(e[:portal_status]) }
+    projected_before_signees = current_roster_size - departures
     projected_with_signees = projected_before_signees + scholarships_used
 
     {
@@ -367,9 +321,7 @@ class PortalPreviewSerializer
   end
 
   # Worst-hit-first, by total overall walking out the door (graduating
-  # seniors + early draft declarations + slim-chance-of-return combined —
-  # likely_return isn't counted, since those players are probably coming
-  # back) — a data backstop for the closing segment, not a verdict the app
+  # seniors + early draft declarations + transfers combined) — a data backstop for the closing segment, not a verdict the app
   # is rendering; the hosts do that. Per-category counts travel along so
   # the segment can say how many of each kind of departure hit each team,
   # not just a single blended score.
@@ -381,7 +333,7 @@ class PortalPreviewSerializer
              severity_score: t[:summary][:severity_score],
              graduating_seniors: t[:summary][:graduating_seniors],
              declaring_early: t[:summary][:declaring_early],
-             slim_chance_of_return: t[:summary][:slim_chance_of_return]
+             transferring: t[:summary][:transferring]
            }
          end
   end

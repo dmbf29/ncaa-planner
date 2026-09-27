@@ -33,7 +33,24 @@ module PositionBoardMapping
   OFFENSE_CODES = %w[QB HB RB FB WR TE OL OT OG LT RT LG RG C].freeze
   DEFENSE_CODES = %w[DE DT NT DL OLB ILB LB MLB LOLB ROLB MIKE SAM WILL LE RE CB DB S FS SS NB NICKEL].freeze
 
+  # Newer game screens (e.g. the "players leaving" portal screen) label some
+  # positions by their newer names, while rosters are stored under the older
+  # codes MAP is keyed on. Folding both to the older code lets the two be
+  # compared directly.
+  ALIASES = {
+    "LEDG" => "LE",
+    "REDG" => "RE",
+    "MIKE" => "MLB",
+    "SAM" => "LOLB",
+    "WILL" => "ROLB"
+  }.freeze
+
   module_function
+
+  def canonical(position_code)
+    code = position_code.to_s.strip.upcase
+    ALIASES.fetch(code, code)
+  end
 
   # Returns {squad:, board:} for a known code, a guessed {squad:, board: "OTHER"}
   # for an unrecognized-but-classifiable code, or nil if the squad can't be guessed.

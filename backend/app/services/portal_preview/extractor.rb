@@ -1,8 +1,10 @@
 module PortalPreview
   # Extracts one coached program's "players leaving" screen — the roster
   # status table shown ahead of the transfer portal, with a status
-  # (Transfer/Pro Draft/Staying/Graduation), a reason detail, and a
-  # persuasion chance per player.
+  # (Transfer/Pro Draft/Staying/Graduation) and a reason detail per player.
+  # The screen's persuasion chance column is deliberately not read: the
+  # game only shows it for your own team, so it can't be compared across
+  # our coached teams.
   #
   # The team is read off the header (top-left) the same way
   # RecruitmentTrail::Extractor does it — an unmatched header just leaves
@@ -12,15 +14,13 @@ module PortalPreview
   # RecruitmentTrail deals with — matching against the roster (once the
   # college is known) happens separately in Matcher, not here.
   #
-  # overall is transcribed for display/matching context only — it's NOT
-  # authoritative (it can have drifted from what's on the StudentSeason
-  # record since the screen was captured), so nothing downstream should
-  # treat it as a source of truth over the real roster data.
+  # overall is read at the end of the season, so it's usually newer than
+  # the StudentSeason's (start-of-season) overall. PortalPreviewSerializer
+  # uses it for the departure lists.
   class Extractor
     include CollegeMatching
 
     STATUSES = PortalStatus::STATUSES
-    PERSUASION_LEVELS = PortalStatus::PERSUASION_LEVELS
 
     SYSTEM_PROMPT = <<~PROMPT.freeze
       You are an expert at reading college football video game "players leaving"/roster outlook screens and
@@ -56,7 +56,6 @@ module PortalPreview
     def schema
       names = college_names
       statuses = STATUSES
-      persuasion_levels = PERSUASION_LEVELS
 
       RubyLLM::Schema.create do
         string :team_raw_name, description: "The team name shown in the top-left header, exactly as shown, e.g. 'BOWLING GREEN'"
@@ -80,9 +79,6 @@ module PortalPreview
             integer :projected_draft_round, required: false,
                     description: "Only when status is pro_draft: the number after 'Projected Round' in " \
                                  "parentheses. Leave unset otherwise."
-            string :persuasion_chance, enum: persuasion_levels,
-                   description: "The PERSUASION CHANCE column. Use 'not_applicable' for a dash/'---' (shown for " \
-                                "some players, typically seniors, who have no remaining eligibility to persuade)."
           end
         end
       end
@@ -104,8 +100,7 @@ module PortalPreview
         overall: row["overall"],
         status: row["status"],
         transfer_reason: row["transfer_reason"],
-        projected_draft_round: row["projected_draft_round"],
-        persuasion_chance: row["persuasion_chance"]
+        projected_draft_round: row["projected_draft_round"]
       }
     end
 

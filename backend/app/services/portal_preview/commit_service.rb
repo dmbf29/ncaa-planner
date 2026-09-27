@@ -14,7 +14,10 @@ module PortalPreview
   # (last_name, position, class_year) — the same natural key
   # Extractor#dedupe already collapses same-upload repeats on — which is
   # the best identity available for a player the app can't link to an
-  # actual roster record.
+  # actual roster record. A row that's already saved (carries its id) is
+  # updated by that id instead, so linking a previously-unmatched row to a
+  # roster player on the review screen relinks it in place rather than
+  # leaving the old unlinked row behind next to a new one.
   #
   # Each row commits independently; a validation failure is caught and
   # reported as a warning rather than aborting the rest of the batch,
@@ -57,13 +60,15 @@ module PortalPreview
         overall: row[:overall],
         status: row[:status],
         transfer_reason: row[:transfer_reason],
-        projected_draft_round: row[:projected_draft_round],
-        persuasion_chance: row[:persuasion_chance]
+        projected_draft_round: row[:projected_draft_round]
       )
       portal_status.save!
     end
 
     def find_or_initialize(row)
+      existing = @college_season.portal_statuses.find_by(id: row[:id]) if row[:id].present?
+      return existing if existing
+
       if row[:student_season_id].present?
         @college_season.portal_statuses.find_or_initialize_by(student_season_id: row[:student_season_id])
       else

@@ -9,7 +9,12 @@ module PortalPreview
   #
   # Failing to match is expected and fine (a stale/test screenshot, or a
   # player never scraped onto the roster) — an unmatched row is still worth
-  # keeping with its raw fields, just without a student_season link.
+  # keeping with its raw fields, just without a student_season link, and
+  # the reviewer can link it by hand on the review screen.
+  #
+  # Positions are compared via PositionBoardMapping.canonical, since this
+  # screen uses the newer labels (REDG, WILL, ...) while rosters are stored
+  # under the older codes (RE, ROLB, ...).
   class Matcher
     def initialize(college_season)
       @student_seasons = college_season.student_seasons.includes(:student).to_a
@@ -37,12 +42,12 @@ module PortalPreview
     def candidates_for(row)
       initial = row[:first_initial].to_s.strip[0]&.downcase
       last = row[:last_name].to_s.strip.downcase
-      position = row[:position].to_s.strip.downcase
+      position = PositionBoardMapping.canonical(row[:position])
 
       @student_seasons.select do |ss|
         ss.student.last_name.to_s.strip.downcase == last &&
           ss.student.first_name.to_s.strip[0]&.downcase == initial &&
-          ss.position.to_s.strip.downcase == position
+          PositionBoardMapping.canonical(ss.position) == position
       end
     end
   end

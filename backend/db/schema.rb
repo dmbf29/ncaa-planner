@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_09_11_060009) do
+ActiveRecord::Schema[8.0].define(version: 2026_09_27_001614) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -339,7 +339,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_09_11_060009) do
     t.string "status", null: false
     t.string "transfer_reason"
     t.integer "projected_draft_round"
-    t.string "persuasion_chance"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["college_season_id"], name: "index_portal_statuses_on_college_season_id"

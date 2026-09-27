@@ -245,7 +245,8 @@ module Api
       def portal_statuses
         authorize @season
         college_season = @season.college_seasons.find_by!(college_id: params[:college_id])
-        render json: { players: PortalPreview::CurrentStatuses.new.call(college_season) }
+        current_statuses = PortalPreview::CurrentStatuses.new
+        render json: { players: current_statuses.call(college_season), roster: current_statuses.roster(college_season) }
       end
 
       def coach_assignments

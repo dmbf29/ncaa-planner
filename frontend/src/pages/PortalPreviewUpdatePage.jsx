@@ -24,19 +24,6 @@ const STATUS_OPTIONS = [
   { value: "graduation", label: "Graduation" },
 ];
 
-const PERSUASION_OPTIONS = [
-  { value: "not_applicable", label: "— (not applicable)" },
-  { value: "none", label: "None" },
-  { value: "extremely_low", label: "Extremely Low" },
-  { value: "very_low", label: "Very Low" },
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
-  { value: "very_high", label: "Very High" },
-  { value: "extremely_high", label: "Extremely High" },
-  { value: "guaranteed", label: "Guaranteed" },
-];
-
 const MATCH_BADGE_CLASSES = {
   matched: "bg-success/10 text-success",
   ambiguous: "bg-warning/10 text-warning",
@@ -111,8 +98,53 @@ function MatchBadge({ status }) {
   );
 }
 
-function PlayerRow({ row, onChange }) {
+function rosterLabel(player) {
+  const initial = player.firstName ? `${player.firstName[0]}. ` : "";
+  return `${initial}${player.lastName} — ${player.position} ${player.classYear}${player.overall ? ` (${player.overall})` : ""}`;
+}
+
+// Lets the reviewer link (or re-link) a row to a roster player by hand when
+// the automatic match missed or picked the wrong player. Players already
+// linked to another row are left out so two rows can't claim the same one.
+function RosterLinkSelect({ row, roster, takenIds, onLink }) {
+  const options = roster.filter((player) => player.studentSeasonId === row.studentSeasonId || !takenIds.has(player.studentSeasonId));
+
+  return (
+    <select
+      value={row.studentSeasonId ?? ""}
+      onChange={(e) => {
+        const player = roster.find((p) => p.studentSeasonId === Number(e.target.value));
+        onLink(player ?? null);
+      }}
+      className={`${inputClass} mt-1 w-44 text-xs`}
+    >
+      <option value="">— link a player —</option>
+      {options.map((player) => (
+        <option key={player.studentSeasonId} value={player.studentSeasonId}>
+          {rosterLabel(player)}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function PlayerRow({ row, roster, takenIds, onChange }) {
   const update = (patch) => onChange({ ...row, ...patch });
+  const [linking, setLinking] = useState(false);
+  const showLinkSelect = roster.length > 0 && (linking || row.matchStatus !== "matched");
+
+  const handleLink = (player) => {
+    if (!player) {
+      update({ studentSeasonId: null, matchStatus: "unmatched" });
+      return;
+    }
+    update({
+      studentSeasonId: player.studentSeasonId,
+      firstInitial: player.firstName?.[0] ?? row.firstInitial,
+      matchStatus: "matched",
+    });
+    setLinking(false);
+  };
 
   return (
     <tr className="border-b border-border align-top dark:border-darkborder">
@@ -153,15 +185,15 @@ function PlayerRow({ row, onChange }) {
         )}
       </td>
       <td className="p-2">
-        <SelectInput
-          value={row.persuasionChance}
-          onChange={(persuasionChance) => update({ persuasionChance })}
-          options={PERSUASION_OPTIONS}
-          className={`${inputClass} w-36`}
-        />
-      </td>
-      <td className="p-2">
-        <MatchBadge status={row.matchStatus} />
+        <div className="flex items-center gap-2">
+          <MatchBadge status={row.matchStatus} />
+          {roster.length > 0 && row.matchStatus === "matched" && !linking && (
+            <button type="button" onClick={() => setLinking(true)} className="text-xs text-textSecondary hover:underline">
+              Change
+            </button>
+          )}
+        </div>
+        {showLinkSelect && <RosterLinkSelect row={row} roster={roster} takenIds={takenIds} onLink={handleLink} />}
       </td>
       <td className="p-2">
         <button type="button" onClick={() => onChange(null)} className="text-xs text-danger hover:underline">
@@ -183,7 +215,6 @@ function toRow(player) {
     status: player.status,
     transferReason: player.transferReason,
     projectedDraftRound: player.projectedDraftRound,
-    persuasionChance: player.persuasionChance,
     studentSeasonId: player.studentSeasonId,
     matchStatus: player.matchStatus,
   };
@@ -228,6 +259,7 @@ function PortalPreviewUpdatePage() {
   const [collegeId, setCollegeId] = useState(null);
   const [collegeRawName, setCollegeRawName] = useState(null);
   const [rows, setRows] = useState([]);
+  const [roster, setRoster] = useState([]);
   const [removedIds, setRemovedIds] = useState([]);
   const [loadingStatuses, setLoadingStatuses] = useState(false);
   const [statusesError, setStatusesError] = useState(null);
@@ -277,6 +309,7 @@ function PortalPreviewUpdatePage() {
     try {
       const result = await fetchPortalStatuses(dynastyId, seasonId, id);
       setRows((result.players || []).map(toRow));
+      setRoster(result.roster || []);
     } catch (err) {
       setStatusesError(err.message);
     } finally {
@@ -295,6 +328,7 @@ function PortalPreviewUpdatePage() {
       loadExistingStatuses(id);
     } else {
       setRows([]);
+      setRoster([]);
     }
   };
 
@@ -322,6 +356,7 @@ function PortalPreviewUpdatePage() {
           setCollegeId(detectedId);
           const existing = await fetchPortalStatuses(dynastyId, seasonId, detectedId);
           setRows(mergeRows((existing.players || []).map(toRow), newRows));
+          setRoster(existing.roster || []);
         } else {
           setRows((prev) => mergeRows(prev, newRows));
         }
@@ -362,6 +397,7 @@ function PortalPreviewUpdatePage() {
   };
 
   const unmatchedCount = rows.filter((row) => row.matchStatus === "unmatched").length;
+  const takenIds = new Set(rows.map((row) => row.studentSeasonId).filter(Boolean));
   const selectedTeamName = teams.find((t) => t.collegeId === collegeId)?.name;
 
   if (loading) {
@@ -415,9 +451,8 @@ function PortalPreviewUpdatePage() {
             </p>
             <p className="mt-1 text-xs text-textSecondary">
               A full roster is usually more pages than fit in one sitting — upload as many or as few screens as you
-              have right now, and come back and upload more later. This is also how you&rsquo;d record what
-              happened after a coach tries to persuade a player: take a new screenshot once the persuasion attempt
-              is resolved and upload just that page — it&rsquo;ll update the existing row rather than duplicate it.
+              have right now, and come back and upload more later. Re-uploading a page you&rsquo;ve already done
+              updates the existing rows rather than duplicating them.
             </p>
             <div className="mt-3">
               <FileDropZone title="Players Leaving Screenshots" hint="One team at a time." files={files} onFilesChange={setFiles} />
@@ -443,8 +478,7 @@ function PortalPreviewUpdatePage() {
                 {selectedTeamName || "Team"}&rsquo;s Portal Outlook
               </h3>
               <p className="text-sm text-textSecondary">
-                Edit anything directly — this is also where you&rsquo;d update a player&rsquo;s status or
-                persuasion chance by hand once you know how a persuasion attempt turned out, with no new
+                Edit anything directly — e.g. change a player&rsquo;s status by hand if it changes, with no new
                 screenshot needed.
               </p>
             </div>
@@ -455,7 +489,8 @@ function PortalPreviewUpdatePage() {
             {unmatchedCount > 0 && (
               <p className="text-xs text-warning">
                 {unmatchedCount} row{unmatchedCount === 1 ? "" : "s"} couldn&rsquo;t be matched to an existing roster
-                entry — they&rsquo;re still saved, just without a link to a specific player record.
+                entry — pick the right player in the Match column to link them, or leave them unlinked and
+                they&rsquo;ll still be saved, just without a link to a specific player record.
               </p>
             )}
 
@@ -463,7 +498,7 @@ function PortalPreviewUpdatePage() {
               <p className="text-sm text-textSecondary">No players on file yet for this team — upload a screenshot above to get started.</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[900px] border-collapse text-left">
+                <table className="w-full min-w-[1000px] border-collapse text-left">
                   <thead>
                     <tr className="border-b border-border text-xs uppercase tracking-wide text-textSecondary dark:border-darkborder">
                       <th className="p-2">Name</th>
@@ -472,14 +507,19 @@ function PortalPreviewUpdatePage() {
                       <th className="p-2">OVR</th>
                       <th className="p-2">Status</th>
                       <th className="p-2">Detail</th>
-                      <th className="p-2">Persuasion</th>
                       <th className="p-2">Match</th>
                       <th className="p-2"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {rows.map((row, index) => (
-                      <PlayerRow key={row.id ?? row.studentSeasonId ?? index} row={row} onChange={(next) => updateRow(index, next)} />
+                      <PlayerRow
+                        key={row.id ?? index}
+                        row={row}
+                        roster={roster}
+                        takenIds={takenIds}
+                        onChange={(next) => updateRow(index, next)}
+                      />
                     ))}
                   </tbody>
                 </table>

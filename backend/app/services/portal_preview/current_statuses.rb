@@ -4,9 +4,32 @@ module PortalPreview
   # existing data into the exact same editable review table an upload
   # produces — e.g. to record what happened after a coach tries to
   # persuade a few players to stay, without needing a fresh screenshot.
+  #
+  # Saved rows that were never linked to a roster record get another pass
+  # through Matcher, so a row saved before a matching fix (or before the
+  # player was on the roster) comes back with a suggested link the
+  # reviewer can keep by saving. The roster itself is returned alongside
+  # so the reviewer can link any remaining rows by hand.
   class CurrentStatuses
     def call(college_season)
-      college_season.portal_statuses.order(:last_name).map { |ps| row_json(ps) }
+      matcher = Matcher.new(college_season)
+      college_season.portal_statuses.order(:last_name).map do |ps|
+        row = row_json(ps)
+        row[:student_season_id].present? ? row : matcher.resolve_each([ row ]).first
+      end
+    end
+
+    def roster(college_season)
+      college_season.student_seasons.includes(:student).map do |ss|
+        {
+          student_season_id: ss.id,
+          first_name: ss.student.first_name,
+          last_name: ss.student.last_name,
+          position: ss.position,
+          class_year: ss.class_year,
+          overall: ss.overall
+        }
+      end.sort_by { |player| [ player[:last_name].to_s.downcase, player[:first_name].to_s.downcase ] }
     end
 
     private
@@ -23,7 +46,6 @@ module PortalPreview
         status: portal_status.status,
         transfer_reason: portal_status.transfer_reason,
         projected_draft_round: portal_status.projected_draft_round,
-        persuasion_chance: portal_status.persuasion_chance,
         match_status: portal_status.student_season_id.present? ? "matched" : "unmatched"
       }
     end
