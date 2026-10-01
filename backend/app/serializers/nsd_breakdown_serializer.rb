@@ -16,6 +16,10 @@
 class NsdBreakdownSerializer
   FRESHMAN_CLASS_YEAR = "FR".freeze
 
+  # The game tracks NIL as abstract points; Roster Breakdown converts them to
+  # dollars for the broadcast and so does this export, via the same constant.
+  DOLLARS_PER_NIL_POINT = TeamBreakdownSerializer::DOLLARS_PER_NIL_POINT
+
   # Kickers/punters are neither, so they're never picked as the top offensive
   # or defensive recruit.
   OFFENSE_GROUPS = [ "Quarterbacks", "Backfield", "Wide Receivers/Tight Ends", "Offensive Line" ].freeze
@@ -51,9 +55,12 @@ class NsdBreakdownSerializer
   end
 
   def coached_college_seasons
+    # preload (not includes): ordering by colleges.name would otherwise turn
+    # this into one JOIN across student_seasons x signed_recruits x
+    # portal_statuses, a huge cartesian product.
     @coached_college_seasons ||= @season.college_seasons
-                                         .includes(:college, :coach, :recruiting_season, :portal_statuses,
-                                                   student_seasons: :student, signed_recruits: :student)
+                                         .preload(:college, :coach, :recruiting_season, :portal_statuses,
+                                                  student_seasons: :student, signed_recruits: :student)
                                          .where.not(coach_id: nil)
                                          .joins(:college)
                                          .order("colleges.name")
@@ -65,13 +72,18 @@ class NsdBreakdownSerializer
     @conference_peers.fetch(conference, [])
   end
 
-  # student_id => overall this season, for linked transfers.
-  def transfer_overalls
-    @transfer_overalls ||= begin
+  # student_id => this season's StudentSeason (with its college), for linked
+  # transfers: gives both the overall they bring in and the school they left.
+  def transfer_seasons
+    @transfer_seasons ||= begin
       student_ids = coached_college_seasons.flat_map(&:signed_recruits).select(&:transfer).filter_map(&:student_id)
       StudentSeason.where(college_season_id: @season.college_seasons.select(:id), student_id: student_ids)
-                   .pluck(:student_id, :overall).to_h
+                   .includes(college_season: :college).index_by(&:student_id)
     end
+  end
+
+  def dollars(points)
+    points && points * DOLLARS_PER_NIL_POINT
   end
 
   def previous_season
@@ -97,7 +109,8 @@ class NsdBreakdownSerializer
   end
 
   def signee_json(recruit)
-    overall = recruit.transfer ? transfer_overalls[recruit.student_id] : recruit.overall
+    previous = recruit.transfer ? transfer_seasons[recruit.student_id] : nil
+    overall = recruit.transfer ? previous&.overall : recruit.overall
     {
       name: recruit.name,
       position: recruit.position,
@@ -106,8 +119,9 @@ class NsdBreakdownSerializer
       star_rating: recruit.star_rating,
       overall: overall,
       class_year: displayed_class_year(recruit),
+      from_college: previous&.college_season&.college&.name,
       national_rank: recruit.national_rank,
-      nil_amount: recruit.nil_amount
+      nil_dollars: dollars(recruit.nil_amount.to_i)
     }
   end
 
@@ -178,7 +192,7 @@ class NsdBreakdownSerializer
       best = signees.max_by { |s| [ s[:star_rating].to_i, -(s[:national_rank] || 9_999) ] }
       basis = "stars"
     end
-    best&.slice(:name, :position, :type, :star_rating, :class_year, :overall, :national_rank)&.merge(basis: basis)
+    best&.slice(:name, :position, :type, :star_rating, :class_year, :from_college, :overall, :national_rank)&.merge(basis: basis)
   end
 
   def average_of(values)
@@ -201,20 +215,26 @@ class NsdBreakdownSerializer
     }
   end
 
-  # Value for money: NIL spent on the class divided by the overall points it
-  # brought in (the sum of every signee's overall), so a lower number means
-  # more rating per NIL dollar. Built only from signees that have an overall,
-  # and `signees_counted` says how many that was, because a class with
-  # missing overalls would otherwise look cheaper than it really was.
+  # Value for money: dollars spent on the class divided by the overall points
+  # it brought in (the sum of every signee's overall), so a lower number means
+  # more rating per dollar. Built only from signees that have an overall, and
+  # `signees_counted` says how many that was, because a class with missing
+  # overalls would otherwise look cheaper than it really was.
   def value_json(college_season, signees)
     rated = signees.select { |s| s[:overall] }
     points = rated.sum { |s| s[:overall] }
-    spent = college_season.recruiting_season&.nil_spent || signees.sum { |s| s[:nil_amount].to_i }
+    spent = spent_dollars(college_season, signees)
     {
-      nil_per_overall_point: points.zero? ? nil : (spent.to_f / points).round(2),
+      dollars_per_overall_point: points.zero? ? nil : (spent.to_f / points).round,
       overall_points: points,
       signees_counted: rated.size
     }
+  end
+
+  # The league-wide recruiting upload when we have it (directly comparable to
+  # peers), otherwise the sum over our own signees.
+  def spent_dollars(college_season, signees)
+    dollars(college_season.recruiting_season&.nil_spent) || signees.sum { |s| s[:nil_dollars].to_i }
   end
 
   def ranking_comparison(college_season)
@@ -231,17 +251,15 @@ class NsdBreakdownSerializer
     }
   end
 
-  # The class's NIL spend is the league-wide upload when we have it, since it
-  # is directly comparable to peers; otherwise the sum over our own signees.
   def spend_json(college_season, signees)
-    spent = college_season.recruiting_season&.nil_spent || signees.sum { |s| s[:nil_amount].to_i }
-    peers = conference_peers(college_season.conference).filter_map { |cs| cs.recruiting_season&.nil_spent }
+    spent = spent_dollars(college_season, signees)
+    peers = conference_peers(college_season.conference).filter_map { |cs| dollars(cs.recruiting_season&.nil_spent) }
     {
       nil_spent: spent,
       conference_average: average_of(peers)&.round,
       conference_rank: peers.empty? ? nil : peers.count { |amount| amount > spent } + 1,
       conference_teams_compared: peers.size,
-      last_year: previous_recruiting(college_season)&.nil_spent
+      last_year: dollars(previous_recruiting(college_season)&.nil_spent)
     }
   end
 
@@ -252,8 +270,8 @@ class NsdBreakdownSerializer
   end
 
   def biggest_spend(signees)
-    top = signees.max_by { |s| s[:nil_amount].to_i }
-    top && top[:nil_amount].to_i.positive? ? top.slice(:name, :position, :type, :star_rating, :class_year, :overall, :nil_amount) : nil
+    top = signees.max_by { |s| s[:nil_dollars].to_i }
+    top && top[:nil_dollars].to_i.positive? ? top.slice(:name, :position, :type, :star_rating, :class_year, :from_college, :overall, :nil_dollars) : nil
   end
 
   # Groups still under their depth minimum once everyone leaving is gone and
@@ -289,7 +307,7 @@ class NsdBreakdownSerializer
         transfers_signed: t[:transfers][:signed],
         average_overall: t[:overall][:average_overall],
         nil_spent: t[:overall][:spend][:nil_spent],
-        nil_per_overall_point: t[:overall][:value][:nil_per_overall_point],
+        dollars_per_overall_point: t[:overall][:value][:dollars_per_overall_point],
         positions_of_worry: t[:overall][:positions_of_worry].map { |w| w[:position_group] }
       }
     end

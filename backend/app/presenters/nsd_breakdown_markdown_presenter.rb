@@ -47,8 +47,8 @@ class NsdBreakdownMarkdownPresenter
     "versus a poor value for the money spent, big overalls versus a thin or lopsided class, transfers " \
     "propping up a weak high school group, and roster depth worries. Each host should defend a position and " \
     "concede a point.",
-    "NIL per overall point is the value-for-money number: NIL spent divided by the total overall points the " \
-    "class brought in, so LOWER is better value. Use it to question a big spender or praise a bargain."
+    "Dollars per overall point is the value-for-money number: NIL dollars spent divided by the total overall " \
+    "points the class brought in, so LOWER is better value. Use it to question a big spender or praise a bargain."
   ].freeze
 
   def initialize(data)
@@ -169,21 +169,21 @@ class NsdBreakdownMarkdownPresenter
   end
 
   def spend_lines(spend, biggest)
-    text = "- NIL spent on the class: #{spend[:nil_spent]}"
+    text = "- NIL spent on the class: #{currency(spend[:nil_spent])}"
     if spend[:conference_rank]
-      text += " — ranks #{ordinal(spend[:conference_rank])} of #{spend[:conference_teams_compared]} in the conference for spend (conference average #{spend[:conference_average]})"
+      text += " — ranks #{ordinal(spend[:conference_rank])} of #{spend[:conference_teams_compared]} in the conference for spend (conference average #{currency(spend[:conference_average])})"
     end
-    text += "; last year they spent #{spend[:last_year]}" if spend[:last_year]
+    text += "; last year they spent #{currency(spend[:last_year])}" if spend[:last_year]
     lines = [ text ]
-    lines << "- Biggest spend on one player: #{player_text(biggest)} — #{biggest[:nil_amount]} NIL" if biggest
+    lines << "- Biggest spend on one player: #{player_text(biggest)} — #{currency(biggest[:nil_dollars])} in NIL" if biggest
     lines
   end
 
   def value_line(overall)
     value = overall[:value]
-    return "- Value for money: not available (no overalls on file)" unless value[:nil_per_overall_point]
+    return "- Value for money: not available (no overalls on file)" unless value[:dollars_per_overall_point]
 
-    "- Value for money: #{value[:nil_per_overall_point]} NIL per overall point (#{overall[:spend][:nil_spent]} NIL " \
+    "- Value for money: #{currency(value[:dollars_per_overall_point])} per overall point (#{currency(overall[:spend][:nil_spent])} " \
       "for #{value[:overall_points]} overall points; lower is better value)"
   end
 
@@ -242,8 +242,19 @@ class NsdBreakdownMarkdownPresenter
   end
 
   def player_text(player)
-    detail = [ player[:position], descriptor(player), ("#{player[:overall]} OVR" if player[:overall]) ].compact.join(", ")
+    detail = [ player[:position], descriptor(player), ("#{player[:overall]} OVR" if player[:overall]), origin(player) ].compact.join(", ")
     "#{player[:name]} (#{detail})"
+  end
+
+  # Where a transfer came from, when his previous roster is known.
+  def origin(player)
+    "from #{player[:from_college]}" if player[:type] == "transfer" && player[:from_college]
+  end
+
+  def currency(amount)
+    return "—" if amount.nil?
+
+    ActiveSupport::NumberHelper.number_to_currency(amount, precision: 0)
   end
 
   def ordinal(number)
@@ -269,8 +280,8 @@ class NsdBreakdownMarkdownPresenter
   end
 
   def reference_line(signee)
-    parts = [ signee[:position], descriptor(signee), ("#{signee[:overall]} OVR" if signee[:overall]),
-              ("national rank ##{signee[:national_rank]}" if signee[:national_rank]), ("NIL #{signee[:nil_amount]}" if signee[:nil_amount].to_i.positive?) ]
+    parts = [ signee[:position], descriptor(signee), ("#{signee[:overall]} OVR" if signee[:overall]), origin(signee),
+              ("national rank ##{signee[:national_rank]}" if signee[:national_rank]), ("NIL #{currency(signee[:nil_dollars])}" if signee[:nil_dollars].to_i.positive?) ]
     "#{signee[:name]} — #{parts.compact.join(', ')}"
   end
 
@@ -288,8 +299,8 @@ class NsdBreakdownMarkdownPresenter
     worries = entry[:positions_of_worry].presence&.join(", ") || "none"
     [ "- **#{entry[:college][:name]}**: class rank #{rank}; #{entry[:total_signed]} signees " \
       "(#{entry[:high_school_signed]} high school, #{entry[:transfers_signed]} transfers); average overall " \
-      "#{entry[:average_overall] || '—'}; #{entry[:nil_spent]} NIL spent; " \
-      "#{entry[:nil_per_overall_point] ? "#{entry[:nil_per_overall_point]} NIL per overall point" : 'value not available'}; " \
+      "#{entry[:average_overall] || '—'}; #{currency(entry[:nil_spent])} NIL spent; " \
+      "#{entry[:dollars_per_overall_point] ? "#{currency(entry[:dollars_per_overall_point])} per overall point" : 'value not available'}; " \
       "roster depth worries: #{worries}", "" ]
   end
 end
