@@ -1,27 +1,25 @@
-# "National Signing Day Breakdown" episode: judges how each coached team
-# RECRUITED, not how good the roster is (that's Roster Breakdown's job, and
-# ratings haven't progressed yet anyway). The question is "did the class
-# answer the needs?", so for every position group it sets what the team
-# lost (PortalStatus rows, same definition of "leaving" as Portal Preview)
-# against who signed (SignedRecruit rows), and grades the response.
+# "National Signing Day Breakdown" episode: how each coached team's recruiting
+# class shaped up, judged on numbers rather than roster strength (ratings
+# haven't progressed yet, so Roster Breakdown owns "how good is the room").
+# Per team it covers high school signees, portal transfers, and the class as a
+# whole (rank, spend, biggest spend, thin positions).
 #
-# Grading is about filling gaps, not about how good the signees are —
-# quality is a later conversation. A group's need is the larger of the
-# starters it lost (RosterNeeds::STARTER_SLOTS) and the bodies it's short of
-# its depth target once everyone leaving is gone; a signee at the position
-# fills one spot no matter his stars or overall. Stars, overall (entered for
-# high school/JUCO, or read from a transfer's previous-roster StudentSeason
-# with no progression applied) and national rank travel along as context for
-# the hosts only.
+# "Last season" comparisons use the roster as it stands now: ratings only move
+# at offseason progression, so the current student_seasons ARE last season's
+# numbers. Year-over-year class rank/spend comparisons need a prior season on
+# record and are simply omitted (nil) until there is one.
 #
-# Coverage grades per group (only groups with a need get one):
-#  - addressed: signed at least as many players as the need
-#  - patched: signed someone, but fewer than the need
-#  - ignored: a real need and nobody signed at the position
-# `overstocked` is separate: three or more signees beyond the need.
+# High school signee overalls are hand-entered (SignedRecruit#overall) and a
+# transfer's comes from his linked previous-roster StudentSeason; either can be
+# missing, so averages report how many overalls they were built from and the
+# "one to watch" falls back to stars/national rank when no overall exists.
 class NsdBreakdownSerializer
-  OVERSTOCK_MARGIN = 3
-  COVERAGE_CREDIT = { "addressed" => 1.0, "patched" => 0.5, "ignored" => 0.0 }.freeze
+  FRESHMAN_CLASS_YEAR = "FR".freeze
+
+  # Kickers/punters are neither, so they're never picked as the top offensive
+  # or defensive recruit.
+  OFFENSE_GROUPS = [ "Quarterbacks", "Backfield", "Wide Receivers/Tight Ends", "Offensive Line" ].freeze
+  DEFENSE_GROUPS = [ "Defensive Line", "Linebackers", "Secondary" ].freeze
 
   def initialize(season)
     @season = season
@@ -34,7 +32,7 @@ class NsdBreakdownSerializer
       focus: focus_json,
       season: { id: @season.id, year: @season.year, dynasty: @season.dynasty.name },
       teams: teams,
-      repair_ranking: repair_ranking_json(teams),
+      class_comparison: class_comparison_json(teams),
       data_coverage: data_coverage_json(teams)
     }
   end
@@ -44,13 +42,11 @@ class NsdBreakdownSerializer
   def focus_json
     {
       instructions: "National Signing Day Breakdown for our #{coached_college_seasons.size} coached teams — " \
-                    "a look at how each coach recruited: whether the class answered the roster's needs (who " \
-                    "left versus who signed, position by position), where the class ranks nationally and " \
-                    "against the rest of the conference, the biggest signing, and the biggest hole left open. " \
-                    "This is about the recruiting decisions, NOT how good the roster is — ratings haven't " \
-                    "progressed yet, so don't talk about how strong a position group is now. Each team's " \
-                    "segment ends with both hosts giving a pit-crew verdict, and the episode closes with the " \
-                    "hosts ranking our teams' offseason repair jobs."
+                    "how each recruiting class shaped up: the high school signees, the portal transfers, where " \
+                    "the class ranks nationally and in the conference, what was spent, and which positions are " \
+                    "still below the minimum. This is about the recruiting numbers, NOT how strong the roster is " \
+                    "— ratings haven't progressed yet. The episode closes with the hosts debating and ranking " \
+                    "our teams' classes from worst to best using the numbers."
     }
   end
 
@@ -78,20 +74,25 @@ class NsdBreakdownSerializer
     end
   end
 
+  def previous_season
+    return @previous_season if defined?(@previous_season)
+
+    @previous_season = @season.dynasty.seasons.find_by(year: @season.year - 1)
+  end
+
   def team_json(college_season)
     signees = college_season.signed_recruits.map { |sr| signee_json(sr) }
-    groups = RosterNeeds::DEPTH_GROUPS.keys.map { |group| group_json(college_season, group, signees) }
-    needs = groups.select { |g| g[:coverage] }
 
     {
       college: { id: college_season.college.id, name: college_season.college.name, conference: college_season.conference },
       coach: { id: college_season.coach.id, name: college_season.coach.name },
-      class_summary: class_summary_json(college_season, signees),
-      position_scorecard: groups,
-      needs_summary: needs_summary_json(needs, signees),
-      splash_signing: splash_json(signees),
-      biggest_hole: biggest_hole_json(needs),
-      roster_math: roster_math_json(college_season)
+      total_signed: signees.size,
+      signees: signees.sort_by { |s| [ -(s[:overall] || 0), -s[:star_rating].to_i ] },
+      high_school: high_school_json(college_season, signees.select { |s| s[:type] == "high_school" }),
+      juco_signed: signees.count { |s| s[:type] == "juco" },
+      players_to_watch: players_to_watch_json(signees),
+      transfers: transfers_json(college_season, signees.select { |s| s[:type] == "transfer" }),
+      overall: overall_json(college_season, signees)
     }
   end
 
@@ -104,12 +105,15 @@ class NsdBreakdownSerializer
       type: signee_type(recruit),
       star_rating: recruit.star_rating,
       overall: overall,
-      overall_source: overall && (recruit.transfer ? "previous roster" : "entered"),
+      class_year: displayed_class_year(recruit),
       national_rank: recruit.national_rank,
-      state: recruit.state,
-      nil_amount: recruit.nil_amount,
-      transfer_linked: recruit.transfer ? recruit.student_id.present? : nil
+      nil_amount: recruit.nil_amount
     }
+  end
+
+  # A transfer's CLASS column reads "TR (JR)"; only the "JR" is interesting.
+  def displayed_class_year(recruit)
+    recruit.class_year.to_s[/\(([^)]+)\)/, 1] || recruit.class_year
   end
 
   def signee_type(recruit)
@@ -118,176 +122,187 @@ class NsdBreakdownSerializer
     recruit.class_year.to_s.start_with?("JC") ? "juco" : "high_school"
   end
 
-  # ---- class level -------------------------------------------------------
+  # ---- high school ---------------------------------------------------------
 
-  def class_summary_json(college_season, signees)
+  def high_school_json(college_season, signees)
+    freshmen = college_season.student_seasons.select { |ss| ss.class_year == FRESHMAN_CLASS_YEAR && ss.overall }
+    average = average_of(signees.filter_map { |s| s[:overall] })
+    freshman_average = average_of(freshmen.map(&:overall))
+
+    {
+      signed: signees.size,
+      star_counts: (1..5).to_h { |stars| [ stars, signees.count { |s| s[:star_rating] == stars } ] },
+      average_overall: average,
+      overalls_entered: signees.count { |s| s[:overall] },
+      last_season_freshman_average: freshman_average,
+      last_season_freshman_count: freshmen.size,
+      difference_vs_freshmen: average && freshman_average && (average - freshman_average).round(1)
+    }
+  end
+
+  # ---- transfers -----------------------------------------------------------
+
+  def transfers_json(college_season, signees)
+    roster = college_season.student_seasons.filter_map(&:overall)
+    average = average_of(signees.filter_map { |s| s[:overall] })
+    team_average = average_of(roster)
+
+    {
+      signed: signees.size,
+      average_overall: average,
+      overalls_found: signees.count { |s| s[:overall] },
+      last_season_team_average: team_average,
+      difference_vs_team: average && team_average && (average - team_average).round(1)
+    }
+  end
+
+  # The team's headline signees: best high school signee, best transfer, and
+  # the best on each side of the ball (either kind of signee). Highest overall
+  # wins; a high school pick with no overall to go on falls back to the
+  # best-rated prospect (stars, then national rank) and `basis` says so. Side
+  # of the ball picks need an overall, so they're nil when nothing is rated.
+  def players_to_watch_json(signees)
+    {
+      high_school: pick(signees.select { |s| s[:type] == "high_school" }, stars_fallback: true),
+      transfer: pick(signees.select { |s| s[:type] == "transfer" }, stars_fallback: true),
+      offense: pick(signees.select { |s| OFFENSE_GROUPS.include?(s[:group]) }),
+      defense: pick(signees.select { |s| DEFENSE_GROUPS.include?(s[:group]) })
+    }
+  end
+
+  def pick(signees, stars_fallback: false)
+    rated = signees.select { |s| s[:overall] }
+    best = rated.max_by { |s| s[:overall] }
+    basis = "overall"
+    if best.nil? && stars_fallback && signees.any?
+      best = signees.max_by { |s| [ s[:star_rating].to_i, -(s[:national_rank] || 9_999) ] }
+      basis = "stars"
+    end
+    best&.slice(:name, :position, :type, :star_rating, :class_year, :overall, :national_rank)&.merge(basis: basis)
+  end
+
+  def average_of(values)
+    values.empty? ? nil : (values.sum.to_f / values.size).round(1)
+  end
+
+  # ---- the class as a whole ------------------------------------------------
+
+  def overall_json(college_season, signees)
     recruiting = college_season.recruiting_season
     {
-      total_signed: signees.size,
-      high_school: signees.count { |s| s[:type] == "high_school" },
-      juco: signees.count { |s| s[:type] == "juco" },
-      transfers: signees.count { |s| s[:type] == "transfer" },
-      star_counts: star_counts(signees),
-      average_stars: average_stars(signees),
-      nil_committed: signees.sum { |s| s[:nil_amount].to_i },
-      national: recruiting && national_json(recruiting),
-      conference_comparison: conference_comparison_json(college_season)
+      average_overall: average_of(signees.filter_map { |s| s[:overall] }),
+      value: value_json(college_season, signees),
+      national_ranking: recruiting&.ranking,
+      ranking_vs_conference: ranking_comparison(college_season),
+      last_year_ranking: previous_recruiting(college_season)&.ranking,
+      spend: spend_json(college_season, signees),
+      biggest_spend: biggest_spend(signees),
+      positions_of_worry: positions_of_worry(college_season, signees)
     }
   end
 
-  def star_counts(signees)
-    (1..5).to_h { |stars| [ stars, signees.count { |s| s[:star_rating] == stars } ] }
-  end
-
-  def average_stars(signees)
-    rated = signees.filter_map { |s| s[:star_rating] }
-    rated.empty? ? nil : (rated.sum.to_f / rated.size).round(2)
-  end
-
-  def national_json(recruiting)
+  # Value for money: NIL spent on the class divided by the overall points it
+  # brought in (the sum of every signee's overall), so a lower number means
+  # more rating per NIL dollar. Built only from signees that have an overall,
+  # and `signees_counted` says how many that was, because a class with
+  # missing overalls would otherwise look cheaper than it really was.
+  def value_json(college_season, signees)
+    rated = signees.select { |s| s[:overall] }
+    points = rated.sum { |s| s[:overall] }
+    spent = college_season.recruiting_season&.nil_spent || signees.sum { |s| s[:nil_amount].to_i }
     {
-      ranking: recruiting.ranking,
-      points: recruiting.points,
-      total_signed: recruiting.total_signed,
-      nil_spent: recruiting.nil_spent,
-      five_stars: recruiting.five_stars,
-      four_stars: recruiting.four_stars,
-      three_stars: recruiting.three_stars
+      nil_per_overall_point: points.zero? ? nil : (spent.to_f / points).round(2),
+      overall_points: points,
+      signees_counted: rated.size
     }
   end
 
-  # Where this class ranks among the conference's classes, by national
-  # ranking from the league-wide recruiting rankings upload. Peers without
-  # a ranking (data not uploaded) are left out and `teams_ranked` says how
-  # many were actually compared.
-  def conference_comparison_json(college_season)
+  def ranking_comparison(college_season)
     ranked = conference_peers(college_season.conference).select { |cs| cs.recruiting_season&.ranking }
                                                        .sort_by { |cs| cs.recruiting_season.ranking }
     return nil if ranked.empty? || college_season.recruiting_season&.ranking.nil?
 
+    best = ranked.first
     {
       conference: college_season.conference,
       teams_ranked: ranked.size,
-      conference_rank: ranked.index { |cs| cs.id == college_season.id }&.+(1),
-      standings: ranked.first(8).map do |cs|
-        { college: cs.college.name, national_ranking: cs.recruiting_season.ranking, points: cs.recruiting_season.points, ours: cs.coach_id.present? }
-      end
+      conference_rank: ranked.index { |cs| cs.id == college_season.id } + 1,
+      best_in_conference: { college: best.college.name, national_ranking: best.recruiting_season.ranking }
     }
   end
 
-  # ---- position groups ---------------------------------------------------
-
-  def group_json(college_season, group, all_signees)
-    config = RosterNeeds::DEPTH_GROUPS[group]
-    slots = RosterNeeds::STARTER_SLOTS[group]
-    roster = group_roster(college_season, config[:positions])
-    remaining = roster.reject { |entry| entry[:leaving] }
-    lost = roster.select { |entry| entry[:leaving] }
-    starters_lost = lost.select { |entry| roster.first(slots).include?(entry) }
-    need = [ starters_lost.size, [ config[:min_depth] - remaining.size, 0 ].max ].max
-    signees = all_signees.select { |s| s[:group] == group }
-
+  # The class's NIL spend is the league-wide upload when we have it, since it
+  # is directly comparable to peers; otherwise the sum over our own signees.
+  def spend_json(college_season, signees)
+    spent = college_season.recruiting_season&.nil_spent || signees.sum { |s| s[:nil_amount].to_i }
+    peers = conference_peers(college_season.conference).filter_map { |cs| cs.recruiting_season&.nil_spent }
     {
-      position_group: group,
-      need: need,
-      lost: lost.map { |entry| entry.slice(:name, :position, :overall, :status) },
-      starters_lost: starters_lost.map { |entry| entry.slice(:name, :position, :overall, :status) },
-      remaining_depth: remaining.size,
-      min_healthy_depth: config[:min_depth],
-      signees: signees,
-      coverage: coverage(need, signees),
-      overstocked: signees.size - need >= OVERSTOCK_MARGIN
+      nil_spent: spent,
+      conference_average: average_of(peers)&.round,
+      conference_rank: peers.empty? ? nil : peers.count { |amount| amount > spent } + 1,
+      conference_teams_compared: peers.size,
+      last_year: previous_recruiting(college_season)&.nil_spent
     }
   end
 
-  # Everyone the team had at the group before the offseason (matched
-  # roster players plus unmatched portal rows, which still carry their own
-  # position and overall), best overall first so the first STARTER_SLOTS
-  # entries are the starters.
-  def group_roster(college_season, positions)
+  def previous_recruiting(college_season)
+    return nil unless previous_season
+
+    previous_season.college_seasons.find_by(college_id: college_season.college_id)&.recruiting_season
+  end
+
+  def biggest_spend(signees)
+    top = signees.max_by { |s| s[:nil_amount].to_i }
+    top && top[:nil_amount].to_i.positive? ? top.slice(:name, :position, :type, :star_rating, :class_year, :overall, :nil_amount) : nil
+  end
+
+  # Groups still under their depth minimum once everyone leaving is gone and
+  # this class is counted. Without portal data nobody is known to be leaving,
+  # so those teams are flagged in data_coverage rather than trusted here.
+  def positions_of_worry(college_season, signees)
     statuses = college_season.portal_statuses.index_by(&:student_season_id)
-    matched = college_season.student_seasons.select { |ss| positions.include?(ss.position) }.map do |ss|
-      status = statuses[ss.id]
-      { name: ss.student.name, position: ss.position, overall: ss.overall || 0, leaving: RosterNeeds.leaving?(status), status: status&.status }
+    RosterNeeds::DEPTH_GROUPS.filter_map do |group, config|
+      remaining = college_season.student_seasons.count do |ss|
+        config[:positions].include?(ss.position) && !RosterNeeds.leaving?(statuses[ss.id])
+      end
+      projected = remaining + signees.count { |s| s[:group] == group }
+      next if projected >= config[:min_depth]
+
+      { position_group: group, projected_depth: projected, minimum: config[:min_depth], short_by: config[:min_depth] - projected }
     end
-    unmatched = college_season.portal_statuses.select { |ps| ps.student_season_id.nil? && positions.include?(PositionBoardMapping.canonical(ps.position)) }.map do |ps|
-      { name: ps.display_name, position: ps.position, overall: ps.overall || 0, leaving: RosterNeeds.leaving?(ps), status: ps.status }
-    end
-    (matched + unmatched).sort_by { |entry| -entry[:overall] }
   end
 
-  # nil when the group has no need at all (nobody starting lost, depth fine).
-  def coverage(need, signees)
-    return nil if need.zero?
-    return "ignored" if signees.empty?
+  # ---- cross-team ------------------------------------------------------------
 
-    signees.size >= need ? "addressed" : "patched"
-  end
-
-  def needs_summary_json(needs, signees)
-    addressed = needs.count { |g| g[:coverage] == "addressed" }
-    weights = needs.map { |g| g[:need] }
-    credit = needs.zip(weights).sum { |g, weight| COVERAGE_CREDIT[g[:coverage]] * weight }
-    {
-      groups_with_needs: needs.size,
-      addressed: addressed,
-      patched: needs.count { |g| g[:coverage] == "patched" },
-      ignored: needs.count { |g| g[:coverage] == "ignored" },
-      repair_score: weights.sum.zero? || signees.empty? ? nil : (100 * credit / weights.sum).round
-    }
-  end
-
-  def splash_json(signees)
-    return nil if signees.empty?
-
-    best = signees.max_by { |s| [ s[:star_rating].to_i, s[:overall].to_i, -(s[:national_rank] || 9_999) ] }
-    priciest = signees.max_by { |s| s[:nil_amount].to_i }
-    {
-      best_signee: best.slice(:name, :position, :type, :star_rating, :overall, :national_rank, :nil_amount),
-      biggest_nil_investment: priciest[:nil_amount].to_i.positive? ? priciest.slice(:name, :position, :type, :star_rating, :overall, :nil_amount) : nil
-    }
-  end
-
-  # The open need that cost the most: ignored before patched, then by how
-  # many starters walked out.
-  def biggest_hole_json(needs)
-    open = needs.select { |g| %w[ignored patched].include?(g[:coverage]) }
-    hole = open.max_by { |g| [ g[:coverage] == "ignored" ? 1 : 0, g[:starters_lost].size ] }
-    hole && hole.slice(:position_group, :coverage, :starters_lost, :remaining_depth, :min_healthy_depth)
-  end
-
-  def roster_math_json(college_season)
-    RosterNeeds.roster_math(
-      college_season,
-      roster_size: college_season.student_seasons.size,
-      departures: college_season.portal_statuses.count { |ps| RosterNeeds.leaving?(ps) }
-    )
-  end
-
-  # ---- cross-team --------------------------------------------------------
-
-  # Best repair job first, by repair_score — a data backstop for the closing
-  # segment; the hosts render the actual verdict and may disagree. Teams
-  # with no scored needs sort last.
-  def repair_ranking_json(teams)
-    teams.sort_by { |t| -(t[:needs_summary][:repair_score] || -1) }.map do |t|
+  # Side-by-side numbers for the closing debate. Deliberately NOT sorted by
+  # any measure (alphabetical) and carries no verdict: the hosts decide the
+  # order from the evidence, so handing them a ranking would just have them
+  # read it back.
+  def class_comparison_json(teams)
+    teams.sort_by { |t| t[:college][:name] }.map do |t|
       {
         college: t[:college],
-        repair_score: t[:needs_summary][:repair_score],
-        addressed: t[:needs_summary][:addressed],
-        groups_with_needs: t[:needs_summary][:groups_with_needs],
-        class_ranking: t[:class_summary][:national]&.dig(:ranking)
+        national_ranking: t[:overall][:national_ranking],
+        conference_rank: t[:overall][:ranking_vs_conference]&.dig(:conference_rank),
+        total_signed: t[:total_signed],
+        high_school_signed: t[:high_school][:signed],
+        transfers_signed: t[:transfers][:signed],
+        average_overall: t[:overall][:average_overall],
+        nil_spent: t[:overall][:spend][:nil_spent],
+        nil_per_overall_point: t[:overall][:value][:nil_per_overall_point],
+        positions_of_worry: t[:overall][:positions_of_worry].map { |w| w[:position_group] }
       }
     end
   end
 
   def data_coverage_json(teams)
     {
+      teams_without_signees: teams.select { |t| t[:total_signed].zero? }.map { |t| t[:college][:name] },
       teams_without_portal_data: coached_college_seasons.select { |cs| cs.portal_statuses.empty? }.map { |cs| cs.college.name },
-      teams_without_signees: teams.select { |t| t[:class_summary][:total_signed].zero? }.map { |t| t[:college][:name] },
-      high_school_without_overall: teams.sum { |t| t[:position_scorecard].sum { |g| g[:signees].count { |s| s[:type] != "transfer" && s[:overall].nil? } } },
-      transfers_without_overall: teams.sum { |t| t[:position_scorecard].sum { |g| g[:signees].count { |s| s[:type] == "transfer" && s[:overall].nil? } } },
-      signees_in_no_position_group: teams.sum { |t| t[:class_summary][:total_signed] - t[:position_scorecard].sum { |g| g[:signees].size } }
+      teams_without_class_ranking: teams.select { |t| t[:overall][:national_ranking].nil? }.map { |t| t[:college][:name] },
+      high_school_without_overall: teams.sum { |t| t[:high_school][:signed] - t[:high_school][:overalls_entered] },
+      transfers_without_overall: teams.sum { |t| t[:transfers][:signed] - t[:transfers][:overalls_found] },
+      last_year_comparisons_available: previous_season.present?
     }
   end
 end

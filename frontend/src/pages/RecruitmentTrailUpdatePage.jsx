@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import FileDropZone from "../components/FileDropZone";
+import SignedRecruits from "../components/SignedRecruits";
 import {
   fetchDynasties,
   fetchSeason,
@@ -44,6 +45,12 @@ function TextInput({ value, onChange, className = inputClass, placeholder, disab
       value={value ?? ""}
       placeholder={placeholder}
       disabled={disabled}
+      // These are player names, not account fields — keep password managers
+      // (1Password, LastPass, Bitwarden, Chrome autofill) from offering to fill them.
+      autoComplete="off"
+      data-1p-ignore
+      data-lpignore="true"
+      data-bwignore="true"
       onChange={(e) => onChange(e.target.value)}
       className={`${className} disabled:cursor-not-allowed disabled:opacity-60`}
     />
@@ -359,6 +366,7 @@ function RecruitmentTrailUpdatePage() {
   const [committing, setCommitting] = useState(false);
   const [commitError, setCommitError] = useState(null);
   const [saved, setSaved] = useState(false);
+  const [signedRecruits, setSignedRecruits] = useState([]);
   const [warnings, setWarnings] = useState([]);
   const [savedCounts, setSavedCounts] = useState({ saved: 0, skipped: 0 });
 
@@ -381,6 +389,7 @@ function RecruitmentTrailUpdatePage() {
         setSeasonId(latestSeason.id);
         const season = await fetchSeason(dynasty.id, latestSeason.id);
         setWeeks(season.teams?.[0]?.weeks || []);
+        setSignedRecruits(season.recruits || []);
         if (season.currentWeekNumber != null) setWeekNumber(String(season.currentWeekNumber));
       } catch (err) {
         setLoadError(err.message);
@@ -440,6 +449,8 @@ function RecruitmentTrailUpdatePage() {
       setWarnings(result.warnings || []);
       setSavedCounts({ saved: toSave.length, skipped: rows.length - toSave.length });
       setSaved(true);
+      // Pull the refreshed list so the recruits panel includes what was just saved.
+      fetchSeason(dynastyId, seasonId).then((season) => setSignedRecruits(season.recruits || [])).catch(() => {});
     } catch (err) {
       setCommitError(err.message);
     } finally {
@@ -582,6 +593,8 @@ function RecruitmentTrailUpdatePage() {
           error={commitError}
         />
       )}
+
+      <SignedRecruits recruits={signedRecruits} collapsible />
     </div>
   );
 }

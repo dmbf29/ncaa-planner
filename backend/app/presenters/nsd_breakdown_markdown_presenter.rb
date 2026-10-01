@@ -1,58 +1,54 @@
 # Renders the NsdBreakdownSerializer payload as Markdown for an LLM-based
-# podcast generator (e.g. NotebookLM). It's a recruiting-decisions
-# discussion — did each class answer the roster's needs — not a roster
-# rating review (that's Roster Breakdown) and not a loss report (Portal
-# Preview). See NsdBreakdownSerializer for how needs and quality are defined.
+# podcast generator (e.g. NotebookLM). Deliberately compact: one short block
+# per team (high school, transfers, the class overall), then the hosts rank
+# the classes. It's about recruiting numbers, not roster strength — that's
+# Roster Breakdown's job, and ratings haven't progressed yet.
 class NsdBreakdownMarkdownPresenter
-  COVERAGE_LABELS = {
-    "addressed" => "ADDRESSED", "patched" => "PATCHED", "ignored" => "IGNORED"
-  }.freeze
-
-  TYPE_LABELS = { "high_school" => "high school", "juco" => "JUCO", "transfer" => "portal transfer" }.freeze
-
-  # The app never picks one of these — see VERDICT_RULES. Ordered best to
-  # worst purely for reference in this file; nothing programmatic depends
+  # The app never picks one of these — see VERDICT_RULES. Ordered weakest to
+  # strongest purely for reference in this file; nothing programmatic depends
   # on the order.
   VERDICT_TAGS = [
-    "FULLY REPAIRED — the damage was fixed and then some, the class answered what the roster needed",
-    "PATCHED UP — the big holes are covered, a few spots are held together with tape",
-    "RUNNING ON A SPARE — drove off the lot, but there's a real problem nobody fixed",
-    "LIMPED OUT OF THE PITS — the needs were obvious and the class mostly didn't meet them"
+    "EMPTY BAR — barely loaded the class, nothing here to build a lineup on",
+    "WARM-UP SET — some weight on the bar, but nowhere near a real lift",
+    "WORKING SET — a solid, honest class that does the job",
+    "PERSONAL RECORD — a class that's the best lift this program has put up"
   ].freeze
 
   NSD_RULES = [
-    "This episode is about HOW EACH TEAM RECRUITED, not how good the roster or the signees are. Ratings have " \
-    "not progressed yet, so NEVER judge a position group's current strength or rating, and don't rate " \
-    "individual signees as good or bad — signee quality is a later conversation. The only question is whether " \
-    "the class filled the gaps: who walked out the door at a position versus who signed to replace them.",
-    "Each position group lists what was lost, what signed, and a coverage grade: ADDRESSED (signed at least as " \
-    "many players as the group needs), PATCHED (someone signed, but fewer than needed), IGNORED (a real need and " \
-    "nobody signed at the position). A group's need is the starters it lost or the bodies it's short of its " \
-    "depth target, whichever is larger. Groups with no need aren't graded. Talk about the actual players on " \
-    "both sides, in the language of the example: 'they lost two starting linebackers and brought in one.'",
-    "A signee fills a spot regardless of stars or overall — a solid 3 star replacing a departed starter is a " \
-    "perfectly good answer, especially when a capable player is already on the roster. Stars, overalls and " \
-    "national ranks are listed for color only; never invent one that isn't listed. Portal transfer overalls " \
-    "are what he had at his previous school, before offseason progression.",
-    "OVERSTOCKED means the team signed three or more players beyond the need at a group. That is not " \
-    "automatically good — if the same team ignored other groups, call out the lopsided class.",
-    "Compare each class to its conference using the national class ranking and conference standings when " \
-    "they're given. A top-ranked class that ignored its biggest hole is a better story than the ranking alone.",
-    "Spotlight each team's Splash Signing (the best-rated prospect) and Biggest NIL Investment as headlines, " \
-    "and always name the Biggest Hole Left Open and the specific lost starters behind it.",
-    "Use the scholarship and roster numbers to say what flexibility the coach has left: scholarships " \
-    "remaining and roster room mean they can still add; none left means the class is what it is."
+    "This episode is about HOW EACH TEAM RECRUITED — the numbers in the class — not how strong the roster is. " \
+    "Ratings have not progressed yet, so never judge a position group's current strength. Overalls here are " \
+    "what each signee brings in before offseason progression.",
+    "Each team has four parts: High School Signees, Transfers, Players to Watch, and the Class Overall. Cover " \
+    "them in that order, keep it moving, and don't read every number — pick the ones that tell the story.",
+    "The comparisons are the point. High school signees are compared to the team's true freshmen from last " \
+    "season; transfers are compared to the team's whole roster from last season; the class rank and spend are " \
+    "compared to the rest of the conference. 'Last season' means the roster as it stands now.",
+    "Players to Watch lists the best high school signee, the best transfer, and the best signee on offense and " \
+    "on defense by overall (one player can fill more than one slot). Name them, and also the player the team " \
+    "spent the most on. A high school signee is described by stars; a transfer by his class year. If a pick " \
+    "says 'no overall entered', don't quote an overall.",
+    "Roster Depth Worries are position groups that will be short on bodies on the roster once departures and " \
+    "this class are counted; the number is how many players the roster will have there. If none are listed, " \
+    "say the team's depth is covered.",
+    "Average overall is the whole class, high school and transfers together, as they arrive before offseason " \
+    "progression.",
+    "A comparison marked as unavailable (for example last year's class) is simply not discussed.",
+    "The SIGNING REFERENCE LIST at the very end is background only: use it to name-drop another signee when it " \
+    "helps a point, never to read through names. Only quote what's listed for a player; never invent a rating."
   ].freeze
 
   VERDICT_RULES = [
-    "Close every team's segment with both hosts giving their own one-line pit-crew verdict, picked from: " \
-    "#{VERDICT_TAGS.map { |t| t.split(' — ').first }.join(', ')} (worst). They don't have to agree — a split " \
-    "verdict is good radio. Ground it in the evidence: how many needs were addressed, whether the biggest " \
-    "hole got fixed, and how many spots went unfilled.",
-    "Close the whole episode with the hosts ranking our teams' repair jobs from best to worst. Use the " \
-    "closing section's repair scores as a data backstop, but argue with it if the eye test disagrees — a " \
-    "need at a premium position like quarterback or left tackle can matter more than several filled depth spots. A team whose " \
-    "class hasn't been logged yet has no score and shouldn't be ranked against the others."
+    "Close the whole episode with a real debate: the hosts rank our teams' classes from worst to best and each " \
+    "gives every team a one-line strength tag picked from: " \
+    "#{VERDICT_TAGS.map { |t| t.split(' — ').first }.join(', ')} (strongest). They don't have to agree on the " \
+    "order or a tag — a split verdict is good radio.",
+    "The closing section lists the teams' numbers side by side in no particular order. Nobody has handed the " \
+    "hosts a ranking; they argue it out from the evidence. Real arguments to make: a top national rank " \
+    "versus a poor value for the money spent, big overalls versus a thin or lopsided class, transfers " \
+    "propping up a weak high school group, and roster depth worries. Each host should defend a position and " \
+    "concede a point.",
+    "NIL per overall point is the value-for-money number: NIL spent divided by the total overall points the " \
+    "class brought in, so LOWER is better value. Use it to question a big spender or praise a bargain."
   ].freeze
 
   def initialize(data)
@@ -63,18 +59,15 @@ class NsdBreakdownMarkdownPresenter
     lines = []
     lines.concat(PodcastShow.directive_lines(show_name: show_name))
     lines.concat(rule_lines("## ✍️ NATIONAL SIGNING DAY FORMAT (PRODUCER NOTE, DO NOT READ ALOUD)", NSD_RULES))
-    lines.concat(rule_lines("## 🔧 VERDICT FORMAT (PRODUCER NOTE, DO NOT READ ALOUD)", VERDICT_RULES))
+    lines.concat(rule_lines("## 💪 VERDICT FORMAT (PRODUCER NOTE, DO NOT READ ALOUD)", VERDICT_RULES))
     lines.concat(PodcastShow.opening_script_lines(show_name: show_name, framing_hint: "how our rivals' recruiting classes shaped up on signing day"))
     lines.concat(PodcastShow.run_of_show_lines(segments))
     lines << "# ✍️ NATIONAL SIGNING DAY BREAKDOWN — #{show_name} — #{@data[:season][:year]}"
     lines << ""
-    lines << "> #{producer_note}"
-    lines << ""
     lines.concat(data_coverage_lines)
-
     @data[:teams].each { |team| lines.concat(team_section(team)) }
-    lines.concat(repair_ranking_section)
-
+    lines.concat(ranking_section)
+    lines.concat(reference_section)
     lines.join("\n")
   end
 
@@ -84,31 +77,22 @@ class NsdBreakdownMarkdownPresenter
     @data[:season][:dynasty]
   end
 
-  def producer_note
-    "PRODUCER NOTE: Signing-day review of our coached teams' recruiting. Each team's section covers its class " \
-      "(size, stars, national and conference rank, NIL), then a position-by-position scorecard setting the " \
-      "starters lost against the players signed, then the splash signing, the biggest hole left open, and the " \
-      "scholarship math. This judges the recruiting decisions only — no talk of how strong any position group is."
-  end
-
   def rule_lines(title, rules)
-    lines = [ title, "" ]
-    rules.each { |rule| lines << "- #{rule}" }
-    lines << ""
-    lines
+    [ title, "", *rules.map { |rule| "- #{rule}" }, "" ]
   end
 
   def segments
-    @data[:teams].map { |t| "#{t[:college][:name]} Signing Day" } + [ "Best and Worst Pit Crews: Ranking Our Teams" ]
+    @data[:teams].map { |t| "#{t[:college][:name]} Signing Day" } + [ "Ranking Our Teams' Classes: Worst to Best" ]
   end
 
   def data_coverage_lines
     coverage = @data[:data_coverage]
     notes = []
-    notes << "No signees logged yet for #{coverage[:teams_without_signees].join(', ')} — don't grade those classes." if coverage[:teams_without_signees].present?
-    notes << "No portal data for #{coverage[:teams_without_portal_data].join(', ')} — losses are unknown there." if coverage[:teams_without_portal_data].present?
-    notes << "#{coverage[:high_school_without_overall]} high school signee(s) have no overall entered; judge them by stars." if coverage[:high_school_without_overall].to_i.positive?
-    notes << "#{coverage[:transfers_without_overall]} transfer(s) have no overall found; judge them by stars." if coverage[:transfers_without_overall].to_i.positive?
+    notes << "No signees logged for #{coverage[:teams_without_signees].join(', ')} — skip those classes." if coverage[:teams_without_signees].present?
+    notes << "No portal data for #{coverage[:teams_without_portal_data].join(', ')} — their roster depth worries can't be trusted." if coverage[:teams_without_portal_data].present?
+    notes << "No class ranking for #{coverage[:teams_without_class_ranking].join(', ')}." if coverage[:teams_without_class_ranking].present?
+    notes << "#{coverage[:high_school_without_overall]} high school signee(s) have no overall entered." if coverage[:high_school_without_overall].to_i.positive?
+    notes << "#{coverage[:transfers_without_overall]} transfer(s) have no overall found." if coverage[:transfers_without_overall].to_i.positive?
     return [] if notes.empty?
 
     [ "### ⚠️ DATA COVERAGE (PRODUCER NOTE, DO NOT READ ALOUD)", "", *notes.map { |n| "- #{n}" }, "" ]
@@ -118,153 +102,194 @@ class NsdBreakdownMarkdownPresenter
     lines = [ "---", "", "## ✍️ #{team[:college][:name]} (Coach: #{team[:coach][:name]})" ]
     lines << "**Conference:** #{team[:college][:conference]}" if team[:college][:conference]
     lines << ""
-    lines.concat(class_lines(team[:class_summary]))
-    if team[:class_summary][:total_signed].zero?
-      lines << "_Class not logged yet — no scorecard, so don't grade this team's recruiting._"
+    return lines + [ "- No signees logged yet.", "" ] if team[:total_signed].zero?
+
+    lines.concat(high_school_lines(team))
+    lines.concat(transfer_lines(team))
+    lines.concat(watch_lines(team[:players_to_watch]))
+    lines.concat(overall_lines(team))
+    lines
+  end
+
+  def high_school_lines(team)
+    hs = team[:high_school]
+    lines = [ "### 🎓 High School Signees", "" ]
+    return lines + [ "- None signed.", "" ] if hs[:signed].zero?
+
+    lines << "- #{hs[:signed]} signed: #{star_text(hs[:star_counts])}"
+    lines << average_line("Average overall", hs[:average_overall], hs[:overalls_entered], hs[:signed])
+    if hs[:last_season_freshman_average]
+      lines << "- Last season's true freshmen averaged #{hs[:last_season_freshman_average]} (#{hs[:last_season_freshman_count]} players)" \
+               "#{comparison_text(hs[:difference_vs_freshmen], 'this class', plural: false)}"
+    end
+    lines << "- Also signed #{team[:juco_signed]} JUCO player#{team[:juco_signed] == 1 ? '' : 's'} (not counted above)." if team[:juco_signed].positive?
+    lines << ""
+    lines
+  end
+
+  def transfer_lines(team)
+    tr = team[:transfers]
+    lines = [ "### 🔄 Transfers", "" ]
+    return lines + [ "- None signed.", "" ] if tr[:signed].zero?
+
+    lines << "- #{tr[:signed]} transfers signed"
+    lines << average_line("Average overall", tr[:average_overall], tr[:overalls_found], tr[:signed])
+    if tr[:last_season_team_average]
+      lines << "- The whole roster averaged #{tr[:last_season_team_average]} last season#{comparison_text(tr[:difference_vs_team], 'the transfers')}"
+    end
+    lines << ""
+    lines
+  end
+
+  def overall_lines(team)
+    overall = team[:overall]
+    lines = [ "### 📊 Class Overall", "" ]
+    lines << "- #{team[:total_signed]} total signees (#{team[:high_school][:signed]} high school, #{team[:transfers][:signed]} transfers)"
+    lines << average_line("Average overall of the whole class", overall[:average_overall], overall[:value][:signees_counted], team[:total_signed])
+    lines << ranking_line(overall)
+    lines.concat(spend_lines(overall[:spend], overall[:biggest_spend]))
+    lines << value_line(overall)
+    lines << worry_line(overall[:positions_of_worry])
+    lines << ""
+    lines
+  end
+
+  def ranking_line(overall)
+    return "- National class ranking: not available" unless overall[:national_ranking]
+
+    comparison = overall[:ranking_vs_conference]
+    text = "- National class ranking: ##{overall[:national_ranking]}"
+    if comparison
+      best = comparison[:best_in_conference]
+      text += " — #{ordinal(comparison[:conference_rank])} of #{comparison[:teams_ranked]} in the #{comparison[:conference]}" \
+              " (best class in the conference: #{best[:college]}, ##{best[:national_ranking]})"
+    end
+    text += "; last year's class was ranked ##{overall[:last_year_ranking]}" if overall[:last_year_ranking]
+    text
+  end
+
+  def spend_lines(spend, biggest)
+    text = "- NIL spent on the class: #{spend[:nil_spent]}"
+    if spend[:conference_rank]
+      text += " — ranks #{ordinal(spend[:conference_rank])} of #{spend[:conference_teams_compared]} in the conference for spend (conference average #{spend[:conference_average]})"
+    end
+    text += "; last year they spent #{spend[:last_year]}" if spend[:last_year]
+    lines = [ text ]
+    lines << "- Biggest spend on one player: #{player_text(biggest)} — #{biggest[:nil_amount]} NIL" if biggest
+    lines
+  end
+
+  def value_line(overall)
+    value = overall[:value]
+    return "- Value for money: not available (no overalls on file)" unless value[:nil_per_overall_point]
+
+    "- Value for money: #{value[:nil_per_overall_point]} NIL per overall point (#{overall[:spend][:nil_spent]} NIL " \
+      "for #{value[:overall_points]} overall points; lower is better value)"
+  end
+
+  def worry_line(worries)
+    return "- Roster depth worries: none — every position group has enough players" if worries.empty?
+
+    list = worries.map { |w| "#{w[:position_group]} (only #{w[:projected_depth]} on the roster)" }.join(", ")
+    "- Roster depth worries: #{list}"
+  end
+
+  def star_text(star_counts)
+    parts = star_counts.select { |_stars, count| count.positive? }.sort.reverse.map { |stars, count| "#{count} #{stars}-star" }
+    parts.empty? ? "no star ratings" : parts.join(", ")
+  end
+
+  def average_line(label, average, counted, total)
+    return "- #{label}: not available (no overalls on file)" unless average
+
+    partial = counted < total ? " (from #{counted} of #{total} with an overall)" : ""
+    "- #{label}: #{average}#{partial}"
+  end
+
+  def comparison_text(difference, subject, plural: true)
+    return "" if difference.nil?
+    return " — #{subject} #{plural ? 'are' : 'is'} right in line" if difference.zero?
+
+    verb = difference.positive? ? "beat" : "trail"
+    " — #{subject} #{plural ? verb : "#{verb}s"} that by #{difference.abs}"
+  end
+
+  LABELS = {
+    high_school: "Top high school signee", transfer: "Top transfer",
+    offense: "Top offensive signee", defense: "Top defensive signee"
+  }.freeze
+
+  # One line per player: a signee who is the pick for several slots appears
+  # once with every label he earned, rather than being repeated.
+  def watch_lines(picks)
+    lines = [ "### 👀 Players to Watch", "" ]
+    grouped = picks.select { |_slot, player| player }.group_by { |_slot, player| player[:name] }
+    return lines + [ "- No standouts to name yet.", "" ] if grouped.empty?
+
+    grouped.each_value do |entries|
+      player = entries.first.last
+      labels = entries.map { |slot, _| LABELS[slot] }.join(" / ")
+      lines << "- #{labels}: #{player_text(player)}#{player[:basis] == 'stars' ? ' — no overall entered, best-rated by stars' : ''}"
+    end
+    lines << ""
+    lines
+  end
+
+  # A high school/JUCO signee reads as his stars, a transfer as his class
+  # year (his stars say little about a player already on a roster).
+  def descriptor(player)
+    player[:type] == "transfer" ? player[:class_year] : ("#{player[:star_rating]}-star" if player[:star_rating])
+  end
+
+  def player_text(player)
+    detail = [ player[:position], descriptor(player), ("#{player[:overall]} OVR" if player[:overall]) ].compact.join(", ")
+    "#{player[:name]} (#{detail})"
+  end
+
+  def ordinal(number)
+    return "#{number}th" if (11..13).cover?(number % 100)
+
+    suffix = { 1 => "st", 2 => "nd", 3 => "rd" }.fetch(number % 10, "th")
+    "#{number}#{suffix}"
+  end
+
+  def reference_section
+    lines = [ "---", "", "## 📇 SIGNING REFERENCE LIST (BACKGROUND ONLY, DO NOT READ ALOUD)", "" ]
+    @data[:teams].each do |team|
+      next if team[:signees].empty?
+
+      lines << "### #{team[:college][:name]}"
+      team[:signees].group_by { |s| s[:type] == "transfer" ? "Transfers" : "High School/JUCO" }.each do |label, signees|
+        lines << "**#{label}**"
+        signees.each { |s| lines << "- #{reference_line(s)}" }
+      end
       lines << ""
-    else
-      lines.concat(scorecard_lines(team[:position_scorecard]))
-      lines.concat(needs_lines(team[:needs_summary]))
-      lines.concat(highlight_lines(team))
     end
-    lines.concat(roster_math_lines(team[:roster_math]))
     lines
   end
 
-  def class_lines(summary)
-    lines = [ "### 📦 The Class", "" ]
-    if summary[:total_signed].zero?
-      return lines + [ "- No signees logged yet for this team.", "" ]
-    end
+  def reference_line(signee)
+    parts = [ signee[:position], descriptor(signee), ("#{signee[:overall]} OVR" if signee[:overall]),
+              ("national rank ##{signee[:national_rank]}" if signee[:national_rank]), ("NIL #{signee[:nil_amount]}" if signee[:nil_amount].to_i.positive?) ]
+    "#{signee[:name]} — #{parts.compact.join(', ')}"
+  end
 
-    stars = summary[:star_counts].select { |_s, count| count.positive? }.sort.reverse.map { |s, count| "#{count} #{s}-star" }.join(", ")
-    lines << "- #{summary[:total_signed]} signed: #{summary[:high_school]} high school, #{summary[:juco]} JUCO, " \
-             "#{summary[:transfers]} portal transfers (#{stars.presence || 'no star ratings'}; average #{summary[:average_stars] || '—'} stars)"
-    lines << "- NIL committed to this class: #{summary[:nil_committed]}"
-    national = summary[:national]
-    if national
-      lines << "- National class ranking: ##{national[:ranking]} (#{national[:points]} points; #{national[:five_stars]} five-stars and #{national[:four_stars]} four-stars in the class)"
-    end
-    lines.concat(conference_lines(summary[:conference_comparison]))
+  def ranking_section
+    lines = [ "---", "", "## 💪 RANKING THE CLASSES: WORST TO BEST", "" ]
+    lines << "Our teams side by side, in alphabetical order. This is NOT a ranking — the hosts debate and decide it."
     lines << ""
+    @data[:class_comparison].each { |t| lines.concat(comparison_lines(t)) }
     lines
   end
 
-  def conference_lines(comparison)
-    return [] unless comparison
-
-    standings = comparison[:standings].map { |c| "#{c[:college]} (##{c[:national_ranking]})#{c[:ours] ? ' ★ours' : ''}" }.join(", ")
-    [ "- ##{comparison[:conference_rank]} of #{comparison[:teams_ranked]} in the #{comparison[:conference]} by class ranking. Top classes: #{standings}" ]
-  end
-
-  def scorecard_lines(groups)
-    lines = [ "### 🧩 Position-by-Position Scorecard", "" ]
-    shown = groups.select { |g| g[:coverage] || g[:signees].any? }
-    return lines + [ "- No position group had a need and nobody signed.", "" ] if shown.empty?
-
-    shown.each { |group| lines.concat(group_lines(group)) }
-    lines << ""
-    lines
-  end
-
-  def group_lines(group)
-    grade = group[:coverage] ? COVERAGE_LABELS[group[:coverage]] : "NO NEED"
-    flag = group[:overstocked] ? " [OVERSTOCKED]" : ""
-    lines = [ "- **#{group[:position_group]}** — #{grade}#{flag}" ]
-    lines << "  - Need: #{group[:need]} spot#{group[:need] == 1 ? '' : 's'} to fill, #{group[:signees].size} signed" if group[:need].positive?
-    lines << "  - Lost starters: #{player_list(group[:starters_lost]) || 'none'}"
-    other_lost = group[:lost].size - group[:starters_lost].size
-    lines << "  - Also leaving: #{other_lost} reserve#{other_lost == 1 ? '' : 's'}; #{group[:remaining_depth]} left against a depth target of #{group[:min_healthy_depth]}" if group[:lost].any?
-    lines << "  - Signed: #{group[:signees].map { |s| signee_text(s) }.join('; ').presence || 'nobody'}"
-    lines
-  end
-
-  def player_list(players)
-    return nil if players.blank?
-
-    players.map { |p| "#{p[:name]} (#{p[:position]}, #{p[:overall]} OVR, #{p[:status].to_s.tr('_', ' ')})" }.join(", ")
-  end
-
-  def signee_text(signee)
-    parts = [ signee[:position], TYPE_LABELS.fetch(signee[:type], signee[:type]) ]
-    parts << "#{signee[:star_rating]}-star" if signee[:star_rating]
-    parts << "#{signee[:overall]} OVR #{signee[:overall_source]}" if signee[:overall]
-    parts << "national rank ##{signee[:national_rank]}" if signee[:national_rank]
-    "#{signee[:name]} (#{parts.join(', ')})"
-  end
-
-  def needs_lines(summary)
-    return [] if summary[:groups_with_needs].zero?
-
-    score = summary[:repair_score] ? " Repair score: #{summary[:repair_score]}/100." : ""
-    [ "### 🔧 Needs Addressed", "",
-      "- #{summary[:addressed]} of #{summary[:groups_with_needs]} position groups with a need were addressed " \
-      "(#{summary[:patched]} patched, #{summary[:ignored]} ignored).#{score}", "" ]
-  end
-
-  def highlight_lines(team)
-    lines = [ "### ⭐ Highlights", "" ]
-    splash = team[:splash_signing]
-    if splash
-      lines << "- Splash signing: #{signee_brief(splash[:best_signee])}"
-      lines << "- Biggest NIL investment: #{signee_brief(splash[:biggest_nil_investment])}" if splash[:biggest_nil_investment]
-    end
-    hole = team[:biggest_hole]
-    if hole
-      lost = hole[:starters_lost].map { |p| p[:name] }.join(", ").presence || "depth shortfall"
-      lines << "- Biggest hole left open: #{hole[:position_group]} (#{COVERAGE_LABELS[hole[:coverage]]}) — lost #{lost}; #{hole[:remaining_depth]} on hand vs. a target of #{hole[:min_healthy_depth]}"
-    else
-      lines << "- No open holes: every position group with a need was addressed." if team[:needs_summary][:groups_with_needs].positive?
-    end
-    lines << ""
-    lines
-  end
-
-  def signee_brief(signee)
-    parts = [ signee[:position], TYPE_LABELS.fetch(signee[:type], signee[:type]) ]
-    parts << "#{signee[:star_rating]}-star" if signee[:star_rating]
-    parts << "#{signee[:overall]} OVR" if signee[:overall]
-    parts << "NIL #{signee[:nil_amount]}" if signee[:nil_amount].to_i.positive?
-    "#{signee[:name]} (#{parts.join(', ')})"
-  end
-
-  def roster_math_lines(math)
-    lines = [ "### 📋 What's Left", "",
-              "- Scholarships: #{math[:scholarships_used]} used, #{math[:scholarships_remaining]} remaining (of #{math[:max_scholarships]}, recruits and transfers combined)",
-              "- Roster: projects to #{math[:projected_roster_with_signees_so_far]} of #{math[:max_roster_size]} — #{roster_room_line(math)}", "" ]
-    lines
-  end
-
-  def roster_room_line(math)
-    room = math[:roster_room_before_cuts_needed]
-    if room.positive?
-      "#{room} spot#{room == 1 ? '' : 's'} of room before any cuts"
-    elsif room.zero?
-      "right at the cap"
-    else
-      "#{-room} over the cap, so cuts are coming"
-    end
-  end
-
-  def repair_ranking_section
-    ranking = @data[:repair_ranking]
-    lines = [ "---", "", "## 🔧 BEST AND WORST PIT CREWS", "" ]
-    return lines + [ "- No ranking available.", "" ] if ranking.blank?
-
-    lines << "Ranked by repair score — how fully each class answered its roster needs, weighted by the size " \
-             "of each need (addressed counts full, patched half, ignored zero). A data backstop for " \
-             "the hosts, not the final word. Teams with no signees logged have no score."
-    lines << ""
-    ranking.each_with_index { |t, i| lines << ranking_line(t, i) }
-    lines << ""
-    lines
-  end
-
-  def ranking_line(entry, index)
-    rank = entry[:class_ranking] ? ", ##{entry[:class_ranking]} class nationally" : ""
-    return "#{index + 1}. #{entry[:college][:name]} — no score (class not logged)" unless entry[:repair_score]
-
-    "#{index + 1}. #{entry[:college][:name]} — #{entry[:repair_score]}/100 repair score " \
-      "(#{entry[:addressed]} of #{entry[:groups_with_needs]} needs addressed#{rank})"
+  def comparison_lines(entry)
+    rank = entry[:national_ranking] ? "##{entry[:national_ranking]} nationally" : "unranked"
+    rank += " (#{ordinal(entry[:conference_rank])} in the conference)" if entry[:conference_rank]
+    worries = entry[:positions_of_worry].presence&.join(", ") || "none"
+    [ "- **#{entry[:college][:name]}**: class rank #{rank}; #{entry[:total_signed]} signees " \
+      "(#{entry[:high_school_signed]} high school, #{entry[:transfers_signed]} transfers); average overall " \
+      "#{entry[:average_overall] || '—'}; #{entry[:nil_spent]} NIL spent; " \
+      "#{entry[:nil_per_overall_point] ? "#{entry[:nil_per_overall_point]} NIL per overall point" : 'value not available'}; " \
+      "roster depth worries: #{worries}", "" ]
   end
 end

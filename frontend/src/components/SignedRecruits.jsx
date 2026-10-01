@@ -46,14 +46,24 @@ function RecruitRow({ recruit, imported, onImportClick }) {
   );
 }
 
-function TeamRecruits({ group, importedIds, onImportClick }) {
+function TeamRecruits({ group, importedIds, onImportClick, collapsible }) {
+  const [open, setOpen] = useState(!collapsible);
+  const expandable = collapsible && group.recruits.length > 0;
+
   return (
     <div className="mb-3 last:mb-0">
       <p className="mb-1 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-textSecondary">
-        <span>{group.college.name}</span>
+        {expandable ? (
+          <button type="button" onClick={() => setOpen((v) => !v)} className="flex items-center gap-1.5 uppercase hover:text-burnt">
+            <i className={`fa-solid ${open ? "fa-chevron-down" : "fa-chevron-right"} text-[10px]`} />
+            {group.college.name}
+          </button>
+        ) : (
+          <span>{group.college.name}</span>
+        )}
         <span className="normal-case text-textSecondary/70">{group.recruits.length} signed</span>
       </p>
-      {group.recruits.map((recruit) => (
+      {open && group.recruits.map((recruit) => (
         <RecruitRow
           key={recruit.id}
           recruit={recruit}
@@ -65,8 +75,10 @@ function TeamRecruits({ group, importedIds, onImportClick }) {
   );
 }
 
-function SignedRecruits({ recruits }) {
-  const groups = (recruits || []).filter((group) => group.recruits.length > 0);
+// `collapsible` starts each team folded (used on the upload page, where you open just the team
+// you're working on) and lists teams with nothing signed yet too, so you can see they're at zero.
+function SignedRecruits({ recruits, collapsible = false }) {
+  const groups = (recruits || []).filter((group) => collapsible || group.recruits.length > 0);
   const [activeRecruit, setActiveRecruit] = useState(null);
   const [importedIds, setImportedIds] = useState(() => new Set());
 
@@ -83,6 +95,7 @@ function SignedRecruits({ recruits }) {
               group={group}
               importedIds={importedIds}
               onImportClick={setActiveRecruit}
+              collapsible={collapsible}
             />
           ))
         ) : (

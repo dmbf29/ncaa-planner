@@ -22,20 +22,6 @@ module RosterNeeds
     "Kickers/Punters" => { positions: %w[K P], min_depth: 2 }
   }.freeze
 
-  # Players in each group who are in the starting lineup, so "lost two
-  # starting linebackers" has a definition: a departing player counts as a
-  # starter when he ranks within this many of his group's best overalls.
-  STARTER_SLOTS = {
-    "Quarterbacks" => 1,
-    "Backfield" => 1,
-    "Wide Receivers/Tight Ends" => 4,
-    "Offensive Line" => 5,
-    "Defensive Line" => 4,
-    "Linebackers" => 3,
-    "Secondary" => 4,
-    "Kickers/Punters" => 2
-  }.freeze
-
   # Recruiting screens use broader labels than roster codes (OT, EDGE, ...).
   # Only needed to place a signee in a group; anything else is left unplaced.
   RECRUIT_POSITION_ALIASES = {

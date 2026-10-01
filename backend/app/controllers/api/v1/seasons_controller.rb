@@ -175,6 +175,8 @@ module Api
         college_season = @season.college_seasons.find_by!(college_id: params[:college_id])
         week = @season.weeks.find_by!(number: params[:week_number])
         warnings = RecruitmentTrail::CommitService.new(college_season, week).call(commit_rows)
+        # The dashboard payload is cached on season.updated_at; without this the recruits list stays stale.
+        @season.touch
         render json: { college_season_id: college_season.id, warnings: warnings }
       rescue ActiveRecord::RecordInvalid => e
         render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
