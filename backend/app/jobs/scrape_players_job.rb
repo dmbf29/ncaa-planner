@@ -24,6 +24,11 @@ class ScrapePlayersJob < ApplicationJob
 
     doc = Nokogiri::HTML.parse(URI.parse(url).open)
 
+    # Production DB round-trips are slow, so cache lookups instead of querying per player.
+    @existing_players = team.players.index_by(&:name)
+    @squads = team.squads.index_by(&:name)
+    @boards = team.position_boards.index_by { |b| [ b.name, b.squad_id ] }
+
     ActiveRecord::Base.transaction do
       parse_players(doc).each { |attrs| upsert_player(team, attrs) }
     end
@@ -82,7 +87,7 @@ class ScrapePlayersJob < ApplicationJob
   def upsert_player(team, attrs)
     return if attrs[:name].blank?
 
-    player = team.players.find_or_initialize_by(name: attrs[:name])
+    player = @existing_players[attrs[:name]] || team.players.build(name: attrs[:name])
     player.status = :rostered if player.new_record?
     player.class_year = attrs[:class_year]
     player.dev_trait = attrs[:dev_trait]
@@ -90,15 +95,19 @@ class ScrapePlayersJob < ApplicationJob
     player.overall = attrs[:overall]
     player.nil_amount = attrs[:nil_amount]
     player.attribute_values = attrs[:attribute_values]
-    player.position_board = find_or_create_position_board(team, attrs[:position_code])
+    board = find_or_create_position_board(team, attrs[:position_code])
+    player.position_board = board
+    # Assign the cached squad object so validations don't re-query it.
+    player.squad = @squads.values.find { |sq| sq.id == board.squad_id } if board
     player.save!
+    @existing_players[player.name] = player
   end
 
   def find_or_create_position_board(team, position_code)
     board_meta = PositionBoardMapping.resolve(position_code)
     return nil if board_meta.blank?
 
-    squad = team.squads.find_or_create_by!(name: board_meta[:squad])
-    team.position_boards.find_or_create_by!(name: board_meta[:board], squad_id: squad.id)
+    squad = @squads[board_meta[:squad]] ||= team.squads.create!(name: board_meta[:squad])
+    @boards[[ board_meta[:board], squad.id ]] ||= team.position_boards.create!(name: board_meta[:board], squad_id: squad.id)
   end
 end
