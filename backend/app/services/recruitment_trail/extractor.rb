@@ -60,6 +60,7 @@ module RecruitmentTrail
       college = resolve_college(raw["team_raw_name"], raw["team_college_name"])
       existing = existing_signees(season, college)
       recruits = Array(raw["recruits"]).select { |row| row.is_a?(Hash) }.map { |row| build_row(row, transfer, existing) }
+      link_transfers(recruits, season) if season
 
       {
         college_id: college&.id,
@@ -118,6 +119,22 @@ module RecruitmentTrail
         "images if needed. First read the team name from the top-left header and the filter pill in the " \
         "top-right (OVERALL, RECRUITS, or TRANSFERS), then read every player row, top to bottom, across all " \
         "images. If the same player appears in more than one image, only report them once."
+    end
+
+    # Adds the previous-roster link (student_id / match_status / candidates)
+    # to transfer rows so the reviewer can confirm or fix it before saving.
+    # Rows already on record are locked, so they're left alone.
+    def link_transfers(recruits, season)
+      matcher = nil
+      recruits.each do |row|
+        next unless row[:transfer] && row[:already_signed].nil?
+
+        matcher ||= TransferMatcher.new(season)
+        row.merge!(matcher.resolve(first_initial: row[:first_initial], last_name: row[:last_name], position: row[:position]))
+        # A linked transfer already has a full name on his old roster, so the
+        # reviewer doesn't have to type it.
+        row[:first_name] = row[:candidates].find { |c| c[:student_id] == row[:student_id] }&.dig(:first_name) if row[:student_id]
+      end
     end
 
     def build_row(row, transfer, existing = {})

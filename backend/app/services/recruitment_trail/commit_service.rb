@@ -16,6 +16,10 @@ module RecruitmentTrail
   #     whenever the row explicitly states it (including false), since
   #     Extractor always sends one now.
   #
+  # Transfers are also linked to their previous-roster Student (see
+  # TransferMatcher), chosen on the review screen via the row's student_id —
+  # that link is how their overall is found later.
+  #
   # Each row commits independently; a validation failure is reported as a
   # warning rather than aborting the batch, mirroring the other
   # CommitServices.
@@ -23,6 +27,7 @@ module RecruitmentTrail
     def initialize(college_season, week)
       @college_season = college_season
       @week = week
+      @transfer_matcher = RecruitmentTrail::TransferMatcher.new(college_season.season)
     end
 
     def call(rows)
@@ -52,7 +57,20 @@ module RecruitmentTrail
       recruit.state_rank = row[:state_rank]
       recruit.class_year = row[:class_year] if row[:class_year].present?
       recruit.transfer = row[:transfer] unless row[:transfer].nil?
+      assign_student(recruit, row) if recruit.transfer
       recruit.save!
+    end
+
+    # The reviewer's choice wins whenever the row carries one (including an
+    # explicit nil = "not linked"); only rows without the key (older
+    # clients) fall back to an automatic match.
+    def assign_student(recruit, row)
+      if row.key?(:student_id)
+        recruit.student_id = row[:student_id]
+        recruit.first_name = recruit.student.first_name if recruit.first_name.blank? && recruit.student
+      elsif recruit.student_id.nil?
+        recruit.student = @transfer_matcher.student_for(recruit)
+      end
     end
 
     def recruit_label(row)

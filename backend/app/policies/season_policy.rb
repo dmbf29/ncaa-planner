@@ -75,6 +75,14 @@ class SeasonPolicy < ApplicationPolicy
     owner?
   end
 
+  def signed_recruit_overalls?
+    owner?
+  end
+
+  def commit_signed_recruit_overalls?
+    owner?
+  end
+
   def analyze_players_of_the_week?
     owner?
   end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_09_27_001614) do
+ActiveRecord::Schema[8.0].define(version: 2026_10_01_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -431,6 +431,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_09_27_001614) do
     t.datetime "updated_at", null: false
     t.boolean "transfer", default: false, null: false
     t.string "class_year"
+    t.integer "overall"
     t.index ["college_season_id"], name: "index_signed_recruits_on_college_season_id"
     t.index ["student_id"], name: "index_signed_recruits_on_student_id"
     t.index ["week_id"], name: "index_signed_recruits_on_week_id"

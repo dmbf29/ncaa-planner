@@ -4,7 +4,8 @@ import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import MultiSelect from "../components/MultiSelect";
 import OverallBadge from "../components/OverallBadge";
-import { API_BASE_URL, fetchSeasonStudentSeasons } from "../lib/apiClient";
+import AddToSquadModal from "../components/AddToSquadModal";
+import { API_BASE_URL, fetchFlags, fetchSeasonStudentSeasons } from "../lib/apiClient";
 
 // The full season pool is ~11k players — never render all of them. Filters
 // narrow it down; this is just the ceiling on how many rows we paint.
@@ -58,6 +59,29 @@ const STAT_COLUMNS = [
   { field: "awareness", label: "Awr" },
 ];
 
+// Players pulled onto a squad board from here are portal/scouting targets on
+// someone else's team, so they land as recruits tagged with this flag.
+const WATCH_FLAG_NAME = "watch";
+
+function squadPayload(player, seasonYear, watchFlagId) {
+  const attributes = {};
+  STAT_COLUMNS.forEach(({ field }) => {
+    if (player[field] != null) attributes[field] = player[field];
+  });
+  return {
+    name: player.name,
+    classYear: player.classYear || null,
+    devTrait: player.devTrait || null,
+    overall: player.overall ?? null,
+    nilAmount: player.nilAmount ?? null,
+    status: "recruit",
+    recruitStatus: "normal",
+    attributes,
+    flagIds: watchFlagId ? [watchFlagId] : [],
+    notes: [player.position, player.team, seasonYear && `${seasonYear} season`].filter(Boolean).join(" · "),
+  };
+}
+
 function SeasonPlayersPage() {
   const { dynastyId, seasonId } = useParams();
   const [data, setData] = useState(null);
@@ -65,6 +89,17 @@ function SeasonPlayersPage() {
   const [error, setError] = useState(null);
   const [filters, setFilters] = useState(emptyFilters);
   const [sort, setSort] = useState({ field: "overall", direction: "desc" });
+  const [activePlayer, setActivePlayer] = useState(null);
+  const [addedIds, setAddedIds] = useState(() => new Set());
+  const [watchFlagId, setWatchFlagId] = useState(null);
+  const authed = Boolean(localStorage.getItem("jwt"));
+
+  useEffect(() => {
+    if (!authed) return;
+    fetchFlags()
+      .then((flags) => setWatchFlagId(flags.find((f) => f.name === WATCH_FLAG_NAME)?.id ?? null))
+      .catch(() => setWatchFlagId(null));
+  }, [authed]);
 
   useEffect(() => {
     setLoading(true);
@@ -275,7 +310,21 @@ function SeasonPlayersPage() {
                     return (
                       <tr key={player.id} className="border-b border-border/60 last:border-0 dark:border-darkborder/60">
                         <td className="px-3 py-2">
-                          <div className="font-semibold text-textPrimary dark:text-white">{player.name}</div>
+                          {authed ? (
+                            <button
+                              type="button"
+                              onClick={() => setActivePlayer(player)}
+                              title="Add to a squad board"
+                              className="text-left font-semibold text-textPrimary hover:text-burnt hover:underline dark:text-white dark:hover:text-burnt"
+                            >
+                              {player.name}
+                              {addedIds.has(player.id) && (
+                                <span className="ml-1.5 text-xs font-normal text-success">✓ added</span>
+                              )}
+                            </button>
+                          ) : (
+                            <div className="font-semibold text-textPrimary dark:text-white">{player.name}</div>
+                          )}
                           <div className="text-xs font-normal text-textSecondary">
                             {player.position} &middot; {player.classYear}
                           </div>
@@ -325,6 +374,32 @@ function SeasonPlayersPage() {
             </div>
           </Card>
         </div>
+      )}
+
+      {activePlayer && (
+        <AddToSquadModal
+          position={activePlayer.position}
+          name={activePlayer.name}
+          title="Add to Squad"
+          doneTitle="Player Added"
+          actionLabel="Add & watch"
+          summary={
+            <p className="mt-1 text-sm text-textSecondary">
+              {activePlayer.position} · {activePlayer.name}
+              {activePlayer.overall != null ? ` · ${activePlayer.overall} OVR` : ""} · {activePlayer.team}
+            </p>
+          }
+          doneMessage={({ name, teamName, boardName }) => (
+            <>
+              Added <span className="font-semibold">{name}</span> to {teamName}
+              {boardName ? ` › ${boardName}` : ""}
+              {watchFlagId ? " and flagged to watch." : "."}
+            </>
+          )}
+          buildPayload={() => squadPayload(activePlayer, data?.season.year, watchFlagId)}
+          onClose={() => setActivePlayer(null)}
+          onAdded={() => setAddedIds((prev) => new Set(prev).add(activePlayer.id))}
+        />
       )}
     </div>
   );

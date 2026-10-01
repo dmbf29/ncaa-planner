@@ -33,6 +33,7 @@ const EXPORT_TABS = [
   { id: "midseason_report_cards", label: "Midseason Report Cards" },
   { id: "end_of_season_report_cards", label: "End of Season Report Cards" },
   { id: "portal_preview", label: "Portal Preview" },
+  { id: "nsd_breakdown", label: "Signing Day Breakdown" },
 ];
 
 function ExportTabs({ activeTab, onSelect }) {
@@ -194,6 +195,8 @@ function ExportPage() {
 
   const [portalPreviewFormat, setPortalPreviewFormat] = useState("markdown");
   const [portalPreviewMode, setPortalPreviewMode] = useState("download");
+  const [nsdBreakdownFormat, setNsdBreakdownFormat] = useState("markdown");
+  const [nsdBreakdownMode, setNsdBreakdownMode] = useState("download");
 
   const [activeTab, setActiveTab] = useState(EXPORT_TABS[0].id);
 
@@ -270,6 +273,12 @@ function ExportPage() {
   const portalPreviewUrl = season
     ? `${API_BASE_URL}/api/v1/dynasties/${season.dynastyId}/seasons/${season.id}/portal_preview${
         portalPreviewFormat === "markdown" ? "?format=markdown" : ""
+      }`
+    : "";
+
+  const nsdBreakdownUrl = season
+    ? `${API_BASE_URL}/api/v1/dynasties/${season.dynastyId}/seasons/${season.id}/nsd_breakdown${
+        nsdBreakdownFormat === "markdown" ? "?format=markdown" : ""
       }`
     : "";
 
@@ -399,6 +408,19 @@ function ExportPage() {
             setMode={setPortalPreviewMode}
             url={portalPreviewUrl}
             filename={`${season.year}_portal-preview.${portalPreviewFormat === "markdown" ? "md" : "json"}`}
+          />
+          )}
+
+          {activeTab === "nsd_breakdown" && (
+          <ExportCard
+            title="Signing Day Breakdown"
+            description="How our coached teams recruited — each class's size, stars and national rank, a position-by-position scorecard of starters lost versus players signed, the splash signing, the biggest hole left open, and a pit-crew repair ranking."
+            format={nsdBreakdownFormat}
+            setFormat={setNsdBreakdownFormat}
+            mode={nsdBreakdownMode}
+            setMode={setNsdBreakdownMode}
+            url={nsdBreakdownUrl}
+            filename={`${season.year}_signing-day-breakdown.${nsdBreakdownFormat === "markdown" ? "md" : "json"}`}
           />
           )}
         </>

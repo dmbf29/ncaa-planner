@@ -43,6 +43,11 @@ module Api
         render_broadcast(data) { ::PortalPreviewMarkdownPresenter.new(data).to_markdown }
       end
 
+      def nsd_breakdown
+        data = ::NsdBreakdownSerializer.new(@season).as_json
+        render_broadcast(data) { ::NsdBreakdownMarkdownPresenter.new(data).to_markdown }
+      end
+
       private
 
       def set_season

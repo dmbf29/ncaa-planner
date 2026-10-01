@@ -22,6 +22,7 @@ const OCCASIONAL_UPDATES = [
   { key: "team-attributes", label: "Team Attributes", icon: "fa-solid fa-bars-progress", description: "Update overall, offense, defense, and prestige for every team.", to: "/dynasty/updates/team-attributes", tags: ["preseason"] },
   { key: "team-stats", label: "Team Stats", icon: "fa-solid fa-chart-gantt", description: "Upload the league-wide offense/defense stats screenshots.", to: "/dynasty/updates/team-stats" },
   { key: "bowl-projections", label: "Bowl Projections", icon: "fa-solid fa-football", description: "Track who's projected to play in each bowl/CFP game.", to: "/dynasty/updates/bowl-projections", tags: ["midseason"] },
+  { key: "recruit-overalls", label: "Recruit Overalls", icon: "fa-solid fa-pen-to-square", description: "Type in each signed high school/JUCO recruit's overall for the signing day breakdown.", to: "/dynasty/updates/recruit-overalls", tags: ["postseason"] },
   { key: "portal-preview", label: "Portal Preview", icon: "fa-solid fa-door-open", description: "Upload each team's \"players leaving\" screen ahead of the transfer portal.", to: "/dynasty/updates/portal-preview", tags: ["postseason"] },
   { key: "season", label: "Start a New Season", icon: "fa-regular fa-calendar", description: "Create the next season for your dynasty.", tags: ["postseason"] },
 ];

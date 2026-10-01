@@ -18,6 +18,11 @@ class SignedRecruit < ApplicationRecord
   # plain class year like "SO"/"JR"/"SR" for a transfer's year at their
   # previous school) — not validated against CollegeSeason's class-year
   # vocabulary since "HS"/"JC (..)" aren't real roster class years.
+  # `overall` is only ever set by hand, for HS/JUCO signees (the next
+  # recruiting screen shows it but the trail extractor doesn't read it).
+  # A transfer's overall isn't stored here — it's read from the linked
+  # student's StudentSeason (`student_id`, set by
+  # RecruitmentTrail::TransferMatcher).
   belongs_to :college_season
   belongs_to :week
   belongs_to :student, optional: true
@@ -25,6 +30,7 @@ class SignedRecruit < ApplicationRecord
   validates :last_name, presence: true
   validates :position, presence: true
   validates :star_rating, inclusion: { in: 1..5 }, allow_nil: true
+  validates :overall, numericality: { in: 1..99, only_integer: true }, allow_nil: true
 
   def name
     [ first_name, last_name ].compact_blank.join(" ").strip

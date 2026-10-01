@@ -180,6 +180,20 @@ module Api
         render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
       end
 
+      # Coached teams' signees for the hand-entry overall page. Transfers are
+      # listed too (read-only) with the overall found via their linked
+      # StudentSeason this season, so a missing/wrong match is visible.
+      def signed_recruit_overalls
+        authorize @season
+        render json: { teams: SignedRecruitOverallsSerializer.new(@season).as_json }
+      end
+
+      def commit_signed_recruit_overalls
+        authorize @season
+        warnings = SignedRecruitOveralls::CommitService.new(@season).call(commit_rows)
+        render json: { season_id: @season.id, warnings: warnings }
+      end
+
       def analyze_team_schedule
         authorize @season
         result = TeamSchedule::ScheduleExtractor.new.call(Array(params[:images]), season: @season)

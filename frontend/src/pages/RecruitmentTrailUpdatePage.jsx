@@ -78,6 +78,63 @@ function weekSignedLabel(alreadySigned) {
   return alreadySigned.weekName || `Week ${alreadySigned.weekNumber}`;
 }
 
+const MATCH_BADGE_CLASSES = {
+  matched: "bg-success/10 text-success",
+  ambiguous: "bg-warning/10 text-warning",
+  unmatched: "bg-danger/10 text-danger",
+};
+
+const MATCH_BADGE_LABELS = { matched: "Linked", ambiguous: "Pick one", unmatched: "No match" };
+
+function candidateLabel(candidate) {
+  const overall = candidate.overall != null ? ` · ${candidate.overall} OVR` : "";
+  return `${candidate.name} · ${candidate.position} ${candidate.classYear}${overall} · ${candidate.college}`;
+}
+
+// A transfer's overall comes from the student they were on their previous roster, so
+// each transfer row links to that student here: auto-linked when exactly one player fits,
+// otherwise the reviewer picks from the same-name candidates (or leaves it unlinked).
+function TransferLink({ row, onChange }) {
+  const candidates = row.candidates || [];
+  const status = row.studentId ? "matched" : row.matchStatus === "ambiguous" ? "ambiguous" : "unmatched";
+  const linked = candidates.find((c) => c.studentId === row.studentId);
+
+  return (
+    <div className="space-y-1">
+      <span className={`inline-block rounded px-1.5 py-0.5 text-xs font-semibold ${MATCH_BADGE_CLASSES[status]}`}>
+        {MATCH_BADGE_LABELS[status]}
+      </span>
+      {linked && <p className="text-xs text-textSecondary">{candidateLabel(linked)}</p>}
+      {row.looseCandidates && !row.studentId && (
+        <p className="text-xs text-textSecondary">No name match — showing same-position players with matching initials.</p>
+      )}
+      {candidates.length > 0 && (
+        <select
+          value={row.studentId ?? ""}
+          onChange={(e) => {
+            const studentId = e.target.value ? Number(e.target.value) : null;
+            const picked = candidates.find((c) => c.studentId === studentId);
+            onChange({
+              studentId,
+              matchStatus: studentId ? "matched" : "ambiguous",
+              // Fill the full first name from the linked player so it needn't be typed.
+              ...(picked && !row.firstName ? { firstName: picked.firstName } : {}),
+            });
+          }}
+          className={`${inputClass} w-56`}
+        >
+          <option value="">— not linked —</option>
+          {candidates.map((candidate) => (
+            <option key={candidate.studentId} value={candidate.studentId}>
+              {candidateLabel(candidate)}
+            </option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
+}
+
 function RecruitRow({ row, onChange }) {
   const update = (patch) => onChange({ ...row, ...patch });
   const locked = Boolean(row.alreadySigned);
@@ -129,6 +186,9 @@ function RecruitRow({ row, onChange }) {
       </td>
       <td className="p-2 text-center">
         <CheckboxInput checked={row.transfer} onChange={(transfer) => update({ transfer })} disabled={locked} />
+      </td>
+      <td className="p-2">
+        {row.transfer && !locked && row.matchStatus ? <TransferLink row={row} onChange={update} /> : null}
       </td>
       <td className="p-2 whitespace-nowrap">
         {locked ? (
@@ -231,7 +291,7 @@ function RecruitmentTrailReview({
           <p className="text-sm text-textSecondary">No recruits left to save.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1050px] border-collapse text-left">
+            <table className="w-full min-w-[1250px] border-collapse text-left">
               <thead>
                 <tr className="border-b border-border text-xs uppercase tracking-wide text-textSecondary dark:border-darkborder">
                   <th className="p-2">First Name</th>
@@ -245,6 +305,7 @@ function RecruitmentTrailReview({
                   <th className="p-2">State</th>
                   <th className="p-2">Class</th>
                   <th className="p-2">Transfer</th>
+                  <th className="p-2">Previous Roster</th>
                   <th className="p-2"></th>
                 </tr>
               </thead>
@@ -339,6 +400,9 @@ function RecruitmentTrailUpdatePage() {
   }, [weeks, weekNumber]);
 
   const resetToUpload = () => {
+    setSaved(false);
+    setWarnings([]);
+    setCommitError(null);
     setRows(null);
     setFiles([]);
     setColleges([]);
@@ -442,9 +506,18 @@ function RecruitmentTrailUpdatePage() {
                 </ul>
               </div>
             )}
-            <Link to="/dynasty/updates" className="text-sm text-burnt hover:underline">
-              Back to Dynasty Updates
-            </Link>
+            <div className="flex items-center gap-4 pt-1">
+              <button
+                type="button"
+                onClick={resetToUpload}
+                className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5"
+              >
+                Upload Another Screenshot
+              </button>
+              <Link to="/dynasty/updates" className="text-sm text-burnt hover:underline">
+                Back to Dynasty Updates
+              </Link>
+            </div>
           </div>
         </Card>
       ) : !rows ? (

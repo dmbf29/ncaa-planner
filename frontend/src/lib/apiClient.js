@@ -341,6 +341,14 @@ export const commitRecruitmentTrail = (dynastyId, seasonId, collegeId, weekNumbe
     })
     .then((r) => r.data);
 
+export const fetchSignedRecruitOveralls = (dynastyId, seasonId) =>
+  api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/signed_recruit_overalls`).then((r) => r.data);
+
+export const commitSignedRecruitOveralls = (dynastyId, seasonId, rows) =>
+  api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_signed_recruit_overalls`, { rows })
+    .then((r) => r.data);
+
 export const analyzePortalPreview = (dynastyId, seasonId, files) => {
   const formData = new FormData();
   files.forEach((file) => formData.append("images[]", file));
