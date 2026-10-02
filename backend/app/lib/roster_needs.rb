@@ -16,7 +16,7 @@ module RosterNeeds
     "Backfield" => { positions: %w[HB FB], min_depth: 4 },
     "Wide Receivers/Tight Ends" => { positions: %w[WR TE], min_depth: 7 },
     "Offensive Line" => { positions: %w[LT LG C RG RT], min_depth: 12 },
-    "Defensive Line" => { positions: %w[LE RE DT], min_depth: 9 },
+    "Defensive Line" => { positions: %w[LE RE LEDG REDG DT], min_depth: 9 },
     "Linebackers" => { positions: %w[MLB LOLB ROLB MIKE WILL SAM], min_depth: 6 },
     "Secondary" => { positions: %w[CB FS SS], min_depth: 9 },
     "Kickers/Punters" => { positions: %w[K P], min_depth: 2 }

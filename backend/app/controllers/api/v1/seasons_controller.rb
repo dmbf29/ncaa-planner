@@ -235,6 +235,13 @@ module Api
         render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
       end
 
+      def search_previous_students
+        authorize @season
+        college_season = @season.college_seasons.find_by!(id: params[:college_season_id])
+        results = RosterImport::PreviousSeasonSearch.new(college_season).call(params[:q])
+        render json: { students: results }
+      end
+
       def analyze_portal_preview
         authorize @season
         result = PortalPreview::Extractor.new.call(Array(params[:images]))

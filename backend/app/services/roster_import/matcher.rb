@@ -2,10 +2,14 @@ module RosterImport
   # Resolves one imported roster row to a Student — or flags it as
   # ambiguous rather than silently guessing. Checked in up to two pools:
   # first this *same* CollegeSeason (a same-season refresh should update
-  # the same players, not duplicate them), then the *previous* season's
-  # roster for this college, constrained by CLASS_YEAR_PREDECESSORS so a
-  # same-name-and-initial collision from a *different* player doesn't pull
-  # in the wrong one now that most colleges have their full roster seeded.
+  # the same players, not duplicate them), then the *previous* season
+  # *league-wide* (every college, not just this one), constrained by
+  # CLASS_YEAR_PREDECESSORS — a returning player who stayed and a transfer
+  # who switched schools both show up as "last season, somewhere, with a
+  # class year that legitimately progresses into this row's" and are
+  # handled identically. Searching the whole league (not just this college)
+  # is what makes transfers resolve to their real Student instead of being
+  # created as a duplicate "new" one every time they switch teams.
   #
   # The pasted first_name is only a first initial (e.g. "N"), never a full
   # first name, so matching compares last_name exactly and only the first
@@ -36,15 +40,25 @@ module RosterImport
       class_year.to_s.strip.sub(/\s+\(RS\)/, "(RS)")
     end
 
+    # The pasted JSON comes from an external export whose key spelling has
+    # drifted before ("first name" instead of "first_name"), and a missing
+    # first_name silently turns every row into a "new" player — so keys are
+    # forced to snake_case ("first name", "first-name" -> first_name).
+    def self.normalize_keys(row)
+      row.transform_keys { |key| key.to_s.strip.downcase.gsub(/[\s-]+/, "_").to_sym }
+    end
+
     def initialize(college_season)
       @college_season = college_season
       @current_student_seasons = @college_season.student_seasons.includes(:student).to_a
       @previous_student_seasons = previous_student_seasons
+      @previous_signed_recruits = previous_signed_recruits
     end
 
     # row must already have a normalized :class_year. Returns one of:
     #   { status: "new" }
-    #   { status: "match", student_id:, matched_name: }
+    #   { status: "new", suggested_first_name:, suggested_last_name: }  (name pulled from a signed HS recruit)
+    #   { status: "match", student_id:, matched_name:, matched_college: }
     #   { status: "ambiguous", suggested_student_id:, candidates: [...] }
     def resolve(row)
       current_candidates = name_candidates(@current_student_seasons, row, class_years: nil)
@@ -53,7 +67,13 @@ module RosterImport
       previous_candidates = name_candidates(
         @previous_student_seasons, row, class_years: CLASS_YEAR_PREDECESSORS.fetch(row[:class_year], [])
       )
-      build_result(previous_candidates, row)
+      result = build_result(previous_candidates, row)
+      return result unless result[:status] == "new" && row[:class_year] == "FR"
+
+      recruit = matching_signed_recruit(row)
+      return result unless recruit
+
+      { status: "new", suggested_first_name: recruit.first_name, suggested_last_name: recruit.last_name }
     end
 
     private
@@ -63,7 +83,9 @@ module RosterImport
       when 0
         { status: "new" }
       when 1
-        { status: "match", student_id: candidates.first.student_id, matched_name: candidates.first.student.name }
+        matched = candidates.first
+        { status: "match", student_id: matched.student_id, matched_name: matched.student.name,
+          matched_college: matched.college_season.college.name }
       else
         suggested = candidates.find { |ss| ss.position == row[:position] } || candidates.first
         {
@@ -90,6 +112,7 @@ module RosterImport
       {
         student_id: student_season.student_id,
         name: student_season.student.name,
+        college: student_season.college_season.college.name,
         position: student_season.position,
         class_year: student_season.class_year,
         overall: student_season.overall
@@ -100,10 +123,41 @@ module RosterImport
       previous_season = @college_season.season.previous_season
       return [] unless previous_season
 
+      previous_season.student_seasons.includes(:student, college_season: :college).to_a
+    end
+
+    # Unlike transfers, a true freshman only ever signed with one program —
+    # so this is scoped to this same college's previous-season signing
+    # class, not league-wide. Only non-transfer, high-school-or-unspecified
+    # signees count (a JUCO signee arrives with standing, not as "FR"), and
+    # only ones where the reviewer has actually typed in a full first name
+    # (SignedRecruit#first_name starts blank — RecruitmentTrail::Extractor
+    # only ever reads a first initial off the recruiting screen, same as
+    # this importer's own source data, so a blank one has nothing to offer).
+    def previous_signed_recruits
+      previous_season = @college_season.season.previous_season
+      return [] unless previous_season
+
       previous_college_season = previous_season.college_seasons.find_by(college_id: @college_season.college_id)
       return [] unless previous_college_season
 
-      previous_college_season.student_seasons.includes(:student).to_a
+      previous_college_season.signed_recruits
+                              .where(transfer: false)
+                              .select { |r| r.first_name.present? && r.class_year.to_s.strip.upcase.in?([ "", "HS" ]) }
+    end
+
+    # Only suggested when exactly one signee matches — unlike the Student
+    # pools above, an ambiguous recruit match isn't worth a review-screen
+    # picker (there's no Student to link to either way, just a name to
+    # pre-fill), so a genuine collision here just falls back to the bare
+    # initial the same as if no recruit record existed at all.
+    def matching_signed_recruit(row)
+      initial = row[:first_name].to_s.strip[0]&.downcase
+      last = row[:last_name].to_s.strip.downcase
+      candidates = @previous_signed_recruits.select do |recruit|
+        recruit.last_name.to_s.strip.downcase == last && recruit.first_name.to_s.strip[0]&.downcase == initial
+      end
+      candidates.first if candidates.size == 1
     end
   end
 end

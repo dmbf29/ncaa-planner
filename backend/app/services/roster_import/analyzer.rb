@@ -8,7 +8,7 @@ module RosterImport
     end
 
     def call(players)
-      Array(players).map { |row| analyze_row(row.deep_symbolize_keys) }
+      Array(players).map { |row| analyze_row(Matcher.normalize_keys(row.deep_symbolize_keys)) }
     end
 
     private

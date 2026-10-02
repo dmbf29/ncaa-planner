@@ -11,6 +11,7 @@ import {
   updateStudentSeason,
   analyzeRosterImport,
   commitRosterImport,
+  searchPreviousStudents,
 } from "../lib/apiClient";
 
 const nameInputClass =
@@ -21,6 +22,9 @@ const STATUS_BADGE_CLASSES = {
   new: "bg-textSecondary/10 text-textSecondary",
   ambiguous: "bg-warning/10 text-warning",
 };
+
+// Review table order: the rows needing the most attention first.
+const STATUS_SORT_ORDER = { new: 0, ambiguous: 1, match: 2 };
 
 const STATUS_LABELS = {
   match: "Match",
@@ -372,35 +376,148 @@ function CandidatePicker({ row, onChange }) {
     <select
       value={row.studentId ?? ""}
       onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
-      className="w-full max-w-[260px] rounded-md border border-warning/50 bg-white px-2 py-1 text-xs text-textPrimary focus:border-burnt focus:outline-none dark:border-warning/40 dark:bg-darksurface dark:text-white"
+      className="w-full max-w-[300px] rounded-md border border-warning/50 bg-white px-2 py-1 text-xs text-textPrimary focus:border-burnt focus:outline-none dark:border-warning/40 dark:bg-darksurface dark:text-white"
     >
       <option value="">— Create New Player —</option>
       {row.candidates.map((candidate) => (
         <option key={candidate.studentId} value={candidate.studentId}>
-          {candidate.name} ({candidate.position}, {candidate.classYear}, {candidate.overall ?? "—"} OVR)
+          {candidate.name} — {candidate.college} ({candidate.position}, {candidate.classYear}, {candidate.overall ?? "—"} OVR)
         </option>
       ))}
     </select>
   );
 }
 
-function ImportReviewRow({ row, onChange }) {
+function NewPlayerNameEditor({ row, onEditName }) {
+  return (
+    <div className="flex gap-1">
+      <input
+        value={row.firstName}
+        onChange={(e) => onEditName({ firstName: e.target.value, lastName: row.lastName })}
+        placeholder="First"
+        className="w-20 rounded border border-border bg-white px-1.5 py-1 text-xs text-textPrimary focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface dark:text-white"
+      />
+      <input
+        value={row.lastName}
+        onChange={(e) => onEditName({ firstName: row.firstName, lastName: e.target.value })}
+        placeholder="Last"
+        className="w-28 rounded border border-border bg-white px-1.5 py-1 text-xs text-textPrimary focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface dark:text-white"
+      />
+    </div>
+  );
+}
+
+function PreviousSeasonSearchBox({ dynastyId, seasonId, collegeSeasonId, onPick }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const timer = useRef(null);
+
+  const handleChange = (value) => {
+    setQuery(value);
+    if (timer.current) clearTimeout(timer.current);
+    if (value.trim().length < 2) {
+      setResults([]);
+      return;
+    }
+    timer.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const result = await searchPreviousStudents(dynastyId, seasonId, collegeSeasonId, value.trim());
+        setResults(result.students || []);
+      } catch {
+        setResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+  };
+
+  useEffect(() => () => timer.current && clearTimeout(timer.current), []);
+
+  return (
+    <div className="mt-1">
+      <input
+        value={query}
+        onChange={(e) => handleChange(e.target.value)}
+        placeholder="Search last season's players..."
+        className="w-full max-w-[260px] rounded border border-border bg-white px-2 py-1 text-xs text-textPrimary focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface dark:text-white"
+      />
+      {searching && <p className="mt-1 text-xs text-textSecondary">Searching...</p>}
+      {results.length > 0 && (
+        <ul className="mt-1 max-h-32 max-w-[260px] overflow-y-auto rounded border border-border bg-white dark:border-darkborder dark:bg-darksurface">
+          {results.map((candidate) => (
+            <li key={candidate.studentId}>
+              <button
+                type="button"
+                onClick={() => onPick(candidate)}
+                className="block w-full px-2 py-1 text-left text-xs hover:bg-border/30 dark:hover:bg-white/10"
+              >
+                {candidate.name} — {candidate.college} ({candidate.position}, {candidate.classYear}, {candidate.overall ?? "—"} OVR)
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function ImportReviewRow({ row, dynastyId, seasonId, collegeSeasonId, onChange, onEditName, onManualMatch }) {
+  const isManuallyMatched = row.status === "new" && row.manualMatch;
+
   return (
     <tr className="border-b border-border/60 last:border-0 dark:border-darkborder/60">
       <td className="px-2 py-1.5 text-textPrimary dark:text-white">
-        {row.firstName} {row.lastName}
+        {row.status === "new" && !isManuallyMatched ? (
+          <NewPlayerNameEditor row={row} onEditName={onEditName} />
+        ) : (
+          `${row.firstName} ${row.lastName}`
+        )}
       </td>
       <td className="px-2 py-1.5 text-textSecondary">
         {row.position} &middot; {row.classYear}
       </td>
       <td className="px-2 py-1.5">
-        <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_BADGE_CLASSES[row.status]}`}>
-          {STATUS_LABELS[row.status]}
+        <span
+          className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${
+            STATUS_BADGE_CLASSES[isManuallyMatched ? "match" : row.status]
+          }`}
+        >
+          {STATUS_LABELS[isManuallyMatched ? "match" : row.status]}
         </span>
       </td>
       <td className="px-2 py-1.5">
-        {row.status === "match" && <span className="text-textSecondary">{row.matchedName}</span>}
-        {row.status === "new" && <span className="text-textSecondary">New Student</span>}
+        {row.status === "match" && (
+          <span className="text-textSecondary">
+            {row.matchedName}
+            {row.matchedCollege && <span className="text-textSecondary/70"> — {row.matchedCollege}</span>}
+          </span>
+        )}
+        {row.status === "new" &&
+          (isManuallyMatched ? (
+            <span className="text-textSecondary">
+              {row.manualMatch.name}
+              <span className="text-textSecondary/70"> — {row.manualMatch.college}</span>
+              <button type="button" onClick={() => onManualMatch(null)} className="ml-2 text-xs text-burnt hover:underline">
+                Undo
+              </button>
+            </span>
+          ) : (
+            <div>
+              <span className="text-textSecondary">
+                {row.suggestedFirstName
+                  ? "New Student — name from signed recruit, verify above"
+                  : "New Student — fix the name above if needed"}
+              </span>
+              <PreviousSeasonSearchBox
+                dynastyId={dynastyId}
+                seasonId={seasonId}
+                collegeSeasonId={collegeSeasonId}
+                onPick={onManualMatch}
+              />
+            </div>
+          ))}
         {row.status === "ambiguous" && <CandidatePicker row={row} onChange={onChange} />}
       </td>
     </tr>
@@ -439,6 +556,8 @@ function ImportRosterForm({ dynastyId, seasonId, collegeSeasonId, onClose, onImp
         result.players.map((row) => ({
           ...row,
           studentId: row.status === "ambiguous" ? row.suggestedStudentId : (row.studentId ?? null),
+          firstName: row.status === "new" && row.suggestedFirstName ? row.suggestedFirstName : row.firstName,
+          lastName: row.status === "new" && row.suggestedLastName ? row.suggestedLastName : row.lastName,
         })),
       );
     } catch (err) {
@@ -450,6 +569,16 @@ function ImportRosterForm({ dynastyId, seasonId, collegeSeasonId, onClose, onImp
 
   const updateRow = (index, studentId) => {
     setRows((prev) => prev.map((row, i) => (i === index ? { ...row, studentId } : row)));
+  };
+
+  const editRowName = (index, { firstName, lastName }) => {
+    setRows((prev) => prev.map((row, i) => (i === index ? { ...row, firstName, lastName } : row)));
+  };
+
+  const setManualMatch = (index, candidate) => {
+    setRows((prev) =>
+      prev.map((row, i) => (i === index ? { ...row, manualMatch: candidate, studentId: candidate?.studentId ?? null } : row)),
+    );
   };
 
   const handleCommit = async () => {
@@ -476,6 +605,12 @@ function ImportRosterForm({ dynastyId, seasonId, collegeSeasonId, onClose, onImp
         { match: 0, new: 0, ambiguous: 0 },
       )
     : null;
+
+  const sortedRows = rows
+    ? rows
+        .map((row, index) => ({ row, index }))
+        .sort((a, b) => STATUS_SORT_ORDER[a.row.status] - STATUS_SORT_ORDER[b.row.status] || a.index - b.index)
+    : [];
 
   return (
     <Card>
@@ -553,8 +688,17 @@ function ImportRosterForm({ dynastyId, seasonId, collegeSeasonId, onClose, onImp
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row, index) => (
-                    <ImportReviewRow key={index} row={row} onChange={(studentId) => updateRow(index, studentId)} />
+                  {sortedRows.map(({ row, index }) => (
+                    <ImportReviewRow
+                      key={index}
+                      row={row}
+                      dynastyId={dynastyId}
+                      seasonId={seasonId}
+                      collegeSeasonId={collegeSeasonId}
+                      onChange={(studentId) => updateRow(index, studentId)}
+                      onEditName={(names) => editRowName(index, names)}
+                      onManualMatch={(candidate) => setManualMatch(index, candidate)}
+                    />
                   ))}
                 </tbody>
               </table>
@@ -641,7 +785,13 @@ function RosterPage() {
               to={`/dynasty/${dynastyId}/seasons/${seasonId}`}
               className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
             >
-              &larr; Back to Dashboard
+              &larr; Dashboard
+            </Link>
+            <Link
+              to={`/dynasty/${dynastyId}/seasons/${seasonId}/standings`}
+              className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+            >
+              &larr; Standings
             </Link>
           </>
         }

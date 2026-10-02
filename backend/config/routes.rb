@@ -60,6 +60,7 @@ Rails.application.routes.draw do
             post :commit_award_winners
             post :analyze_roster_import
             post :commit_roster_import
+            get :search_previous_students
             post :analyze_portal_preview
             post :commit_portal_preview
             get :portal_statuses

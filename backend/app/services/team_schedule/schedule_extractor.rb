@@ -45,7 +45,7 @@ module TeamSchedule
         college_raw_name: header["team_raw_name"],
         wins: header["wins"],
         losses: header["losses"],
-        prestige: clamp_prestige(header["prestige"]),
+        prestige: fetch_prestige(images),
         overall: header["overall"],
         offense: header["offense"],
         defense: header["defense"],
@@ -67,14 +67,31 @@ module TeamSchedule
       RubyLLM.chat.with_instructions(SYSTEM_PROMPT)
     end
 
-    # The 0-5-in-0.5-steps constraint can't be enforced in the schema itself
-    # — Anthropic's structured output rejects number fields with
-    # minimum/maximum/multipleOf — so it's clamped here instead as a safety
-    # net against an occasional off-grid reading like 3.7.
-    def clamp_prestige(value)
-      return nil if value.nil?
+    # Prestige is read as per-half fill booleans for each of the 5 stars and
+    # summed here. Asking for the total in one number field, or for an
+    # empty/half/full label per star, both read a half-filled first star as
+    # full (the stars are tiny in a full-screen screenshot); asking whether
+    # each star's left and right halves are solid is what reads it reliably.
+    # Kept as its own call so the header schema stays small (see GameStats
+    # extractors for the structured-output field-count limit).
+    def fetch_prestige(images)
+      schema = RubyLLM::Schema.create do
+        (1..5).each do |n|
+          boolean :"star_#{n}_left_half_filled",
+                  description: "Is the LEFT half of star #{n} (counting from the left) solid/filled in, rather than just an outline?"
+          boolean :"star_#{n}_right_half_filled",
+                  description: "Is the RIGHT half of star #{n} (counting from the left) solid/filled in, rather than just an outline?"
+        end
+      end
+      raw = chat.with_schema(schema).ask(
+        "Zoom in on the row of 5 small stars directly under the team name at the top of this schedule " \
+        "screenshot. Some stars are partly filled: a half star has only its left half solid and its right " \
+        "half hollow.", with: images
+      ).content
+      halves = (1..5).flat_map { |n| [ raw["star_#{n}_left_half_filled"], raw["star_#{n}_right_half_filled"] ] }
+      return nil unless halves.all? { |value| [ true, false ].include?(value) }
 
-      (value.to_f.clamp(0, 5) * 2).round / 2.0
+      halves.count(true) * 0.5
     end
 
     def fetch_header(images)
@@ -87,18 +104,13 @@ module TeamSchedule
         integer :wins, description: "First number in the overall win-loss record next to the team name, e.g. 1 in '1-1 (0-0)'"
         integer :losses, description: "Second number in the overall win-loss record, e.g. 1 in '1-1 (0-0)' " \
                                       "(the number right after the dash, not the conference record inside the parentheses)"
-        number :prestige, description: "Total of the 5 star-rating icons next to the team name. Each icon is 0 " \
-                                       "(empty outline), 0.5 (half-filled), or 1 (fully filled) — sum all 5 icons " \
-                                       "for a value from 0 to 5 in increments of 0.5, e.g. 3.5 for three full stars " \
-                                       "and one half star, or 0 if all 5 are empty outlines. Never report a value " \
-                                       "outside 0-5, and always in steps of 0.5 (never e.g. 3.2 or 3.7)."
         integer :overall, description: "The number in the 'OVR' badge"
         integer :offense, description: "The number in the 'OFF' badge"
         integer :defense, description: "The number in the 'DEF' badge"
       end
       chat.with_schema(schema).ask(
-        "Read the team header at the top of this schedule screenshot: the win-loss record, the star " \
-        "rating, and the OVR/OFF/DEF badges.", with: images
+        "Read the team header at the top of this schedule screenshot: the win-loss record " \
+        "and the OVR/OFF/DEF badges.", with: images
       ).content
     end
 
@@ -139,8 +151,9 @@ module TeamSchedule
             string :time_of_day, required: false, description: "Exactly as shown in TIME(ET)/RESULT when status is 'scheduled', e.g. '4:00 PM'. Omit otherwise."
             string :result, required: false, enum: %w[win loss], description: "Whether this team won or lost, when status is 'final'. Omit otherwise."
             integer :first_score, required: false,
-                    description: "The first number shown in TIME(ET)/RESULT when status is 'final', e.g. 38 in " \
-                                 "'L 38-31' or 'W 38-31' — read it exactly as printed, do not guess whose score it is. Omit otherwise."
+                    description: "The first number printed in the TIME(ET)/RESULT score when status is 'final' — read it " \
+                                 "exactly as printed, do not guess whose score it is. Omit for 'scheduled' and 'bye' rows, " \
+                                 "which have no score — never invent one."
             integer :second_score, required: false, description: "The second number shown in TIME(ET)/RESULT when status is 'final'. Omit otherwise."
           end
         end
@@ -205,6 +218,8 @@ module TeamSchedule
     # The printed numbers are (winning score, losing score) in that order,
     # independent of whose row they're printed on — see the class comment.
     def resolved_scores(result_row)
+      return { team_score: nil, opponent_score: nil } unless result_row&.fetch("status", nil) == "final"
+
       result = result_row&.fetch("result", nil)
       first_score = result_row&.fetch("first_score", nil)
       second_score = result_row&.fetch("second_score", nil)

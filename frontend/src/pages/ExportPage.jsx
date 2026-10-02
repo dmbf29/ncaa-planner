@@ -362,7 +362,7 @@ function ExportPage() {
           {activeTab === "roster_breakdown" && (
           <ExportCard
             title="Roster Breakdown"
-            description="Position-group-by-position-group comparison of our coached teams — best players, average ratings, NIL spend, and All-Americans, plus how we stack up against the rest of the conference."
+            description="Where each team stands, then a position-by-position comparison of our starting rooms against each other, the conference and last year (transfers and true freshmen tagged, plus last season's production), closing with the hosts' roster verdicts."
             format={teamBreakdownFormat}
             setFormat={setTeamBreakdownFormat}
             mode={teamBreakdownMode}

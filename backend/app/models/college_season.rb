@@ -1,6 +1,6 @@
 class CollegeSeason < ApplicationRecord
   OFFENSE_POSITIONS = %w[QB HB FB WR TE LT LG C RG RT].freeze
-  DEFENSE_POSITIONS = %w[CB DT FS LE RE LOLB MLB ROLB SS MIKE WILL SAM].freeze
+  DEFENSE_POSITIONS = %w[CB DT FS LE RE LEDG REDG LOLB MLB ROLB SS MIKE WILL SAM].freeze
   UNDERCLASS_YEARS = %w[FR FR(RS) SO SO(RS)].freeze
   BREAKOUT_DEV_TRAITS = %w[star elite].freeze
 
@@ -10,7 +10,7 @@ class CollegeSeason < ApplicationRecord
     "Wide Receivers" => %w[WR],
     "Tight Ends" => %w[TE],
     "Offensive Line" => %w[LT LG C RG RT],
-    "Defensive Line" => %w[LE RE DT],
+    "Defensive Line" => %w[LE RE LEDG REDG DT],
     "Linebackers" => %w[MLB LOLB ROLB MIKE WILL SAM],
     "Secondary" => %w[CB FS SS],
     "Kickers/Punters" => %w[K P]

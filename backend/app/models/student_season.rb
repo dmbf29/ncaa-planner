@@ -8,6 +8,7 @@ class StudentSeason < ApplicationRecord
   has_many :injuries, dependent: :destroy
   has_many :season_awards, dependent: :destroy
 
+  validates :student_id, uniqueness: { scope: :college_season_id }
   validates :class_year, presence: true
   validates :position, presence: true
 end
