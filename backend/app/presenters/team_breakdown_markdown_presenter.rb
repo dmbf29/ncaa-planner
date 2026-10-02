@@ -16,7 +16,8 @@ class TeamBreakdownMarkdownPresenter
   ].freeze
 
   ROSTER_RULES = [
-    "This is the roster AFTER the offseason's progression. It is not a recruiting or portal episode: don't " \
+    "It's the end of April, right after spring practice, and the new season is still ahead (see the broadcast " \
+    "date and year at the top). This is the roster AFTER the offseason's progression. It is not a recruiting or portal episode: don't " \
     "discuss recruiting classes or who left (other shows cover those), only the roster as it stands now.",
     "Each room is judged on its STARTERS (quarterback 1, running backs 2, receivers 3, tight end 1, offensive " \
     "line 5, defensive line 4, linebackers 3, secondary 4). Never judge a room by its " \
@@ -25,7 +26,7 @@ class TeamBreakdownMarkdownPresenter
     "or three storylines for the room and move on. Do not read the tables, and do not cover every team's " \
     "every bullet.",
     "'Vs. last year' compares a room's starters now to the same program's starters a year ago, and the riser " \
-    "and faller are the players whose rating moved most. If no comparison is listed, don't invent one.",
+    "and faller are the starters whose rating moved most. If no comparison is listed, don't invent one.",
     "ALWAYS say where a player came from when it's listed: 'transferred from X' and 'true freshman'. Mention " \
     "it every time one of those players is named, since it's part of who they are.",
     "Last Season's Production is only available for our own teams: the room's top returning producer and the " \
@@ -56,9 +57,11 @@ class TeamBreakdownMarkdownPresenter
     lines.concat(PodcastShow.directive_lines(show_name: show_name))
     lines.concat(rule_lines("## 🏈 ROSTER BREAKDOWN FORMAT (PRODUCER NOTE, DO NOT READ ALOUD)", ROSTER_RULES))
     lines.concat(rule_lines("## 🏠 VERDICT FORMAT (PRODUCER NOTE, DO NOT READ ALOUD)", VERDICT_RULES))
-    lines.concat(PodcastShow.opening_script_lines(show_name: show_name, framing_hint: "the roster, position by position"))
+    lines.concat(PodcastShow.opening_script_lines(show_name: show_name, framing_hint: "the #{year} roster, position by position, right after spring practice"))
     lines.concat(PodcastShow.run_of_show_lines(segments))
-    lines << "# 🏈 ROSTER BREAKDOWN: #{show_name} — #{@data[:season][:year]}"
+    lines << "# 🏈 ROSTER BREAKDOWN: #{show_name} — #{year} SEASON"
+    lines << ""
+    lines << "> #{timing_note}"
     lines << ""
     lines.concat(data_coverage_section)
     lines.concat(standing_section)
@@ -71,6 +74,20 @@ class TeamBreakdownMarkdownPresenter
 
   def show_name
     @data[:season][:dynasty]
+  end
+
+  def year
+    @data[:season][:year]
+  end
+
+  # Anchors the hosts in time: a concrete date, the new season's year, and
+  # which season "last year" means, so they don't treat the previous
+  # season's results as this one's or talk as if games have been played.
+  def timing_note
+    pretty = Date.parse(@data[:broadcast_date]).strftime("%A, %B %-d, %Y")
+    "**Broadcast date:** #{pretty} — the end of April, right after spring practice. This is the #{year} season: " \
+      "it hasn't started and no #{year} games have been played. 'Last season' and 'last year' mean #{@data[:last_season_year]}. " \
+      "Anchor every 'when' reference (this spring, this summer, this fall, the opener) to this date."
   end
 
   def rule_lines(title, rules)
@@ -195,9 +212,9 @@ class TeamBreakdownMarkdownPresenter
   def mover_lines(movers)
     lines = []
     riser = movers[:riser]
-    lines << "- Biggest riser: #{mover_text(riser)}" if riser
+    lines << "- Biggest riser among the starters: #{mover_text(riser)}" if riser
     faller = movers[:faller]
-    lines << "- Biggest drop: #{mover_text(faller)}" if faller && faller[:overall_change] <= FALLER_THRESHOLD
+    lines << "- Biggest drop among the starters: #{mover_text(faller)}" if faller && faller[:overall_change] <= FALLER_THRESHOLD
     lines
   end
 
@@ -263,13 +280,17 @@ class TeamBreakdownMarkdownPresenter
   def comparison_lines(entry)
     rank = rank_text(entry[:overall_conference_rank], " (", " in the conference)")
     lines = [ "- **#{entry[:college][:name]}**: #{entry[:overall] || '—'} overall#{rank}; " \
-              "#{entry[:rooms_in_conference_top_3]} rooms in the conference's top three, " \
+              "#{rooms(entry[:rooms_in_conference_top_3])} in the conference's top three, " \
               "#{entry[:rooms_in_conference_bottom_3]} in its bottom three" ]
     lines[0] += "; starting rooms changed by an average of #{signed(entry[:average_room_change])} from last year" if entry[:average_room_change]
     lines << "  - Best rooms: #{room_ranks(entry[:best_rooms])}"
     lines << "  - Worst rooms: #{room_ranks(entry[:worst_rooms])}"
     lines << ""
     lines
+  end
+
+  def rooms(count)
+    "#{count} room#{'s' unless count == 1}"
   end
 
   def room_ranks(rooms)

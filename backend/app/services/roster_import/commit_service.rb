@@ -8,16 +8,31 @@ module RosterImport
   # warning rather than aborting the rest of the batch, mirroring the other
   # CommitServices. No removal of players missing from the import — this is
   # additive/upsert only, since a pasted screen is typically a partial roster.
+  # Afterwards, players with no history are linked to last season (see
+  # HistoryLinker).
   class CommitService
     def initialize(college_season)
       @college_season = college_season
     end
 
     def call(players)
-      Array(players).filter_map { |row| commit_row(row.deep_symbolize_keys) }
+      warnings = Array(players).filter_map { |row| commit_row(row.deep_symbolize_keys) }
+      link_history
+      warnings
     end
 
     private
+
+    # Matching checks this season's roster first, so a player created earlier
+    # this season by another upload (e.g. the All-Americans) is updated in
+    # place and never looked up in last season. HistoryLinker reconnects them
+    # to their real Student afterwards. The rows are already committed, so a
+    # failure here is logged rather than failing the import.
+    def link_history
+      HistoryLinker.new(@college_season).call
+    rescue StandardError => e
+      Rails.logger.warn("RosterImport history link failed for college_season #{@college_season.id}: #{e.message}")
+    end
 
     def commit_row(row)
       student = row[:student_id].present? ? Student.find(row[:student_id]) : create_student(row)

@@ -98,10 +98,19 @@ class TeamBreakdownSerializer
     @season = season
   end
 
+  # Recorded at the end of April, right after spring practice and months
+  # before the season's first game. The season's year is the year it is PLAYED
+  # in (a season runs August through January), so the spring ahead of it falls
+  # in that same calendar year.
+  RECORDING_MONTH = 4
+  RECORDING_DAY = 30
+
   def as_json
     {
       focus: focus_json,
       season: { id: @season.id, year: @season.year, dynasty: @season.dynasty.name },
+      broadcast_date: Date.new(@season.year, RECORDING_MONTH, RECORDING_DAY).iso8601,
+      last_season_year: @season.year - 1,
       data_coverage: data_coverage_json,
       teams: coached_college_seasons.map { |cs| team_json(cs) },
       positions: POSITION_GROUPS.keys.map { |group| position_json(group) },
@@ -114,7 +123,8 @@ class TeamBreakdownSerializer
   def focus_json
     {
       instructions: "Roster Breakdown for our #{coached_college_seasons.size} coached teams for the " \
-                    "#{@season.year} season, now that the offseason is over. It opens with where each team " \
+                    "#{@season.year} season, recorded at the end of April #{@season.year} right after spring " \
+                    "practice, with the #{@season.year} season still ahead and no games played. It opens with where each team " \
                     "stands, then goes position group by position group comparing our teams' starting rooms to " \
                     "each other, to the #{conference_label} and to a year ago, and closes with the hosts' " \
                     "verdicts. Rooms are judged on their starters, not the whole depth chart. Player-rating " \
@@ -272,9 +282,10 @@ class TeamBreakdownSerializer
     }
   end
 
-  # The player in the room who gained / lost the most since last year.
+  # The starter in the room who gained / lost the most since last year. Only
+  # starters, so the storyline is about the lineup rather than a backup.
   def movers(college_season, group)
-    changed = room(college_season, group)[:players].filter_map do |ss|
+    changed = room(college_season, group)[:starters].filter_map do |ss|
       player = player_json(ss)
       player if player[:overall_change]
     end
