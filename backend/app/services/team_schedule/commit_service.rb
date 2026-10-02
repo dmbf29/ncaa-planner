@@ -77,7 +77,25 @@ module TeamSchedule
         week: week,
         home_college_id: [ home.id, away.id ],
         away_college_id: [ home.id, away.id ]
-      ) || Game.create!(week: week, home_college: home, away_college: away)
+      ) || reschedule_existing_game(week, team, home, away) ||
+        Game.create!(week: week, home_college: home, away_college: away)
+    end
+
+    # The team already has an (unplayed) game this week against someone else —
+    # i.e. the schedule changed since the last upload — so repoint that game
+    # at the new opponent instead of tripping the one-game-per-week check.
+    # Played games are left alone and fall through to the validation warning.
+    def reschedule_existing_game(week, team, home, away)
+      existing = Game.where(week: week)
+                     .where("home_college_id = :id OR away_college_id = :id", id: team.id)
+                     .first
+      return if existing.nil? || existing.played?
+
+      ActiveRecord::Base.transaction do
+        existing.college_game_stats.destroy_all
+        existing.update!(home_college: home, away_college: away, time: nil)
+      end
+      existing
     end
 
     def update_time(game, week, month, day, time_of_day)

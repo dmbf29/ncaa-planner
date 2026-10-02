@@ -115,8 +115,8 @@ function ConferenceAttributesTable({ conference, conferenceOptions }) {
               <th className="px-2 py-2 font-semibold">Overall</th>
               <th className="px-2 py-2 font-semibold">Offense</th>
               <th className="px-2 py-2 font-semibold">Defense</th>
-              <th className="px-2 py-2 font-semibold">Conference</th>
               <th className="px-2 py-2 font-semibold">Prestige</th>
+              <th className="px-2 py-2 font-semibold">Conference</th>
               <th className="px-3 py-2 font-semibold"></th>
             </tr>
           </thead>

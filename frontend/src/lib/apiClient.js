@@ -178,6 +178,13 @@ export const commitRosterImport = (dynastyId, seasonId, collegeSeasonId, players
     .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_roster_import`, { collegeSeasonId, players })
     .then((r) => r.data);
 
+export const searchPreviousStudents = (dynastyId, seasonId, collegeSeasonId, q) =>
+  api
+    .get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/search_previous_students`, {
+      params: { college_season_id: collegeSeasonId, q },
+    })
+    .then((r) => r.data);
+
 export const fetchWeekGames = (dynastyId, seasonId, weekNumber) =>
   api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/weeks/${weekNumber}/games`).then((r) => r.data);
 

@@ -2,6 +2,7 @@ class Season < ApplicationRecord
   belongs_to :dynasty
   has_many :weeks, dependent: :destroy
   has_many :college_seasons, dependent: :destroy
+  has_many :student_seasons, through: :college_seasons
   has_many :season_awards, dependent: :destroy
   has_many :awards, through: :season_awards
 

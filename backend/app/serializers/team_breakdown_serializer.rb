@@ -1,11 +1,10 @@
 # "Roster Breakdown" episode, recorded once the offseason's progression has
 # been applied: for each of its POSITION_GROUPS it compares our
 # coached teams' STARTING rooms to each other and to the conference, and
-# against the same programs a year ago. It is bookended by a team-level
-# "where each team stands" opening and a closing side-by-side for the hosts'
-# verdicts (see TeamBreakdownMarkdownPresenter).
+# against the same programs a year ago. It opens with a team-level "where each
+# team stands" segment (see TeamBreakdownMarkdownPresenter).
 #
-# Rooms are judged on their starters (RoomSlots), not a whole-room average,
+# Rooms are judged on their starters (STARTER_SLOTS), not a whole-room average,
 # which a pile of backups drags around. Player ratings exist only for
 # colleges with a scraped roster (see data_coverage); NIL spend and
 # All-American honors are league-wide. Season stats exist only for our own
@@ -24,8 +23,9 @@ class TeamBreakdownSerializer
   DOLLARS_PER_NIL_POINT = 10_000
 
   # Every position room except kickers/punters, which aren't worth an
-  # episode segment.
-  POSITION_GROUPS = CollegeSeason::POSITION_GROUPS.except("Kickers/Punters").freeze
+  # episode segment, in broadcast order: reversed from the usual QB-first
+  # listing so the show builds up to the quarterbacks.
+  POSITION_GROUPS = CollegeSeason::POSITION_GROUPS.except("Kickers/Punters").to_a.reverse.to_h.freeze
 
   # Screen labels used by NilSpend::Extractor differ from
   # CollegeSeason::POSITION_GROUPS' keys, so this bridges the two.
@@ -113,8 +113,7 @@ class TeamBreakdownSerializer
       last_season_year: @season.year - 1,
       data_coverage: data_coverage_json,
       teams: coached_college_seasons.map { |cs| team_json(cs) },
-      positions: POSITION_GROUPS.keys.map { |group| position_json(group) },
-      team_comparison: team_comparison_json
+      positions: POSITION_GROUPS.keys.map { |group| position_json(group) }
     }
   end
 
@@ -367,6 +366,7 @@ class TeamBreakdownSerializer
       player_count: this_room[:players].size,
       conference_rank: room_rank(college_season, group),
       last_year: last_year_room(college_season, group),
+      team_biggest_room_change: room_change_flag(college_season, group),
       movers: movers(college_season, group),
       nil_spend: nil_json(college_season, nil_key),
       all_americans: all_americans_for_college(college_season.college_id, group).map { |aa| all_american_json(aa) },
@@ -491,30 +491,32 @@ class TeamBreakdownSerializer
     end
   end
 
-  # ---- closing comparison -----------------------------------------------------
+  # ---- biggest room changes ---------------------------------------------------
 
-  # The teams side by side for the hosts' closing debate. Deliberately NOT
-  # ranked or sorted by any measure (alphabetical, as coached_college_seasons
-  # is), since the hosts decide the verdict.
-  def team_comparison_json
-    coached_college_seasons.map do |college_season|
-      ranks = POSITION_GROUPS.keys.filter_map do |group|
-        rank = room_rank(college_season, group)
-        rank && { position_group: group, rank: rank[:rank], of: rank[:of] }
+  # The one room where a team improved the most from last year and the one
+  # where it fell the most, so each room's block can say "this is the team's
+  # biggest jump / drop". A team with no year-over-year data, or with no
+  # room that actually rose / fell, gets nil for that side.
+  def room_changes(college_season)
+    @room_changes ||= {}
+    @room_changes[college_season.id] ||= begin
+      changes = POSITION_GROUPS.keys.filter_map do |group|
+        change = last_year_room(college_season, group)&.dig(:change)
+        change && [ group, change ]
       end
-      sorted = ranks.sort_by { |r| [ r[:rank], r[:position_group] ] }
-      changes = POSITION_GROUPS.keys.filter_map { |group| last_year_room(college_season, group)&.dig(:change) }
-      {
-        college: { id: college_season.college.id, name: college_season.college.name },
-        overall: college_season.overall,
-        overall_conference_rank: overall_rank(college_season),
-        best_rooms: sorted.first(2),
-        worst_rooms: sorted.last(2).reverse,
-        rooms_in_conference_top_3: ranks.count { |r| r[:rank] <= 3 },
-        rooms_in_conference_bottom_3: ranks.count { |r| r[:rank] > r[:of] - 3 },
-        average_room_change: average(changes)
-      }
+      jump = changes.max_by { |_group, change| change }
+      drop = changes.min_by { |_group, change| change }
+      { jump: jump && jump.last.positive? ? jump.first : nil, drop: drop && drop.last.negative? ? drop.first : nil }
     end
+  end
+
+  # :jump, :drop or nil for this team's room.
+  def room_change_flag(college_season, group)
+    changes = room_changes(college_season)
+    return :jump if changes[:jump] == group
+    return :drop if changes[:drop] == group
+
+    nil
   end
 
   def data_coverage_json

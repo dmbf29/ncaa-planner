@@ -13,21 +13,22 @@ module RosterImport
   class CommitService
     def initialize(college_season)
       @college_season = college_season
+      @claimed_student_ids = Set.new
     end
 
     def call(players)
-      warnings = Array(players).filter_map { |row| commit_row(row.deep_symbolize_keys) }
+      warnings = Array(players).filter_map { |row| commit_row(Matcher.normalize_keys(row.deep_symbolize_keys)) }
       link_history
       warnings
     end
 
     private
 
-    # Matching checks this season's roster first, so a player created earlier
-    # this season by another upload (e.g. the All-Americans) is updated in
-    # place and never looked up in last season. HistoryLinker reconnects them
-    # to their real Student afterwards. The rows are already committed, so a
-    # failure here is logged rather than failing the import.
+    # Matching above checks this season's roster first, so a player created
+    # earlier this season by another upload (e.g. the All-Americans) is
+    # updated in place and never looked up in last season. HistoryLinker
+    # reconnects them to their real Student afterwards. The rows are already
+    # committed, so a failure here is logged rather than failing the import.
     def link_history
       HistoryLinker.new(@college_season).call
     rescue StandardError => e
@@ -35,7 +36,12 @@ module RosterImport
     end
 
     def commit_row(row)
-      student = row[:student_id].present? ? Student.find(row[:student_id]) : create_student(row)
+      student = Student.find(row[:student_id]) if row[:student_id].present?
+      if student && (conflict = conflict_message(student))
+        return { player: "#{row[:first_name]} #{row[:last_name]}".strip, error: conflict }
+      end
+
+      student ||= create_student(row)
       student_season = student.student_seasons.find_or_initialize_by(college_season: @college_season)
       student_season.class_year = Matcher.normalize_class_year(row[:class_year])
       student_season.position = row[:position]
@@ -48,9 +54,28 @@ module RosterImport
       student_season.strength = row[:strength].presence&.to_i
       student_season.awareness = row[:awareness].presence&.to_i
       student_season.save!
+      @claimed_student_ids << student.id
       nil
-    rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound => e
+    rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound, ActiveRecord::RecordNotUnique => e
       { player: "#{row[:first_name]} #{row[:last_name]}".strip, error: e.message }
+    end
+
+    # A student gets one StudentSeason per season: reject a row that would
+    # attach them a second time — either to another row in this same batch
+    # (two rows resolved to the same student, which would silently overwrite
+    # each other) or to a different college's roster already this season.
+    def conflict_message(student)
+      return "Already matched to another row in this import" if @claimed_student_ids.include?(student.id)
+
+      elsewhere = student.student_seasons
+                         .joins(:college_season)
+                         .where(college_seasons: { season_id: @college_season.season_id })
+                         .where.not(college_season_id: @college_season.id)
+                         .includes(college_season: :college)
+                         .first
+      return unless elsewhere
+
+      "Already on #{elsewhere.college_season.college.name}'s #{@college_season.season.year} roster"
     end
 
     def create_student(row)

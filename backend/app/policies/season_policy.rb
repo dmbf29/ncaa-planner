@@ -107,6 +107,10 @@ class SeasonPolicy < ApplicationPolicy
     owner?
   end
 
+  def search_previous_students?
+    owner?
+  end
+
   def analyze_portal_preview?
     owner?
   end

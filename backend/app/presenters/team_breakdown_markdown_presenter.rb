@@ -29,6 +29,9 @@ class TeamBreakdownMarkdownPresenter
     "and faller are the starters whose rating moved most. If no comparison is listed, don't invent one.",
     "ALWAYS say where a player came from when it's listed: 'transferred from X' and 'true freshman'. Mention " \
     "it every time one of those players is named, since it's part of who they are.",
+    "A line reading 'Biggest room jump on the roster' or 'Biggest room drop on the roster' marks the room that " \
+    "improved the most, or fell the most, for that team from last year. When it appears, make a point of it " \
+    "and say what's driving it (a transfer, a graduated starter, a riser).",
     "Last Season's Production is only available for our own teams: the room's top returning producer and the " \
     "top producer who left. Use it for what the team gains and loses. Never quote stats for another school, " \
     "and never invent any.",
@@ -39,13 +42,15 @@ class TeamBreakdownMarkdownPresenter
   ].freeze
 
   VERDICT_RULES = [
-    "Close the whole episode with a real debate: the hosts rank our teams' rosters from worst to best and each " \
+    "After the quarterbacks, wrap up the episode with a real debate (no new data, just what's been covered): " \
+    "the hosts rank our teams' rosters from worst to best and each " \
     "gives every team a one-line tag picked from: #{VERDICT_TAGS.map { |t| t.split(' — ').first }.join(', ')} " \
     "(strongest). They don't have to agree on the order or a tag — a split verdict is good radio.",
-    "The closing section lists the teams' numbers side by side in no particular order. Nobody has handed the " \
-    "hosts a ranking; they argue it out from the evidence: overall rating, how many rooms sit in the " \
-    "conference's top or bottom three, who improved the most from last year, and who is leaning on transfers " \
-    "or true freshmen. Each host should defend a position and concede a point."
+    "Nobody has handed the hosts a ranking and there is no scoreboard: they argue it out from everything " \
+    "covered in the show. Real arguments to make: last season's record against the new roster rating (a team " \
+    "that won big and now rates low, or the reverse), each team's biggest room jump and drop, how many " \
+    "rooms rank near the top or bottom of the conference, and who is leaning on transfers or true " \
+    "freshmen. Each host should defend a position and concede a point."
   ].freeze
 
   def initialize(data)
@@ -66,7 +71,6 @@ class TeamBreakdownMarkdownPresenter
     lines.concat(data_coverage_section)
     lines.concat(standing_section)
     @data[:positions].each { |position| lines.concat(position_section(position)) }
-    lines.concat(closing_section)
     lines.join("\n")
   end
 
@@ -95,7 +99,7 @@ class TeamBreakdownMarkdownPresenter
   end
 
   def segments
-    [ "Where Each Team Stands" ] + @data[:positions].map { |p| p[:position_group] } + [ "Final Verdicts: Ranking Our Rosters" ]
+    [ "Where Each Team Stands" ] + @data[:positions].map { |p| p[:position_group] } + [ "Wrap-Up: Ranking Our Rosters" ]
   end
 
   def data_coverage_section
@@ -176,6 +180,7 @@ class TeamBreakdownMarkdownPresenter
     lines << "- Starters: #{team[:starters].map { |p| starter_text(p) }.join('; ')}"
     lines << "- Starter average #{team[:starter_average]}#{rank_text(team[:conference_rank], ' — ', ' in the conference')}" \
              "#{last_year_text(team[:last_year])}"
+    lines.concat(room_change_lines(team[:team_biggest_room_change], team[:last_year]))
     lines.concat(mover_lines(team[:movers]))
     lines << "- NIL: #{nil_text(team[:nil_spend])}" if team[:nil_spend]
     lines << "- All-Americans: #{team[:all_americans].map { |aa| "#{aa[:name]} (#{honor_label(aa)}#{origin_suffix(aa[:origin])})" }.join(', ')}" if team[:all_americans].any?
@@ -205,6 +210,14 @@ class TeamBreakdownMarkdownPresenter
     return " (unchanged from last year's starters)" if last_year[:change].zero?
 
     " (#{signed(last_year[:change])} vs. last year's starters, who averaged #{last_year[:starter_average]})"
+  end
+
+  # A team's best / worst year-over-year room, flagged inside that room's block.
+  def room_change_lines(flag, last_year)
+    return [] unless flag && last_year && last_year[:change]
+
+    label = flag == :jump ? "Biggest room jump" : "Biggest room drop"
+    [ "- #{flag == :jump ? '📈' : '📉'} #{label} on the roster: this room (#{signed(last_year[:change])})" ]
   end
 
   FALLER_THRESHOLD = -3
@@ -265,36 +278,6 @@ class TeamBreakdownMarkdownPresenter
     tier = all_american[:tier] == 1 ? "1st Team" : "2nd Team"
     preseason = all_american[:preseason] ? "Preseason " : ""
     "#{preseason}#{scope} #{tier}"
-  end
-
-  # ---- closing -----------------------------------------------------------------
-
-  def closing_section
-    lines = [ "---", "", "## 🏠 FINAL VERDICTS: RANKING OUR ROSTERS", "" ]
-    lines << "Our teams side by side, in alphabetical order. This is NOT a ranking — the hosts debate and decide it."
-    lines << ""
-    @data[:team_comparison].each { |entry| lines.concat(comparison_lines(entry)) }
-    lines
-  end
-
-  def comparison_lines(entry)
-    rank = rank_text(entry[:overall_conference_rank], " (", " in the conference)")
-    lines = [ "- **#{entry[:college][:name]}**: #{entry[:overall] || '—'} overall#{rank}; " \
-              "#{rooms(entry[:rooms_in_conference_top_3])} in the conference's top three, " \
-              "#{entry[:rooms_in_conference_bottom_3]} in its bottom three" ]
-    lines[0] += "; starting rooms changed by an average of #{signed(entry[:average_room_change])} from last year" if entry[:average_room_change]
-    lines << "  - Best rooms: #{room_ranks(entry[:best_rooms])}"
-    lines << "  - Worst rooms: #{room_ranks(entry[:worst_rooms])}"
-    lines << ""
-    lines
-  end
-
-  def rooms(count)
-    "#{count} room#{'s' unless count == 1}"
-  end
-
-  def room_ranks(rooms)
-    rooms.map { |r| "#{r[:position_group]} (#{ordinal(r[:rank])} of #{r[:of]})" }.join(", ")
   end
 
   # ---- formatting helpers ----------------------------------------------------
