@@ -36,6 +36,7 @@ module RosterVideo
 
     def repair!(finding)
       raise "refusing to repair: #{finding.student_season.student.name} has signed-recruit records" unless finding.repairable
+      raise "refusing to repair: the new name #{finding.row[:last_name].inspect} still looks garbled" if StringDistance.garbled_name?(finding.row[:last_name])
 
       ActiveRecord::Base.transaction do
         # No other history: it is the right person with a misspelt name ("Tretn"), so correct the name rather than

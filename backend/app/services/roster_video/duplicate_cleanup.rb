@@ -53,6 +53,7 @@ module RosterVideo
     end
 
     def manual_reason(kind, row, twin)
+      return "the matched name #{row[:last_name].inspect} still looks garbled" if StringDistance.garbled_name?(row[:last_name])
       return "#{twin.student.name} has signed-recruit records" if SignedRecruit.exists?(student_id: twin.student_id)
       return "game data points at #{twin.student.name}'s roster row" if referenced?(twin)
       return unless kind == :typo_duplicate

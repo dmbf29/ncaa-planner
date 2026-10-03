@@ -33,11 +33,41 @@ namespace :roster_import do
       JSON.parse(out)
     end
 
+    # Each clip's OCR already uses several cores, so two at a time keeps the machine busy without thrashing it.
+    $stdout.sync = true
+    at_once = Integer(ENV.fetch("CLIPS_AT_ONCE", 2))
+    pending = Queue.new
+    clips.each { |path| pending << path }
+    outcomes = {}
+    lock = Mutex.new
+    Array.new(at_once) do
+      Thread.new do
+        loop do
+          path = begin
+            pending.pop(true)
+          rescue ThreadError
+            break
+          end
+          outcome = begin
+            extract.call(path)
+          rescue StandardError => e
+            e
+          end
+          lock.synchronize do
+            outcomes[path] = outcome
+            puts "  read #{outcomes.size}/#{clips.size}" if (outcomes.size % 10).zero?
+          end
+        end
+      end
+    end.each(&:join)
+
     resolver = RosterVideo::TeamResolver.new
     extracted = clips.each_with_index.filter_map do |path, index|
       name = File.basename(path)
       begin
-        result = extract.call(path)
+        result = outcomes.fetch(path)
+        raise result if result.is_a?(StandardError)
+
         college = resolver.call(result["team"])
         puts format("[%2d/%d] %-34s team %-22s -> %s", index + 1, clips.size, name, result["team"].inspect, college&.name || "UNRECOGNIZED")
         { path: path, name: name, result: result, college: college }

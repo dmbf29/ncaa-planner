@@ -12,6 +12,16 @@ module StringDistance
     damerau(x, y) <= (x.length >= 9 && y.length >= 9 ? 2 : 1)
   end
 
+  # An OCR'd name that still contains the tell-tale lookalike garble: digits or a pipe, a stray trailing period, or a
+  # "numeral" made of I/l/| that includes a lowercase l ("Ill", "Il", "IlI").
+  def garbled_name?(name)
+    text = name.to_s
+    return true if text.match?(/[0-9|]/)
+    return true if text.match?(/\.\z/) && !text.match?(/\b(Jr|Sr)\.\z/)
+
+    text.split(/[\s'-]+/).any? { |token| token.match?(/\A[Il|]{2,}\z/) && token.include?("l") }
+  end
+
   # Like levenshtein, but swapping two adjacent characters ("oiho" / "ohio") counts as one edit.
   def damerau(a, b)
     rows = Array.new(a.length + 1) { |i| [ i ] + Array.new(b.length, 0) }

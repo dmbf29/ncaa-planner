@@ -240,7 +240,7 @@ def build(pane, row):
     # and gets flagged below; resolve_names has already tried extra reads to settle it.
     player = {
         "first_name": title(pane["first"]),
-        "last_name": title(last_from_row) if last_from_row.isupper() else last_from_row,
+        "last_name": tidy_last_name(title(last_from_row) if last_from_row.isupper() else last_from_row),
         "class_year": (row.get("YEAR") or pane["class"]).upper(),  # OCR sometimes returns the short labels as "so"
         "position": pane["position"],
         "overall": digits(row.get("OVR")),
@@ -294,22 +294,24 @@ def lookalike_key(text):
 def align_to_pane(row_last, pane_last):
     """Settle a last name using both sources, each for what it reads reliably.
 
-    The row is mixed case (McCullom, DeMarco) but its font can't tell a capital I from a lowercase l, or an O
-    from a 0 ("Moore III" reads "Moore Ill", "Iosefa" reads "losefa"). The pane is ALL CAPS, so its letters are
-    unambiguous. When the two agree up to those lookalikes, take the pane's letters and punctuation with the
-    row's capitalisation. Returns None when they genuinely differ.
+    The pane is ALL CAPS, so its letters are unambiguous -- but it wraps long names onto a second line (a stray
+    space), drops apostrophes and picks up stray periods. The row is mixed case with the real spacing and
+    punctuation (McCullom, Malau'ulu, Kopa-Kaawalauole), but its font can't tell a capital I from a lowercase l,
+    an O from a 0, or a second I from a pipe ("Moore III" reads "Moore Ill", "S.Terry I|"). When the two agree up
+    to those lookalikes, keep the row's structure and capitalisation and take the pane's letters.
+    Returns None when they genuinely differ.
     """
     if lookalike_key(row_last) != lookalike_key(pane_last):
         return None
-    row_chars = [c for c in row_last if c.isalnum()]
+    pane_letters = [p for p in pane_last.upper() if p.isalnum()]
+    if sum(1 for c in row_last if c.isalnum() or c == "|") != len(pane_letters):
+        return None
     out, k = [], 0
-    for p in pane_last.upper():
-        if not p.isalnum():
-            out.append(p)
+    for c in row_last:
+        if not (c.isalnum() or c == "|"):
+            out.append(c)
             continue
-        if k >= len(row_chars):
-            return None
-        c = row_chars[k]
+        p = pane_letters[k]
         k += 1
         if c.upper() == p:
             out.append(c)
@@ -317,6 +319,12 @@ def align_to_pane(row_last, pane_last):
             previous = out[-1] if out else ""
             out.append(p.lower() if previous.isalpha() and previous.islower() else p)
     return "".join(out)
+
+
+def tidy_last_name(name):
+    """OCR leaves a space after an apostrophe ("D' Imperio") and a stray trailing period."""
+    name = re.sub(r"'\s+", "'", name).strip()
+    return name if re.search(r"\b(Jr|Sr)\.$", name) else name.rstrip(". ")
 
 
 def last_of(name):
