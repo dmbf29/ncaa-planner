@@ -3,55 +3,64 @@ module WinTotals
   # Elo-style model, then shades it to a half-point line so the podcast hosts
   # always have a clean number to argue over/under.
   #
-  # Team strength blends two signals:
-  # - CollegeSeason#overall, the holistic grade a coach enters by hand.
-  # - "starter average": the average overall of the single highest-rated
-  #   player at each distinct roster position (QB, HB, WR, LT, CB, etc). The
-  #   game doesn't expose an actual depth chart/starter flag, so "highest
-  #   overall player listed at that position" is the stand-in for a starter.
+  # Team strength is a weighted average of the team's position-room starter
+  # ratings (QB, RB, WR, TE, OL, DL, LB, DB), with the quarterback counting
+  # most. The game doesn't expose an actual depth chart/starter flag, so a
+  # room's "starters" are its highest-rated players (ROOM_SLOTS), the same
+  # stand-in the Roster Breakdown uses. A college with no scraped roster
+  # (most uncoached opponents in a team's first season) falls back to its
+  # hand-entered overall alone.
   #
-  # Both signals are weighted evenly by default (see OVERALL_WEIGHT /
-  # STARTER_WEIGHT below) — tune those two constants if one should carry
-  # more than the other. A college with no scraped roster (most uncoached
-  # opponents) falls back to overall alone.
+  # The weights and the two curve constants below were chosen by backtesting
+  # a full season of results (360 regular-season games): picking winners
+  # 69% of the time instead of 64% for the older "average of overall and
+  # starters" formula, with better-calibrated odds. The quarterback was by far
+  # the strongest single signal; the hand-entered overall added nothing once
+  # the rooms were in. The raw fit gave linemen, linebackers and defensive
+  # backs no weight at all, which is implausible from one season of data, so
+  # every room keeps a base weight and only the QB (and, less so, the DL) is
+  # emphasised. Re-run the backtest when more seasons are on record.
   class Calculator
-    OVERALL_WEIGHT = 0.5
-    STARTER_WEIGHT = 0.5
+    ROOM_WEIGHTS = {
+      "QB" => 0.25, "DL" => 0.15,
+      "RB" => 0.10, "WR" => 0.10, "TE" => 0.10, "OL" => 0.10, "LB" => 0.10, "DB" => 0.10
+    }.freeze
 
-    # Flat strength bonus awarded to the home team before computing win
-    # probability. Chosen so that two teams within ~4 overall points of each
-    # other flip to favor the home team, per the house rule of thumb.
-    HOME_FIELD_BONUS = 4.0
+    # How many of a room's best players count as its starters.
+    ROOM_SLOTS = { "QB" => 1, "RB" => 1, "WR" => 3, "TE" => 1, "OL" => 5, "DL" => 4, "LB" => 3, "DB" => 4 }.freeze
+
+    # Canonical (older) position codes in each room; newer screen labels such
+    # as REDG or WILL are folded onto these by PositionBoardMapping.canonical.
+    ROOM_POSITIONS = {
+      "QB" => %w[QB], "RB" => %w[HB FB], "WR" => %w[WR], "TE" => %w[TE],
+      "OL" => %w[LT LG C RG RT], "DL" => %w[LE RE DT], "LB" => %w[MLB LOLB ROLB], "DB" => %w[CB FS SS]
+    }.freeze
+
+    # Strength bonus awarded to the home team before computing win
+    # probability, in the same points as the room ratings.
+    HOME_FIELD_BONUS = 0.6
 
     # Elo-style logistic scale: a strength difference of this many points
     # works out to roughly a 91% win probability for the stronger team.
-    RATING_SCALE = 25.0
-
-    STARTER_POSITIONS = (CollegeSeason::OFFENSE_POSITIONS + CollegeSeason::DEFENSE_POSITIONS).freeze
+    RATING_SCALE = 9.2
 
     # Win-probability bands a single game gets sorted into for the schedule
     # preview: anything decisive enough to call outright vs. a real
     # coin-flip worth debating. Deliberately not symmetric with a wide gap
-    # (e.g. 75/25) — a coached team's actual conference slate tends to be
-    # other similarly-rated teams (a full same-conference schedule rarely
-    # produces a >90th-percentile mismatch), so a wide band would leave
-    # nearly every game a "coin flip" and defeat the point of calling any of
-    # them. 60/40 was chosen by checking the real spread of an in-progress
-    # dynasty's schedule and picking the split that gave every team a
-    # genuine mix of calls and debates.
+    # (e.g. 75/25): a coached team's actual conference slate tends to be
+    # other similarly-rated teams, so a wide band would leave nearly every
+    # game a "coin flip" and defeat the point of calling any of them.
     LIKELY_WIN_THRESHOLD = 0.6
     LIKELY_LOSS_THRESHOLD = 0.4
 
     def team_strength(college_season)
       return nil unless college_season
 
-      overall = college_season.overall
-      starter = starter_average_overall(college_season)
-      return nil if overall.nil? && starter.nil?
-      return starter if overall.nil?
-      return overall.to_f if starter.nil?
+      averages = room_averages(college_season)
+      return college_season.overall&.to_f if averages.empty?
 
-      (overall * OVERALL_WEIGHT) + (starter * STARTER_WEIGHT)
+      weights = averages.keys.sum { |room| ROOM_WEIGHTS.fetch(room) }
+      averages.sum { |room, average| ROOM_WEIGHTS.fetch(room) * average } / weights
     end
 
     def win_probability(team_college_season, opponent_college_season, home:)
@@ -83,15 +92,35 @@ module WinTotals
       expected_wins.floor + 0.5
     end
 
+    # The chance of every possible win total, given each game's win
+    # probability (a Poisson-binomial distribution): index i holds P(exactly i
+    # wins). Lets the show talk about how likely a team is to clear its line,
+    # reach six wins, or finish under.
+    def win_distribution(probabilities)
+      probabilities.each_with_object([ 1.0 ]) do |probability, distribution|
+        distribution.push(0.0)
+        (distribution.size - 1).downto(0) do |wins|
+          lost = distribution[wins] * (1 - probability)
+          won = wins.positive? ? distribution[wins - 1] * probability : 0.0
+          distribution[wins] = lost + won
+        end
+      end
+    end
+
     private
 
-    def starter_average_overall(college_season)
-      ratings = STARTER_POSITIONS.filter_map do |position|
-        college_season.student_seasons.select { |ss| ss.position == position }.filter_map(&:overall).max
+    # { "QB" => 78.0, ... } for every room with at least one rated player.
+    def room_averages(college_season)
+      by_room = college_season.student_seasons.select(&:overall).group_by { |ss| room_of(ss.position) }
+      ROOM_SLOTS.each_with_object({}) do |(room, slots), averages|
+        top = Array(by_room[room]).map(&:overall).max(slots)
+        averages[room] = top.sum.to_f / top.size unless top.empty?
       end
-      return nil if ratings.empty?
+    end
 
-      ratings.sum.to_f / ratings.size
+    def room_of(position)
+      code = PositionBoardMapping.canonical(position)
+      ROOM_POSITIONS.find { |_room, codes| codes.include?(code) }&.first
     end
   end
 end

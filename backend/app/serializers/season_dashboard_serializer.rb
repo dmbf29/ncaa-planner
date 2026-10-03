@@ -67,7 +67,9 @@ class SeasonDashboardSerializer
   def all_season_games
     @all_season_games ||= Game
                           .where(week_id: @season.week_ids)
-                          .includes(:week, :home_college, :away_college, :college_game_stats,
+                          .includes(:week, :college_game_stats,
+                                    home_college: { logo_attachment: :blob },
+                                    away_college: { logo_attachment: :blob },
                                     student_game_stats: { student_season: %i[student college_season] })
                           .order(:id)
                           .to_a
@@ -570,7 +572,13 @@ class SeasonDashboardSerializer
         alternate_name: college_season.college.alternate_name,
         conference: college_season.conference
       },
-      coach: { id: college_season.coach.id, name: college_season.coach.name },
+      coach: {
+        id: college_season.coach.id,
+        name: college_season.coach.name,
+        nil_amount: college_season.coach.nil_amount,
+        job_security: college_season.coach.job_security,
+        job_security_label: college_season.coach.job_security_label
+      },
       overall: college_season.overall,
       offense: college_season.offense,
       defense: college_season.defense,
@@ -803,10 +811,15 @@ class SeasonDashboardSerializer
 
     home = game.home_college_id == college_id
     opponent_college = home ? game.away_college : game.home_college
+    team_conference = college_seasons_by_college_id[college_id]&.conference
+    opponent_conference = college_seasons_by_college_id[opponent_college.id]&.conference
     {
       id: opponent_college.id,
       name: opponent_college.name,
       home: home,
+      logo_url: (opponent_college.logo.url if opponent_college.logo.attached?),
+      conference: opponent_conference,
+      conference_game: team_conference.present? && team_conference == opponent_conference,
       user_coached: coached_college_ids.include?(opponent_college.id),
       rank: rank_for_college(opponent_college.id)
     }

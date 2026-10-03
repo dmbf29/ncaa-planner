@@ -97,6 +97,11 @@ module Api
         render json: ::TeamAttributesSerializer.new(@season).as_json
       end
 
+      def coach_info
+        authorize @season
+        render json: ::SeasonCoachInfoSerializer.new(@season).as_json
+      end
+
       def analyze_conference_standings
         authorize @season
         result = ConferenceStandings::Extractor.new.call(Array(params[:images]))

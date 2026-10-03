@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_10_02_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_10_03_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -85,6 +85,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_10_02_120000) do
     t.datetime "updated_at", null: false
     t.string "offensive_scheme"
     t.string "defensive_scheme"
+    t.integer "nil_amount"
+    t.integer "job_security"
     t.index "dynasty_id, lower((name)::text)", name: "index_coaches_on_dynasty_id_and_lower_name", unique: true
     t.index ["dynasty_id"], name: "index_coaches_on_dynasty_id"
   end

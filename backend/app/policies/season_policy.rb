@@ -131,6 +131,10 @@ class SeasonPolicy < ApplicationPolicy
     owner?
   end
 
+  def coach_info?
+    owner?
+  end
+
   def award_winners?
     owner?
   end

@@ -23,7 +23,27 @@ class WinTotalsMarkdownPresenter
     "Alternate which host takes which side from coin-flip to coin-flip (and from team to team) so it doesn't " \
     "always break the same way — nobody should be able to predict a host's side before they open their mouth.",
     "Once the full schedule is read, both hosts state whether they land over or under the Vegas line based on " \
-    "how they see that team's coin-flip games breaking — that's the only resolution for the segment."
+    "how they see that team's coin-flip games breaking — that's the only resolution for the schedule portion. " \
+    "Then close the team's segment with the Hot Seat Check on its head coach (see the hot seat rules below)."
+  ].freeze
+
+  HOT_SEAT_RULES = [
+    "Every team's segment ends with a Hot Seat Check on its head coach: how safe his job is if the team hits " \
+    "the number, and what happens if it doesn't. Do it AFTER the over/under call, using the Hot Seat " \
+    "Thermometer block under each team.",
+    "Say the thermometer reading out loud — ICE COLD, COOL, WARM, HOT, or ON FIRE. Never say the job-security " \
+    "percentage; it's backstage. Talk like a sportsbook that also tracks coaching changes: 'if he goes under, " \
+    "he's most likely out of a job at the end of the year.'",
+    "Be definitive where the block is. If it says finishing under the number puts him OUT, say he's most " \
+    "likely out. If it says hitting the number leaves him HOT, say a .500-type year doesn't save him. Use the " \
+    "'wins needed to keep his job' number as the headline.",
+    "The buyout is the cost of firing him. Give it in dollars and compare it to the other coaches' buyouts: a " \
+    "big number can buy a struggling coach another year, a small one makes the move easy.",
+    "The Early Test only appears when the coach could be shown the door early. Name the opening games and the " \
+    "bye week, and say what a loss means: 'drop either one and he could be out by the Week 3 bye.' When the " \
+    "block says EASY START, make a point that a loss in those games would be damning.",
+    "A coach reading ICE COLD or COOL gets one quick line and the buyout, nothing more. Don't invent drama " \
+    "that isn't in the block, and don't speculate about boosters, contracts or anything not listed here."
   ].freeze
 
   # This show kept coming out sounding like a data-science readout instead
@@ -49,6 +69,7 @@ class WinTotalsMarkdownPresenter
     lines = []
     lines.concat(PodcastShow.directive_lines(show_name: show_name))
     lines.concat(debate_format_lines)
+    lines.concat(hot_seat_format_lines)
     lines.concat(vegas_tone_lines)
     lines.concat(PodcastShow.opening_script_lines(show_name: show_name, framing_hint: "how many games each of our teams will actually win"))
     lines.concat(PodcastShow.run_of_show_lines(segments))
@@ -75,7 +96,8 @@ class WinTotalsMarkdownPresenter
     "PRODUCER NOTE: This is a schedule preview, not a big-picture team overview — for each team, read the full " \
       "schedule game by game. Every game is pre-tagged LIKELY WIN, LIKELY LOSS, or COIN FLIP by the house. Called " \
       "games get a quick line, coin flips get a real debate — see the tone notes above before you write a word " \
-      "of script. The Vegas win total itself is shaded to a half-point so there's always a clean over/under. No " \
+      "of script. The Vegas win total itself is shaded to a half-point so there's always a clean over/under, and " \
+      "each team closes with a Hot Seat Check on its head coach. No " \
       "games have been played yet — this is pure preseason projection. Last season's record is included " \
       "wherever we have one (won't show up for a program's first season on the show, but will from year two onward)."
   end
@@ -83,6 +105,13 @@ class WinTotalsMarkdownPresenter
   def debate_format_lines
     lines = [ "## 🥊 DEBATE FORMAT (PRODUCER NOTE, DO NOT READ ALOUD)", "" ]
     DEBATE_RULES.each { |rule| lines << "- #{rule}" }
+    lines << ""
+    lines
+  end
+
+  def hot_seat_format_lines
+    lines = [ "## 🌡️ HOT SEAT FORMAT (PRODUCER NOTE, DO NOT READ ALOUD)", "" ]
+    HOT_SEAT_RULES.each { |rule| lines << "- #{rule}" }
     lines << ""
     lines
   end
@@ -97,7 +126,7 @@ class WinTotalsMarkdownPresenter
   def segments
     team_segments = @data[:teams].map do |t|
       coin_flips = t[:schedule_summary][:coin_flips]
-      "#{t[:college][:name]} — Schedule Read + #{pluralize(coin_flips, 'Coin-Flip Debate')} (Line: #{format_line(t[:vegas_win_total])})"
+      "#{t[:college][:name]} — Schedule Read + #{pluralize(coin_flips, 'Coin-Flip Debate')} + Hot Seat Check (Line: #{format_line(t[:vegas_win_total])})"
     end
     team_segments + [ "Around the Conference: Other Win Totals", "Conference Champion Predictions" ]
   end
@@ -112,13 +141,111 @@ class WinTotalsMarkdownPresenter
     last_season = record_line(team[:previous_season_record])
     lines << "**Last Season:** #{last_season}" if last_season
     lines << "**Schedule Snapshot:** #{schedule_summary_line(team[:schedule_summary])}"
+    outlook = outlook_line(team[:outlook])
+    lines << "**Outlook:** #{outlook}" if outlook
     lines << ""
 
     lines.concat(schedule_section(team[:schedule]))
     lines.concat(key_players_section(team[:key_players]))
     lines.concat(position_group_section(team[:position_group_averages]))
+    lines.concat(hot_seat_section(team[:hot_seat]))
 
     lines
+  end
+
+  def outlook_line(outlook)
+    return nil unless outlook
+
+    "#{likelihood(outlook[:chance_over])} to go over the line, #{likelihood(outlook[:chance_bowl_eligible])} to reach " \
+      "bowl eligibility (6 wins), #{likelihood(outlook[:chance_losing_season])} to finish with a losing record " \
+      "(backstage: about #{outlook[:expected_wins]} expected wins)"
+  end
+
+  # Plain-English odds for the hosts; the exact percentage stays backstage.
+  def likelihood(chance)
+    case chance
+    when 0.85.. then "a near-lock"
+    when 0.65...0.85 then "likely"
+    when 0.35...0.65 then "a toss-up"
+    when 0.15...0.35 then "unlikely"
+    else "a long shot"
+    end
+  end
+
+  def hot_seat_section(hot_seat)
+    return [] unless hot_seat
+
+    coach = hot_seat[:coach]
+    lines = [ "### 🌡️ Hot Seat Thermometer — #{coach[:name]}", "" ]
+    lines << "- **Reading right now: #{coach[:reading]}** (the game lists his job security as #{coach[:label]}; " \
+             "backstage: #{coach[:job_security]}%)"
+    lines << buyout_line(coach)
+    number = hot_seat[:number]
+    lines << "- The number: #{format_line(number[:line])} — he has to win #{number[:wins_to_hit]} to hit it"
+    lines << "- **Wins needed to keep his job: #{hot_seat[:wins_needed_to_keep_job]}**"
+    lines << "- If he hits the number (#{record(hot_seat[:at_the_number])}): #{seat_result(hot_seat[:at_the_number])}"
+    if hot_seat[:one_win_under]
+      lines << "- If he finishes one win under (#{record(hot_seat[:one_win_under])}): #{seat_result(hot_seat[:one_win_under])}"
+    end
+    lines << "- Chance he finishes under the number: #{likelihood(hot_seat[:chance_of_finishing_under])}"
+    lines << "- Where each finish leaves him:"
+    likeliest = hot_seat[:ladder].max_by { |o| o[:probability] }
+    hot_seat[:ladder].each do |o|
+      note = o.equal?(likeliest) ? " — the single most likely finish" : ""
+      lines << "  - #{record(o)}: #{o[:reading]} (#{o[:label]})#{note}"
+    end
+    lines.concat(early_test_lines(hot_seat[:early_test], coach))
+    lines << ""
+    lines
+  end
+
+  def record(outcome)
+    "#{outcome[:wins]}-#{outcome[:losses]}"
+  end
+
+  def seat_result(outcome)
+    return "#{outcome[:reading]} — most likely out of a job at the end of the season" if outcome[:out]
+
+    survives = case outcome[:label]
+    when "Hot Seat" then "survives, but the seat is still hot"
+    when "Low" then "survives, but the seat is still warm"
+    else "keeps his job comfortably"
+    end
+    "#{outcome[:reading]} (#{outcome[:label]}) — #{survives}"
+  end
+
+  # The buyout is what it would cost to move on from him, ranked against our
+  # other coaches so the hosts can compare.
+  def buyout_line(coach)
+    return "- Buyout: not available" unless coach[:buyout_dollars]
+
+    buyouts = @data[:teams].filter_map { |t| t.dig(:hot_seat, :coach, :buyout_dollars) }.sort
+    rank = buyouts.index(coach[:buyout_dollars]) + 1
+    placement = buyouts.size > 1 ? (rank == 1 ? " — the cheapest of our coaches" : (rank == buyouts.size ? " — the most expensive of our coaches" : "")) : ""
+    "- Buyout: #{currency(coach[:buyout_dollars])}#{placement}"
+  end
+
+  def early_test_lines(early, coach)
+    return [] unless early
+
+    games = early[:games].map { |g| "Week #{g[:week_number]} #{g[:home] ? 'vs' : '@'} #{g[:opponent]} (#{PROJECTION_LABELS.fetch(g[:projection], '')})" }
+    point = early[:decision_point]
+    deadline = point[:kind] == "bye" ? "the Week #{point[:week]} bye" : "after Week #{point[:week]}"
+    stakes =
+      if early[:allowed_losses].zero?
+        "he can't afford to lose any of them"
+      else
+        "he can lose at most #{early[:allowed_losses]} of them"
+      end
+    lines = [ "- **Early test (before #{deadline}):** #{games.join('; ')}" ]
+    lines << "  - #{stakes} — he needs #{early[:wins_needed]} of #{early[:games].size}; drop more and he could be out of a job by #{deadline}"
+    lines << "  - EASY START: every game in this stretch is a likely win, so a loss here would be damning" if early[:easy_start]
+    lines << "  - Chance he's gone by then: #{likelihood(early[:chance_of_exit])}"
+    lines
+  end
+
+  def currency(amount)
+    ActiveSupport::NumberHelper.number_to_currency(amount, precision: 0)
   end
 
   def schedule_summary_line(summary)
@@ -222,12 +349,16 @@ class WinTotalsMarkdownPresenter
       lines << ""
       lines << "## 🏟️ AROUND THE #{group[:conference].upcase}"
       lines << ""
-      lines << "Brief mention only — projected win totals for the rest of the #{group[:conference]}, for context:"
+      lines << "Brief mention only — projected win totals for the rest of the #{group[:conference]}, for context. " \
+               "A team marked NO LINE YET doesn't have its full schedule on file, so don't invent a win total for it; " \
+               "place it by its power rating and last season instead:"
       lines << ""
       group[:teams].each do |team|
         last_season = record_line(team[:previous_season_record])
         last_season_note = last_season ? ", last season #{last_season}" : ""
-        lines << "- #{team[:college][:name]}: #{format_line(team[:vegas_win_total])} (#{team[:overall]} OVR#{last_season_note})"
+        detail = "#{team[:overall]} OVR, #{team[:power_rating]} power rating#{last_season_note}"
+        line = team[:vegas_win_total] ? format_line(team[:vegas_win_total]) : "NO LINE YET"
+        lines << "- #{team[:college][:name]}: #{line} (#{detail})"
       end
       lines << ""
     end

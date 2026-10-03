@@ -29,6 +29,8 @@ Rails.application.routes.draw do
 
       resources :college_seasons, only: %i[update]
 
+      resources :coaches, only: %i[update]
+
       resources :dynasties, only: %i[index] do
         resources :seasons, only: %i[show create destroy] do
           member do
@@ -55,6 +57,7 @@ Rails.application.routes.draw do
             post :analyze_team_schedule
             post :commit_team_schedule
             get :coach_assignments
+            get :coach_info
             post :commit_coach_assignments
             get :award_winners
             post :commit_award_winners

@@ -4,6 +4,20 @@ class Coach < ApplicationRecord
   has_many :season_awards, dependent: :destroy
 
   validates :name, presence: true
+  validates :job_security, numericality: { only_integer: true, in: 0..100 }, allow_nil: true
+
+  # The coach's job-security percentage (entered by hand from the game) bucketed
+  # into the same labels the game shows.
+  def job_security_label
+    return nil if job_security.nil?
+
+    case job_security
+    when 80.. then "Safe"
+    when 65..79 then "Safe for Now"
+    when 50..64 then "Low"
+    else "Hot Seat"
+    end
+  end
 
   # Name is unique per dynasty, case-insensitively (see the matching DB
   # index). Award commits use this to attach a winner to an existing CPU

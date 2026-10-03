@@ -2,7 +2,9 @@
 # WinTotals::Calculator) for each of our coached teams, plus everything the
 # two hosts need to debate it — full schedule, home/away splits, opponent
 # ratings and key players game-by-game, and past head-to-head results once
-# the dynasty has more than one season on the books.
+# the dynasty has more than one season on the books. Each team also carries a
+# win-total outlook (the chance of every win total) and a hot seat thermometer
+# for its coach (see WinTotals::HotSeat).
 class WinTotalsSerializer
   def initialize(season)
     @season = season
@@ -27,7 +29,8 @@ class WinTotalsSerializer
                     "teams heading into the #{@season.year} season — no games have been played yet. Each team " \
                     "has a projected win total ending in .5. One host argues the OVER, the other argues the " \
                     "UNDER, using strength of schedule, home/away splits, and the opponent-by-opponent detail " \
-                    "below as ammunition."
+                    "below as ammunition. Each team ends with a hot seat check on its head coach: how safe his " \
+                    "job is if the team hits the number, and what happens if it doesn't."
     }
   end
 
@@ -80,18 +83,57 @@ class WinTotalsSerializer
   def team_json(college_season)
     games = scheduled_games(college_season)
     schedule = games.map { |g| game_json(g) }
+    probabilities = games.map { |g| @calculator.win_probability(g[:college_season], g[:opponent], home: g[:home]) }
+    distribution = @calculator.win_distribution(probabilities)
+    line = @calculator.vegas_win_total(college_season, games)
 
     {
       college: college_json(college_season.college, college_season.conference),
       coach: { id: college_season.coach.id, name: college_season.coach.name },
       ratings: ratings_json(college_season),
       previous_season_record: previous_season_record_json(college_season.college_id),
-      vegas_win_total: @calculator.vegas_win_total(college_season, games),
+      vegas_win_total: line,
+      outlook: outlook_json(line, probabilities, distribution),
+      hot_seat: hot_seat_json(college_season, line, schedule, distribution),
       schedule_summary: schedule_summary_json(schedule),
       key_players: key_players_json(college_season),
       position_group_averages: college_season.position_group_averages.compact,
       schedule: schedule
     }
+  end
+
+  # The chance of landing on each side of the line, from the per-game odds.
+  # `bowl_eligible` is six or more wins; a losing season has more losses than
+  # wins.
+  def outlook_json(line, probabilities, distribution)
+    return nil if line.nil?
+
+    games = probabilities.size
+    {
+      expected_wins: probabilities.sum.round(1),
+      chance_over: distribution.each_with_index.sum { |chance, wins| wins > line ? chance : 0.0 }.round(2),
+      chance_under: distribution.each_with_index.sum { |chance, wins| wins < line ? chance : 0.0 }.round(2),
+      chance_bowl_eligible: distribution.each_with_index.sum { |chance, wins| wins >= 6 ? chance : 0.0 }.round(2),
+      chance_losing_season: distribution.each_with_index.sum { |chance, wins| wins * 2 < games ? chance : 0.0 }.round(2)
+    }
+  end
+
+  def hot_seat_json(college_season, line, schedule, distribution)
+    games = schedule.map do |game|
+      { week_number: game[:week_number], home: game[:home], opponent: game[:opponent][:name],
+        projection: game[:projection], win_probability: game[:win_probability] }
+    end
+    WinTotals::HotSeat.new(
+      coach: college_season.coach, line: line, games: games, distribution: distribution,
+      calculator: @calculator, bye_week_number: first_bye_week_number(college_season)
+    ).call
+  end
+
+  # The first real bye week (week 0 is the preseason slot, not a bye).
+  def first_bye_week_number(college_season)
+    return nil if college_season.bye_week_ids.blank?
+
+    Week.where(id: college_season.bye_week_ids).where("number > 0").minimum(:number)
   end
 
   def schedule_summary_json(schedule)
@@ -224,18 +266,29 @@ class WinTotalsSerializer
       end
 
       teams = others.map { |cs| conference_rival_json(cs) }
-                    .sort_by { |t| -(t[:vegas_win_total] || 0) }
+                    .sort_by { |t| [ -(t[:vegas_win_total] || 0), -(t[:power_rating] || 0) ] }
 
       { conference: conference, teams: teams }
     end
   end
 
+  # A win total is only meaningful with (nearly) the full schedule on file; a
+  # rival whose schedule hasn't been uploaded has just its games against our
+  # coached teams, which would produce a nonsense line like 0.5. Below this
+  # many games the rival gets no line, only a power rating (which needs just a
+  # roster) so the hosts can still place them.
+  MIN_GAMES_FOR_LINE = 10
+
   def conference_rival_json(college_season)
+    games = scheduled_games(college_season)
+    strength = @calculator.team_strength(college_season)
     {
       college: college_json(college_season.college, college_season.conference),
       overall: college_season.overall,
+      power_rating: strength&.round(1),
       previous_season_record: previous_season_record_json(college_season.college_id),
-      vegas_win_total: @calculator.vegas_win_total(college_season, scheduled_games(college_season))
+      scheduled_games: games.size,
+      vegas_win_total: games.size >= MIN_GAMES_FOR_LINE ? @calculator.vegas_win_total(college_season, games) : nil
     }
   end
 

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { clsx } from "clsx";
 import Card from "./Card";
 import NumberPill from "./NumberPill";
+import { conferenceLogo } from "../lib/conferenceLogos";
 
 function KeyPlayerRow({ player }) {
   return (
@@ -177,7 +178,17 @@ function ScheduleRow({ week }) {
 
   const content = (
     <>
-      <span className="w-20 shrink-0 text-textSecondary">{label}</span>
+      <span className="flex w-20 shrink-0 items-center gap-1.5 text-textSecondary">
+        {label}
+        {week.opponent?.conferenceGame && conferenceLogo(week.opponent.conference) ? (
+          <img
+            src={conferenceLogo(week.opponent.conference)}
+            alt=""
+            title={`${week.opponent.conference} game`}
+            className="h-4 w-4 shrink-0 rounded-sm object-contain dark:bg-white/90"
+          />
+        ) : null}
+      </span>
       {week.opponent ? (
         <span className="flex min-w-0 flex-1 items-center gap-1 truncate">
           {week.missingStats ? (
@@ -249,6 +260,9 @@ function NextGameBanner({ nextGame }) {
         {nextGame.opponent ? (
           <p className="mt-0.5 flex items-center gap-1.5 text-sm">
             <span className="text-textSecondary">{nextGame.opponent.home ? "vs" : "@"}</span>
+            {nextGame.opponent.logoUrl ? (
+              <img src={nextGame.opponent.logoUrl} alt="" className="h-6 w-6 shrink-0 object-contain" />
+            ) : null}
             {nextGame.opponent.rank && <span className="text-textSecondary">#{nextGame.opponent.rank}</span>}
             <span className="font-semibold font-varsity text-textPrimary dark:text-white text-nowrap overflow-hidden text-ellipsis">{nextGame.opponent.name}</span>
             {nextGame.opponentRecord && (
@@ -259,6 +273,14 @@ function NextGameBanner({ nextGame }) {
             {nextGame.opponentOverall != null && (
               <span className="text-nowrap font-varsity text-textSecondary text-xs">{nextGame.opponentOverall} OVR</span>
             )}
+            {nextGame.opponent.conferenceGame && conferenceLogo(nextGame.opponent.conference) ? (
+              <img
+                src={conferenceLogo(nextGame.opponent.conference)}
+                alt=""
+                title={`${nextGame.opponent.conference} game`}
+                className="h-5 w-5 shrink-0 rounded-sm object-contain dark:bg-white/90"
+              />
+            ) : null}
             {nextGame.opponent.userCoached ? (
               <i className="fa-solid fa-gamepad text-[11px] text-burnt/80" title="User-coached opponent" />
             ) : null}
@@ -296,6 +318,18 @@ function TeamDashboardCard({ team, dynastyId, seasonId }) {
         </h3>
         <p className="text-xs text-white/70">
           {team.coach.name}
+          {team.coach.jobSecurity != null ? (
+            <span className="ml-2" title="Job security">
+              <i className="fa-solid fa-user-shield mr-1" />
+              {team.coach.jobSecurity}% &middot; {team.coach.jobSecurityLabel}
+            </span>
+          ) : null}
+          {team.coach.nilAmount != null ? (
+            <span className="ml-2" title="Coach NIL amount">
+              <i className="fa-solid fa-sack-dollar mr-1" />
+              {team.coach.nilAmount.toLocaleString()}
+            </span>
+          ) : null}
         </p>
       </div>
 
