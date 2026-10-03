@@ -596,8 +596,10 @@ function ImportRosterForm({ dynastyId, seasonId, collegeSeasonId, onClose, onImp
         isCancelled: () => cancelledRef.current,
         onProgress: (progress) => {
           if (cancelledRef.current || !progress) return;
-          const percent = progress.totalFrames ? Math.min(99, Math.round((progress.frame / progress.totalFrames) * 100)) : 0;
-          setVideoStatus({ name: file.name, stage: progress.stage, percent, players: progress.players });
+          // One bar across both phases: the quick scan is the first ~30%, reading the players the rest.
+          const fraction = progress.total ? progress.done / progress.total : 0;
+          const percent = Math.min(99, Math.round(progress.stage === "scanning" ? fraction * 30 : 30 + fraction * 70));
+          setVideoStatus({ name: file.name, stage: progress.stage, percent, done: progress.done, total: progress.total });
         },
       });
       if (cancelledRef.current) return;
@@ -718,13 +720,13 @@ function ImportRosterForm({ dynastyId, seasonId, collegeSeasonId, onClose, onImp
                     {videoStatus.stage === "uploading" && "Uploading…"}
                     {videoStatus.stage === "queued" && "Waiting for another video to finish…"}
                     {videoStatus.stage === "starting" && "Starting…"}
-                    {videoStatus.stage === "reading" &&
-                      `Reading roster… ${videoStatus.percent}% · ${videoStatus.players} player${videoStatus.players === 1 ? "" : "s"} found`}
+                    {videoStatus.stage === "scanning" && "Scanning video…"}
+                    {videoStatus.stage === "reading" && `Reading players… ${videoStatus.done} of ${videoStatus.total}`}
                   </p>
                   <div className="h-1.5 overflow-hidden rounded-full bg-border dark:bg-darkborder">
                     <div
                       className="h-full bg-burnt transition-all"
-                      style={{ width: `${videoStatus.stage === "reading" ? videoStatus.percent : 0}%` }}
+                      style={{ width: `${videoStatus.percent ?? 0}%` }}
                     />
                   </div>
                 </div>

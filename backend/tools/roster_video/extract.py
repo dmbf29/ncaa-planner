@@ -8,9 +8,11 @@ Everything is OCR'd locally (Apple Vision via ocrmac) -- no AI API calls.
     python extract.py team.mov > team.json
 """
 import json
+import multiprocessing
+import os
 import re
-from collections import Counter
 import sys
+from collections import Counter
 
 import cv2
 import numpy as np
@@ -70,13 +72,14 @@ def highlighted_band(frame):
     return top + bright[0], top + bright[-1]
 
 
-def read_row(frame, cols):
-    band = highlighted_band(frame)
-    if band is None:
-        return None
-    h, w = frame.shape[:2]
-    tw = int(w * 0.76)
-    strip = frame[max(band[0] - 4, 0): band[1] + 4, :tw]
+def agreed(reads):
+    """True once two non-empty OCR reads of the same cell are identical."""
+    counts = Counter(r for r in reads if r)
+    return bool(counts) and counts.most_common(1)[0][1] >= 2
+
+
+def read_row(strip, cols):
+    tw = strip.shape[1]
     tokens = sorted(((clean(t), (x + bw / 2) * tw, x * tw) for t, _, (x, _y, bw, _h) in ocr(strip)),
                     key=lambda t: t[1])
     if not tokens:
@@ -94,7 +97,8 @@ def read_row(frame, cols):
             row[col] = (row.get(col, "") + " " + t).strip()
         else:
             votes.setdefault(col, []).append(digits(t))
-    # Reading the whole row lets OCR merge or drop neighbouring numbers, so read each numeric cell alone.
+    # Reading the whole row lets OCR merge or drop neighbouring numbers, so read each numeric cell alone --
+    # at one scale at first, and at more scales only while the reads still disagree.
     xs = sorted(cols.values())
     half = min(b - a for a, b in zip(xs, xs[1:])) / 2 - 4
     for col, cx in cols.items():
@@ -102,9 +106,12 @@ def read_row(frame, cols):
             continue
         raw = strip[:, max(int(cx - half), 0): int(cx + half)]
         raw = cv2.copyMakeBorder(raw, 12, 12, 12, 12, cv2.BORDER_REPLICATE)
-        for scale in (1, 1.5, 2, 3):
+        reads = votes.setdefault(col, [])
+        for scale in (1, 2, 1.5, 3):
+            if agreed(reads):
+                break
             cell = cv2.resize(raw, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-            votes.setdefault(col, []).append(digits(" ".join(clean(t) for t, _, _ in ocr(cell))))
+            reads.append(digits(" ".join(clean(t) for t, _, _ in ocr(cell))))
     for col, vs in votes.items():
         vs = [v for v in vs if v]
         top, n = Counter(vs).most_common(1)[0] if vs else ("", 0)
@@ -114,9 +121,14 @@ def read_row(frame, cols):
     return row
 
 
-def read_pane(frame):
-    h, w = frame.shape[:2]
-    res = ocr(frame[int(h * 0.207): int(h * 0.47), int(w * 0.79):])
+def pane_box(shape):
+    """(y0, y1, x0) of the right-hand player pane, as fractions of the frame."""
+    h, w = shape[:2]
+    return int(h * 0.207), int(h * 0.47), int(w * 0.79)
+
+
+def read_pane(crop):
+    res = ocr(crop)
     lines = [clean(t) for t, _, _ in res]
     up = [l.upper() for l in lines]
     class_idx = next((i for i, l in enumerate(up) if l in ("CLASS", "CLASS & NIL")), None)
@@ -189,6 +201,53 @@ def build(pane, row):
     return player
 
 
+COLS = {}
+
+
+def init_worker(cols):
+    COLS.update(cols)
+
+
+def read_player(item):
+    """Worker: OCR one player's pane crop + highlighted-row strip into (dedupe key, player dict)."""
+    pane_crop, strip = item
+    pane = read_pane(pane_crop)
+    row = read_row(strip, COLS) if pane else None
+    if not pane or not row:
+        return None
+    key = (pane["first"], pane["last"], pane["position"], pane["class"], pane["jersey"])
+    return key, build(pane, row)
+
+
+def scan(cap, total, shape):
+    """Walk the video once; for each moment the pane holds still, keep small crops of that player."""
+    y0, y1, x0 = pane_box(shape)
+    items, prev, stable, frame_no = [], None, 0, -1
+    while True:
+        ok, frame = cap.read()
+        if not ok:
+            break
+        frame_no += 1
+        if frame_no % 30 == 0:  # machine-readable, consumed by the Rails job
+            print(f"progress scan {frame_no} {total}", file=sys.stderr, flush=True)
+        sig = cv2.resize(cv2.cvtColor(frame[y0:y1, x0:], cv2.COLOR_BGR2GRAY), (60, 32)).astype(int)
+        stable = stable + 1 if prev is not None and np.abs(sig - prev).mean() < 1.5 else 0
+        prev = sig
+        if stable != STABLE_FRAMES:
+            continue
+        band = highlighted_band(frame)
+        if band is None:
+            continue
+        tw = int(frame.shape[1] * 0.76)
+        items.append((frame[y0:y1, x0:].copy(), frame[max(band[0] - 4, 0): band[1] + 4, :tw].copy()))
+    return items
+
+
+def worker_count():
+    env = os.environ.get("ROSTER_VIDEO_WORKERS")
+    return max(1, int(env)) if env else max(1, (os.cpu_count() or 2) // 2)
+
+
 def main(path):
     cap = cv2.VideoCapture(path)
     ok, first = cap.read()
@@ -196,33 +255,17 @@ def main(path):
     if len(cols) < 6:
         sys.exit(f"could not find table headers in first frame (got {sorted(cols)})")
     print(f"columns: {sorted(cols, key=cols.get)}", file=sys.stderr)
-    h, w = first.shape[:2]
-    y0, y1, x0 = int(h * 0.207), int(h * 0.47), int(w * 0.79)
-    players, seen, prev, stable = [], set(), None, 0
-    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-    frame_no = -1
-    while True:
-        ok, frame = cap.read()
-        if not ok:
-            break
-        frame_no += 1
-        if frame_no % 30 == 0:  # machine-readable, consumed by the Rails job
-            print(f"progress {frame_no} {total} {len(players)}", file=sys.stderr, flush=True)
-        sig = cv2.resize(cv2.cvtColor(frame[y0:y1, x0:], cv2.COLOR_BGR2GRAY), (60, 32)).astype(int)
-        stable = stable + 1 if prev is not None and np.abs(sig - prev).mean() < 1.5 else 0
-        prev = sig
-        if stable != STABLE_FRAMES:
-            continue
-        pane = read_pane(frame)
-        row = read_row(frame, cols) if pane else None
-        if not pane or not row:
-            continue
-        key = (pane["first"], pane["last"], pane["position"], pane["class"], pane["jersey"])
-        if key in seen:
-            continue
-        seen.add(key)
-        players.append(build(pane, row))
+    items = scan(cap, int(cap.get(cv2.CAP_PROP_FRAME_COUNT)), first.shape)
+
+    players, seen = [], set()
+    with multiprocessing.get_context("spawn").Pool(worker_count(), initializer=init_worker, initargs=(cols,)) as pool:
+        for done, result in enumerate(pool.imap(read_player, items), start=1):
+            print(f"progress read {done} {len(items)}", file=sys.stderr, flush=True)
+            if result is None or result[0] in seen:
+                continue
+            seen.add(result[0])
+            players.append(result[1])
     review = sum("needs_review" in p for p in players)
     print(f"{len(players)} players, {review} flagged for review", file=sys.stderr)
     json.dump({"players": players}, sys.stdout, indent=1)

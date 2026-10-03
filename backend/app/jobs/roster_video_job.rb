@@ -52,8 +52,8 @@ class RosterVideoJob < ApplicationJob
       stdin.close
       reader = Thread.new { out.each_line { |line| stdout << line } }
       err.each_line do |line|
-        if (m = line.match(/\Aprogress (\d+) (\d+) (\d+)/))
-          AnalysisStatus.progress!(token, { stage: "reading", frame: m[1].to_i, total_frames: m[2].to_i, players: m[3].to_i })
+        if (m = line.match(/\Aprogress (scan|read) (\d+) (\d+)/))
+          AnalysisStatus.progress!(token, { stage: m[1] == "scan" ? "scanning" : "reading", done: m[2].to_i, total: m[3].to_i })
         else
           stderr_tail << line.strip
           stderr_tail.shift while stderr_tail.size > 5

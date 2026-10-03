@@ -11,6 +11,10 @@ module RosterImport
   # is what makes transfers resolve to their real Student instead of being
   # created as a duplicate "new" one every time they switch teams.
   #
+  # Positions are compared via PositionBoardMapping.canonical: the first season's
+  # rosters were scraped with older codes (MLB, LE, RE, LOLB, ROLB) while the game
+  # and later imports use MIKE, LEDG, REDG, SAM, WILL — same position, different code.
+  #
   # The pasted first_name is only a first initial (e.g. "N"), never a full
   # first name, so matching compares last_name exactly and only the first
   # character of first_name — never full first-name equality.
@@ -88,7 +92,8 @@ module RosterImport
         { status: "match", student_id: matched.student_id, matched_name: matched.student.name,
           matched_college: matched.college_season.college.name }
       else
-        suggested = candidates.find { |ss| ss.position == row[:position] } || candidates.first
+        position = PositionBoardMapping.canonical(row[:position])
+        suggested = candidates.find { |ss| PositionBoardMapping.canonical(ss.position) == position } || candidates.first
         {
           status: "ambiguous",
           suggested_student_id: suggested.student_id,
