@@ -37,11 +37,20 @@ module RosterImport
       "SR(RS)" => %w[JR(RS) SR]
     }.freeze
 
+    # See #same_first_name?
+    def self.same_first_name?(existing, incoming)
+      a = existing.to_s.strip.downcase
+      b = incoming.to_s.strip.downcase
+      return a[0] == b[0] if a.length < 2 || b.length < 2
+
+      StringDistance.levenshtein(a, b) <= (a.length >= 8 && b.length >= 8 ? 2 : 1)
+    end
+
     # The imported class years use a space before the redshirt suffix
     # ("JR (RS)") but the rest of the app stores it without one ("JR(RS)") —
     # see CollegeSeason::CLASS_BUCKETS / UNDERCLASS_YEARS.
     def self.normalize_class_year(class_year)
-      class_year.to_s.strip.sub(/\s+\(RS\)/, "(RS)")
+      class_year.to_s.strip.upcase.sub(/\s+\(RS\)/, "(RS)")
     end
 
     # The pasted JSON comes from an external export whose key spelling has
@@ -105,13 +114,23 @@ module RosterImport
     def name_candidates(pool, row, class_years:)
       return [] if pool.empty? || class_years == []
 
-      initial = row[:first_name].to_s.strip[0]&.downcase
       last = row[:last_name].to_s.strip.downcase
       pool.select do |ss|
         ss.student.last_name.to_s.strip.downcase == last &&
-          ss.student.first_name.to_s.strip[0]&.downcase == initial &&
+          same_first_name?(ss.student.first_name, row[:first_name]) &&
           (class_years.nil? || class_years.include?(ss.class_year))
       end
+    end
+
+    # An initial on either side (the old paste format, or a Student never given a
+    # full name) can only be compared by that initial. When both are full names they
+    # must agree, give or take one OCR slip ("Tawfio"/"Tawfiq", from the roster-video
+    # tool) — otherwise "Rayshon Gold" would match "Ramon Gold" just because both
+    # start with R, merging two different players. A true nickname difference
+    # ("Mike"/"Michael") comes through as a new player; the review screen's manual
+    # match search is the way to link it.
+    def same_first_name?(existing, incoming)
+      self.class.same_first_name?(existing, incoming)
     end
 
     # Rows can now carry a full first name (e.g. from the roster-video
@@ -173,10 +192,9 @@ module RosterImport
     # pre-fill), so a genuine collision here just falls back to the bare
     # initial the same as if no recruit record existed at all.
     def matching_signed_recruit(row)
-      initial = row[:first_name].to_s.strip[0]&.downcase
       last = row[:last_name].to_s.strip.downcase
       candidates = @previous_signed_recruits.select do |recruit|
-        recruit.last_name.to_s.strip.downcase == last && recruit.first_name.to_s.strip[0]&.downcase == initial
+        recruit.last_name.to_s.strip.downcase == last && same_first_name?(recruit.first_name, row[:first_name])
       end
       candidates.first if candidates.size == 1
     end

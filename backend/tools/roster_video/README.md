@@ -41,6 +41,37 @@ onto the box (or "choose a video"). It reads the video in about 15 seconds, fill
 in the JSON and goes straight to the usual review screen. Several tabs can run at
 once; only 2 videos process at a time (`ROSTER_VIDEO_CONCURRENCY`), the rest wait.
 
+**Batch (a folder of clips):**
+
+```bash
+cd backend
+bin/rails roster_import:from_videos            # dry run: reads every clip, prints what would change
+bin/rails db:backup:create                     # restorable with db:backup:restore
+APPLY=1 bin/rails roster_import:from_videos    # writes
+```
+
+Options: `DIR` (default `video_test/`), `SEASON_ID` (default latest). Each clip is
+identified by the **team name on screen**, never the filename (it's matched to a
+College, tolerating an OCR slip, and skipped if unrecognised or ambiguous). Several
+clips of one team: the newest wins. Clips with fewer than 60 players read (a
+truncated recording) are skipped. Matches and new players are written; **ambiguous
+matches and anything the reader flagged are listed, not written** — resolve those
+through the normal Import form. Extractions are cached in `tmp/roster_video/cache`,
+so the `APPLY=1` run after a dry run is fast; a JSON report lands in
+`tmp/roster_video/`.
+
+**Wrong links.** Rosters imported before full first names existed were matched on last
+name + first initial, which could attach a player to an unrelated Student ("Trevor
+Calloway" stored as last year's "Trace Calloway"). The batch report lists these as
+`probable wrong link`: a "new" row for which the roster already has one player with
+the same last name, position, class and all seven ratings under a different first
+name. They are never written as new players (that would duplicate them). To fix
+them, back up and run `APPLY=1 REPAIR_LINKS=1 bin/rails roster_import:from_videos`:
+the existing row gets a new Student with the video's name, and the old Student keeps
+their real history. `bin/rails roster_import:audit_links` is a read-only check for
+teams without a clip (links whose class, side of the ball or overall jump look
+implausible).
+
 **From the command line:**
 
 ```bash
@@ -57,11 +88,17 @@ JSON goes to stdout.
    4 frames, keeps small crops of the pane and of the highlighted row.
 3. **Read** (in parallel worker processes): the pane gives the full first and last
    name, position, jersey number and class; the highlighted row gives the stats.
-   Each stat cell is OCR'd on its own and re-read at other scales until two reads
-   agree, because reading the whole row lets OCR merge or drop neighbouring numbers.
-4. **Checks:** a player gets a `needs_review` list if the row and pane disagree
-   (last name, position, class), a stat is missing, or no two reads of a stat
-   agreed. The importer ignores that key; the form shows flagged players in an
+   Each stat is read from the whole row *and* from a window around its column,
+   re-read at other scales until the two methods agree (reading the whole row alone
+   lets OCR merge or drop neighbouring numbers). The window must include the
+   neighbouring columns: an isolated one-cell crop gets its orientation guessed
+   wrong by Apple's OCR -- `66` reads as `99` and `60▲` as `09`, at every scale.
+4. **Checks:** when the row and pane disagree on a name (e.g. `T.Powell` vs
+   `FOWELL`), both are re-read at other scales and the majority wins — row reads
+   count double, since the pane's coloured text on a team-coloured background is
+   what slips on low-contrast teams. A player gets a `needs_review` list if the
+   row and pane still disagree (name, position, class), a stat is missing, or no
+   two reads of a stat agreed. The importer ignores that key; the form shows flagged players in an
    amber note on the review screen.
 
 The output is `{ "players": [...] }` with `first_name`, `last_name`, `class_year`,

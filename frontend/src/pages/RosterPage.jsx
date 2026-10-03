@@ -26,7 +26,7 @@ const STATUS_BADGE_CLASSES = {
 };
 
 // Review table order: the rows needing the most attention first.
-const STATUS_SORT_ORDER = { new: 0, ambiguous: 1, match: 2 };
+const STATUS_SORT_ORDER = { ambiguous: 0, new: 1, match: 2 };
 
 const STATUS_LABELS = {
   match: "Match",
@@ -790,7 +790,10 @@ function ImportRosterForm({ dynastyId, seasonId, collegeSeasonId, onClose, onImp
               </div>
             )}
             <p className="text-sm text-textSecondary">
-              {counts.match} matched &middot; {counts.new} new &middot; {counts.ambiguous} need review
+              <span className={rows.length < 85 ? "font-semibold text-danger" : "font-semibold"}>
+                {rows.length} total{rows.length < 85 && " (under 85)"}
+              </span>{" "}
+              &middot; {counts.match} matched &middot; {counts.new} new &middot; {counts.ambiguous} need review
             </p>
             <div className="max-h-[420px] overflow-y-auto overflow-x-auto rounded-md border border-border dark:border-darkborder">
               <table className="w-full min-w-[560px] text-left text-sm">

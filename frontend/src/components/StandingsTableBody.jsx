@@ -36,6 +36,12 @@ function StandingsTableBody({ teams, dynastyId, seasonId }) {
                   team.college.name
                 )}
                 {team.coachedByUs && <i className="fa-solid fa-gamepad text-[10px] text-burnt/80" title="User-coached" />}
+                {team.playerCount === 0 && (
+                  <i
+                    className="fa-solid fa-triangle-exclamation text-[11px] text-warning"
+                    title="No players — roster needs uploading"
+                  />
+                )}
               </span>
             </td>
             <td className="px-2 py-1.5 text-right text-textSecondary">

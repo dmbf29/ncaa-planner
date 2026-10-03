@@ -36,6 +36,10 @@ module RosterImport
     end
 
     def commit_row(row)
+      unless PositionBoardMapping.known?(row[:position])
+        return { player: "#{row[:first_name]} #{row[:last_name]}".strip, error: "Unknown position #{row[:position].inspect}" }
+      end
+
       student = Student.find(row[:student_id]) if row[:student_id].present?
       if student && (conflict = conflict_message(student))
         return { player: "#{row[:first_name]} #{row[:last_name]}".strip, error: conflict }

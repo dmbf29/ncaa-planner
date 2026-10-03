@@ -47,6 +47,14 @@ module PositionBoardMapping
 
   module_function
 
+  # True for a real in-game/roster position code, under either naming (MLB or MIKE,
+  # LE or LEDG, ...). Imports use this to refuse OCR junk like "0B (R) | #10"
+  # instead of saving it as a player's position.
+  def known?(position_code)
+    code = position_code.to_s.strip.upcase
+    MAP.key?(code) || ALIASES.key?(code)
+  end
+
   def canonical(position_code)
     code = position_code.to_s.strip.upcase
     ALIASES.fetch(code, code)
