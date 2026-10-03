@@ -42,6 +42,7 @@ module RosterImport
       end
 
       student ||= create_student(row)
+      fill_in_first_name(student, row)
       student_season = student.student_seasons.find_or_initialize_by(college_season: @college_season)
       student_season.class_year = Matcher.normalize_class_year(row[:class_year])
       student_season.position = row[:position]
@@ -76,6 +77,18 @@ module RosterImport
       return unless elsewhere
 
       "Already on #{elsewhere.college_season.college.name}'s #{@college_season.season.year} roster"
+    end
+
+    # The old paste format only had a first initial; a matched Student stored
+    # that way gets upgraded when a row brings the full first name. Never
+    # overwrites a name that's already full.
+    def fill_in_first_name(student, row)
+      incoming = row[:first_name].to_s.strip
+      current = student.first_name.to_s.strip
+      return unless current.length <= 1 && incoming.length > 1
+      return unless current.empty? || incoming[0].casecmp?(current[0])
+
+      student.update!(first_name: incoming)
     end
 
     def create_student(row)

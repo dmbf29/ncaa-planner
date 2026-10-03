@@ -224,6 +224,41 @@ module Api
         head :no_content
       end
 
+      # Local-only: shells out to tools/roster_video (OCR on a screen recording)
+      # instead of paying for AI vision. Backgrounded like analyze_schedule; the
+      # frontend polls #roster_video_status with the returned token.
+      def start_roster_video
+        authorize @season
+        return render_roster_video_dev_only unless Rails.env.development?
+
+        video = params[:video]
+        return render json: { error: "No video uploaded", code: "missing_video" }, status: :unprocessable_entity unless video.respond_to?(:tempfile)
+
+        token = SecureRandom.uuid
+        path = RosterVideoJob.stash_upload(token, video)
+        AnalysisStatus.pending!(token)
+        RosterVideoJob.perform_later(token: token, path: path.to_s)
+        render json: { token: token, status: "pending" }, status: :accepted
+      end
+
+      def roster_video_status
+        authorize @season
+        return render_roster_video_dev_only unless Rails.env.development?
+
+        status = AnalysisStatus.read(params[:token])
+        case status[:status]
+        when "completed"
+          render json: { status: "completed", analysis: status[:result] }
+        when "failed"
+          render json: { status: "failed", error: status[:error], code: "extraction_failed" }, status: :unprocessable_entity
+        when "not_found"
+          render json: { status: "failed", error: "Video job expired or not found — try again.", code: "extraction_failed" },
+                 status: :unprocessable_entity
+        else
+          render json: { status: "pending", progress: status[:progress] }
+        end
+      end
+
       def analyze_roster_import
         authorize @season
         college_season = @season.college_seasons.find_by!(id: params[:college_season_id])
@@ -330,6 +365,10 @@ module Api
       def commit_assignments
         params.require(:assignments)
         params[:assignments].map { |assignment| assignment.to_unsafe_h.deep_symbolize_keys }
+      end
+
+      def render_roster_video_dev_only
+        render json: { error: "Roster video import only runs on a local development server", code: "dev_only" }, status: :forbidden
       end
 
       def commit_players

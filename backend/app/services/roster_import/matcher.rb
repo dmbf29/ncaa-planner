@@ -79,6 +79,7 @@ module RosterImport
     private
 
     def build_result(candidates, row)
+      candidates = narrow_by_full_first_name(candidates, row)
       case candidates.size
       when 0
         { status: "new" }
@@ -106,6 +107,21 @@ module RosterImport
           ss.student.first_name.to_s.strip[0]&.downcase == initial &&
           (class_years.nil? || class_years.include?(ss.class_year))
       end
+    end
+
+    # Rows can now carry a full first name (e.g. from the roster-video
+    # tool), which tells apart two players who share an initial and last name
+    # ("Marcus Smith" / "Michael Smith"). Only ever narrows: if no candidate's
+    # full first name agrees (an OCR slip, a nickname) the list is left alone,
+    # so a bad full name can't turn a real match into a duplicate "new" player.
+    def narrow_by_full_first_name(candidates, row)
+      return candidates if candidates.size < 2
+
+      first = row[:first_name].to_s.strip.downcase
+      return candidates if first.length < 2
+
+      exact = candidates.select { |ss| ss.student.first_name.to_s.strip.downcase == first }
+      exact.any? ? exact : candidates
     end
 
     def candidate_json(student_season)

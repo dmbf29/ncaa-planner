@@ -19,6 +19,11 @@ module AnalysisStatus
     Rails.cache.write(key(token), { status: "pending" }, expires_in: TTL)
   end
 
+  # Optional detail for long jobs (e.g. RosterVideoJob) so the poller can show more than a spinner.
+  def self.progress!(token, progress)
+    Rails.cache.write(key(token), { status: "pending", progress: progress }, expires_in: TTL)
+  end
+
   def self.complete!(token, result)
     Rails.cache.write(key(token), { status: "completed", result: result }, expires_in: TTL)
   end

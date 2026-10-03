@@ -179,6 +179,24 @@ export const analyzeRosterImport = (dynastyId, seasonId, collegeSeasonId, player
     .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/analyze_roster_import`, { collegeSeasonId, players })
     .then((r) => r.data);
 
+// Local-only: Rails runs tools/roster_video over a screen recording of the roster
+// screen (OCR, no AI API) in the background. Resolves with { players, summary }.
+const ROSTER_VIDEO_POLL_TIMEOUT_MS = 15 * 60 * 1000; // queued jobs can wait behind other tabs
+export const analyzeRosterVideo = (dynastyId, seasonId, file, { onProgress, isCancelled } = {}) => {
+  const formData = new FormData();
+  formData.append("video", file);
+  const base = `/api/v1/dynasties/${dynastyId}/seasons/${seasonId}`;
+  return api
+    .post(`${base}/start_roster_video`, formData, { headers: { "Content-Type": "multipart/form-data" } })
+    .then((r) =>
+      pollAnalysis(`${base}/roster_video_status`, r.data.token, {
+        onProgress,
+        isCancelled,
+        timeoutMs: ROSTER_VIDEO_POLL_TIMEOUT_MS,
+      }),
+    );
+};
+
 export const commitRosterImport = (dynastyId, seasonId, collegeSeasonId, players) =>
   api
     .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_roster_import`, { collegeSeasonId, players })
@@ -396,14 +414,16 @@ export const updateGame = (id, attributes) => api.patch(`/api/v1/games/${id}`, {
 const ANALYSIS_POLL_INTERVAL_MS = 1500;
 const ANALYSIS_POLL_TIMEOUT_MS = 5 * 60 * 1000;
 
-const pollAnalysis = async (statusPath, token) => {
+const pollAnalysis = async (statusPath, token, { onProgress, timeoutMs = ANALYSIS_POLL_TIMEOUT_MS, isCancelled } = {}) => {
   const startedAt = Date.now();
   // eslint-disable-next-line no-constant-condition
   while (true) {
     const { data } = await api.get(statusPath, { params: { token } });
     if (data.status === "completed") return data.analysis;
     if (data.status === "failed") throw new Error(data.error || "AI extraction failed");
-    if (Date.now() - startedAt > ANALYSIS_POLL_TIMEOUT_MS) {
+    if (isCancelled?.()) throw new Error("Cancelled");
+    if (onProgress) onProgress(data.progress);
+    if (Date.now() - startedAt > timeoutMs) {
       throw new Error("Analysis is taking longer than expected — try again in a bit.");
     }
     await new Promise((resolve) => setTimeout(resolve, ANALYSIS_POLL_INTERVAL_MS));

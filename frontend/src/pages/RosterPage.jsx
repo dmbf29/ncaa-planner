@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
+import { keysToSnake } from "../lib/case";
 import OverallBadge from "../components/OverallBadge";
 import {
   fetchRoster,
@@ -10,6 +11,7 @@ import {
   deleteInjury,
   updateStudentSeason,
   analyzeRosterImport,
+  analyzeRosterVideo,
   commitRosterImport,
   searchPreviousStudents,
 } from "../lib/apiClient";
@@ -535,10 +537,21 @@ function ImportRosterForm({ dynastyId, seasonId, collegeSeasonId, onClose, onImp
   const [saved, setSaved] = useState(false);
   const [warnings, setWarnings] = useState(null);
 
-  const handleAnalyze = async () => {
+  const [videoStatus, setVideoStatus] = useState(null); // { name, stage, percent, players } while a video is processing
+  const [dragOver, setDragOver] = useState(false);
+  const [videoFlags, setVideoFlags] = useState([]); // players the video reader wasn't sure about
+  const cancelledRef = useRef(false);
+  useEffect(() => {
+    cancelledRef.current = false;
+    return () => {
+      cancelledRef.current = true;
+    };
+  }, []);
+
+  const handleAnalyze = async (jsonText = text) => {
     let parsed;
     try {
-      parsed = JSON.parse(text);
+      parsed = JSON.parse(jsonText);
     } catch {
       setAnalyzeError("That's not valid JSON.");
       return;
@@ -564,6 +577,43 @@ function ImportRosterForm({ dynastyId, seasonId, collegeSeasonId, onClose, onImp
       setAnalyzeError(err.message);
     } finally {
       setAnalyzing(false);
+    }
+  };
+
+  // Dropping a roster-screen recording fills the box with the extracted JSON
+  // and goes straight on to the normal analyze/review step.
+  const handleVideoFile = async (file) => {
+    if (!file) return;
+    if (!file.type.startsWith("video/") && !/\.(mov|mp4|m4v)$/i.test(file.name)) {
+      setAnalyzeError("That doesn't look like a video file (.mov or .mp4).");
+      return;
+    }
+    setAnalyzeError(null);
+    setVideoFlags([]);
+    setVideoStatus({ name: file.name, stage: "uploading" });
+    try {
+      const result = await analyzeRosterVideo(dynastyId, seasonId, file, {
+        isCancelled: () => cancelledRef.current,
+        onProgress: (progress) => {
+          if (cancelledRef.current || !progress) return;
+          const percent = progress.totalFrames ? Math.min(99, Math.round((progress.frame / progress.totalFrames) * 100)) : 0;
+          setVideoStatus({ name: file.name, stage: progress.stage, percent, players: progress.players });
+        },
+      });
+      if (cancelledRef.current) return;
+      setVideoFlags(
+        result.players
+          .filter((player) => player.needsReview)
+          .map((player) => `${player.firstName} ${player.lastName}: ${player.needsReview.join("; ")}`),
+      );
+      const json = JSON.stringify({ players: result.players.map((player) => keysToSnake(Object.fromEntries(Object.entries(player).filter(([key]) => key !== "needsReview")))) }, null, 1);
+      setText(json);
+      setVideoStatus(null);
+      await handleAnalyze(json);
+    } catch (err) {
+      if (cancelledRef.current) return;
+      setVideoStatus(null);
+      setAnalyzeError(err.message);
     }
   };
 
@@ -646,6 +696,57 @@ function ImportRosterForm({ dynastyId, seasonId, collegeSeasonId, onClose, onImp
               Paste a JSON object with a &ldquo;players&rdquo; array. Returning players are matched to their existing
               record automatically — anything ambiguous gets flagged for you to confirm before saving.
             </p>
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                if (!videoStatus && !analyzing) handleVideoFile(e.dataTransfer.files?.[0]);
+              }}
+              className={`rounded-md border-2 border-dashed px-3 py-3 text-sm transition ${
+                dragOver ? "border-burnt bg-burnt/10" : "border-border dark:border-darkborder"
+              }`}
+            >
+              {videoStatus ? (
+                <div className="space-y-1.5">
+                  <p className="font-semibold text-textPrimary dark:text-white">{videoStatus.name}</p>
+                  <p className="text-textSecondary">
+                    {videoStatus.stage === "uploading" && "Uploading…"}
+                    {videoStatus.stage === "queued" && "Waiting for another video to finish…"}
+                    {videoStatus.stage === "starting" && "Starting…"}
+                    {videoStatus.stage === "reading" &&
+                      `Reading roster… ${videoStatus.percent}% · ${videoStatus.players} player${videoStatus.players === 1 ? "" : "s"} found`}
+                  </p>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-border dark:bg-darkborder">
+                    <div
+                      className="h-full bg-burnt transition-all"
+                      style={{ width: `${videoStatus.stage === "reading" ? videoStatus.percent : 0}%` }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <p className="text-textSecondary">
+                  Drop a roster screen recording here to read it automatically, or{" "}
+                  <label className="cursor-pointer font-semibold text-burnt hover:underline">
+                    choose a video
+                    <input
+                      type="file"
+                      accept="video/*,.mov"
+                      className="hidden"
+                      onChange={(e) => {
+                        handleVideoFile(e.target.files?.[0]);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  . Or paste JSON below.
+                </p>
+              )}
+            </div>
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
@@ -657,8 +758,8 @@ function ImportRosterForm({ dynastyId, seasonId, collegeSeasonId, onClose, onImp
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={handleAnalyze}
-                disabled={analyzing || !text.trim()}
+                onClick={() => handleAnalyze()}
+                disabled={analyzing || !!videoStatus || !text.trim()}
                 className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {analyzing ? "Analyzing..." : "Analyze"}
@@ -674,6 +775,18 @@ function ImportRosterForm({ dynastyId, seasonId, collegeSeasonId, onClose, onImp
           </>
         ) : (
           <>
+            {videoFlags.length > 0 && (
+              <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-textPrimary dark:text-white">
+                <p className="font-semibold">
+                  The video reader wasn&rsquo;t sure about {videoFlags.length} player{videoFlags.length === 1 ? "" : "s"} — double-check:
+                </p>
+                <ul className="mt-1 list-disc pl-5">
+                  {videoFlags.map((flag, index) => (
+                    <li key={index}>{flag}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <p className="text-sm text-textSecondary">
               {counts.match} matched &middot; {counts.new} new &middot; {counts.ambiguous} need review
             </p>
