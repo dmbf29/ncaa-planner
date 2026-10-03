@@ -28,6 +28,8 @@ class SeasonWeeksSerializer
     {
       focus: focus_json(weeks.first),
       podcast_date: podcast_date_json,
+      next_episode: next_episode_json,
+      pick_report: pick_report_json,
       season: {
         id: @season.id,
         year: @season.year,
@@ -40,38 +42,62 @@ class SeasonWeeksSerializer
 
   private
 
-  # The in-world date the episode is being recorded, so the hosts have a
-  # concrete "when": the day after the primary week's last game. If that
-  # week has no game with a known kickoff on record (e.g. Week 14, which is
-  # just Army–Navy and often has no time set), fall back to the day before
-  # the first game of the week being previewed. nil when neither week has a
-  # game time to anchor to. Game times carry a real calendar year off the
-  # season (see TeamSchedule::CommitService / ScheduleStats::CommitService),
-  # so this stays correct across seasons.
+  # The in-world date the Review is recorded: the Monday after the primary
+  # week's games (see PodcastSchedule). nil when no kickoff time anywhere in
+  # the season gives us a date to work from.
   def podcast_date_json
     number = primary_week_number
     return nil unless number
 
-    last_game = latest_game_time_in_week(@season.weeks.find_by(number: number))
-    return { date: (last_game.to_date + 1).iso8601, anchor_week: number, position: "after" } if last_game
-
-    preview_number = number + 1
-    first_game = earliest_game_time_in_week(@season.weeks.find_by(number: preview_number))
-    return nil unless first_game
-
-    { date: (first_game.to_date - 1).iso8601, anchor_week: preview_number, position: "before" }
+    date = podcast_schedule.review_date(number)
+    date && { date: date.iso8601, anchor_week: number, position: "after" }
   end
 
-  def latest_game_time_in_week(week)
-    return nil unless week
+  # The teaser the Review closes on: when the Big Game Breakdown airs and
+  # which of our games it previews, in place of previewing them here. nil when
+  # none of our teams plays the following week.
+  def next_episode_json
+    number = primary_week_number
+    return nil unless number
 
-    all_games.filter_map { |game| game.time if game.week_id == week.id }.max
+    next_week = @season.weeks.find_by(number: number + 1)
+    return nil unless next_week
+
+    matchups = coached_matchups_for_next_week(next_week)
+    return nil if matchups.empty?
+
+    date = podcast_schedule.preview_date(next_week.number)
+    { show: BigGameBreakdown::SHOW_NAME, week_number: next_week.number, date: date&.iso8601, games: matchups }
   end
 
-  def earliest_game_time_in_week(week)
-    return nil unless week
+  # How the hosts' Big Game Breakdown bets on the primary week's games came
+  # out, plus their season record through that week. nil when no bets were
+  # locked for the week.
+  def pick_report_json
+    number = primary_week_number
+    return nil unless number
 
-    all_games.filter_map { |game| game.time if game.week_id == week.id }.min
+    scorecard = BigGameBreakdown::Scorecard.new(@season)
+    games = scorecard.week_results(number)
+    return nil if games.empty?
+
+    { week_number: number, games: games, season_record: scorecard.record(through_week_number: number) }
+  end
+
+  def podcast_schedule
+    @podcast_schedule ||= PodcastSchedule.new(@season)
+  end
+
+  # One entry per game involving a coached team (a game between two coached
+  # teams appears once), in the order the broadcast lists them.
+  def coached_matchups_for_next_week(week)
+    all_games.select { |game| game.week_id == week.id }
+             .select { |game| coached_college_ids.include?(game.home_college_id) || coached_college_ids.include?(game.away_college_id) }
+             .map do |game|
+      { home: game.home_college.name, away: game.away_college.name,
+        home_user_coached: coached_college_ids.include?(game.home_college_id),
+        away_user_coached: coached_college_ids.include?(game.away_college_id) }
+    end
   end
 
   def focus_json(primary_week)
@@ -422,60 +448,7 @@ class SeasonWeeksSerializer
   # kept; nil when the player has no recorded stats yet (e.g. an O-lineman,
   # or someone hurt in week 1) so the presenter can stay silent.
   def injured_player_season_stats(student_season, week)
-    rows = StudentGameStat.joins(game: :week)
-                          .where(student_season_id: student_season.id)
-                          .where(weeks: { number: ..week.number })
-                          .to_a
-    return nil if rows.empty?
-
-    totals = PlayerStatTotals.call(rows)
-    buckets = {
-      passing: passing_season_bucket(totals),
-      rushing: rushing_season_bucket(totals),
-      receiving: receiving_season_bucket(totals),
-      defense: defense_season_bucket(totals)
-    }.compact
-    return nil if buckets.empty?
-
-    { games_played: totals[:games_played] }.merge(buckets)
-  end
-
-  def passing_season_bucket(totals)
-    return nil unless totals[:passing_attempts].to_i.positive?
-
-    {
-      completions: totals[:passing_completions], attempts: totals[:passing_attempts],
-      yards: totals[:passing_yards], tds: totals[:passing_tds],
-      interceptions: totals[:passing_interceptions], rating: totals[:passing_rating]
-    }
-  end
-
-  def rushing_season_bucket(totals)
-    return nil unless totals[:rushing_carries].to_i.positive?
-
-    {
-      carries: totals[:rushing_carries], yards: totals[:rushing_yards],
-      avg: totals[:rushing_avg], tds: totals[:rushing_tds]
-    }
-  end
-
-  def receiving_season_bucket(totals)
-    return nil unless totals[:receiving_receptions].to_i.positive?
-
-    {
-      receptions: totals[:receiving_receptions], yards: totals[:receiving_yards],
-      avg: totals[:receiving_avg], tds: totals[:receiving_tds]
-    }
-  end
-
-  def defense_season_bucket(totals)
-    keys = %i[defense_tackles defense_tfl defense_sacks defense_interceptions]
-    return nil unless keys.any? { |key| totals[key].to_f.positive? }
-
-    {
-      tackles: totals[:defense_tackles], tfl: totals[:defense_tfl],
-      sacks: totals[:defense_sacks], interceptions: totals[:defense_interceptions]
-    }
+    PlayerSeasonStats.call(student_season, through_week_number: week.number)
   end
 
   # This team's National/Conference Player(s) of the Week for this week, if
@@ -731,6 +704,7 @@ class SeasonWeeksSerializer
     }
   end
 
+  # Just who's next: the opponent's preview belongs to the Big Game Breakdown.
   def upcoming_game_json(game, college_id)
     home = game.home_college_id == college_id
     opponent = home ? game.away_college : game.home_college
@@ -738,92 +712,8 @@ class SeasonWeeksSerializer
       week_number: game.week.number,
       bowl_name: game.bowl_name,
       cfp_round: game.cfp_round,
-      opponent: opponent_json(opponent, home),
-      opponent_record: record_before(opponent.id, games_for_college(opponent.id), game.week.number),
-      opponent_last_result: opponent_last_result_json(opponent.id, game.week.number),
-      opponent_schedule: opponent_schedule_json(opponent.id, game.week.number),
-      scouting_report: scouting_report_json(opponent.id)
+      opponent: opponent_json(opponent, home)
     }
-  end
-
-  # The opponent's full schedule for every week before before_week_number,
-  # in order — same per-week final/bye/missing logic as
-  # opponent_last_result_json, just for the whole season so far instead of
-  # one week, so a recap can give real context on how the opponent's been
-  # playing rather than just their most recent score. Empty for a Week 1
-  # opponent (nothing came before it).
-  def opponent_schedule_json(opponent_id, before_week_number)
-    games = games_for_college(opponent_id)
-    bye_week_ids = college_seasons_by_college_id[opponent_id]&.bye_week_ids || []
-
-    @season.weeks.where("number < ?", before_week_number).order(:number).map do |week|
-      opponent_schedule_week_json(opponent_id, week, games, bye_week_ids)
-    end
-  end
-
-  def opponent_schedule_week_json(opponent_id, week, games, bye_week_ids)
-    week_json = { id: week.id, number: week.number, name: week.name }
-    game = games.find { |g| g.week_id == week.id }
-    result = game && game_result(game, opponent_id)
-
-    if result
-      home = game.home_college_id == opponent_id
-      versus = home ? game.away_college : game.home_college
-      return { status: "final", week: week_json, opponent: opponent_json(versus, home), result: result }
-    end
-
-    return { status: "bye", week: week_json } if bye_week_ids.include?(week.id)
-
-    { status: "missing", week: week_json }
-  end
-
-  # What happened for this opponent the single week before before_week_number
-  # — not a multi-week backward scan, since the point of this is to surface
-  # a gap ("missing") rather than quietly search past it for an older
-  # result. A week with no game is only reported as "bye" if it's in
-  # CollegeSeason#bye_week_ids (the only place that fact is ever recorded —
-  # see TeamSchedule::CommitService); otherwise it's "missing" — that
-  # team's data for that week just hasn't been uploaded yet. nil when
-  # before_week_number is the season's first week (nothing came before it).
-  def opponent_last_result_json(opponent_id, before_week_number)
-    week = @season.weeks.find_by(number: before_week_number - 1)
-    return nil unless week
-
-    game = games_for_college(opponent_id).find { |g| g.week_id == week.id }
-    result = game && game_result(game, opponent_id)
-
-    if result
-      home = game.home_college_id == opponent_id
-      versus = home ? game.away_college : game.home_college
-      return { status: "final", week_number: week.number, opponent: opponent_json(versus, home), result: result }
-    end
-
-    bye_week_ids = college_seasons_by_college_id[opponent_id]&.bye_week_ids || []
-    return { status: "bye", week_number: week.number } if bye_week_ids.include?(week.id)
-
-    { status: "missing", week_number: week.number }
-  end
-
-  # Overall/offense/defense ratings plus the one player to watch on each
-  # side of the ball for a not-yet-played opponent — nil-shaped when the
-  # opponent has no CollegeSeason on record for this season.
-  def scouting_report_json(college_id)
-    college_season = college_seasons_by_college_id[college_id]
-    return { overall: nil, offense: nil, defense: nil, best_offensive_player: nil, best_defensive_player: nil } unless college_season
-
-    {
-      overall: college_season.overall,
-      offense: college_season.offense,
-      defense: college_season.defense,
-      best_offensive_player: scouting_player_json(college_season.best_offensive_players(limit: 1).first),
-      best_defensive_player: scouting_player_json(college_season.best_defensive_players(limit: 1).first)
-    }
-  end
-
-  def scouting_player_json(student_season)
-    return nil unless student_season
-
-    { name: student_season.student.name, position: student_season.position, overall: student_season.overall }
   end
 
   def opponent_json(opponent, home)

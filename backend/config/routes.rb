@@ -102,6 +102,7 @@ Rails.application.routes.draw do
       # Public, unauthenticated broadcast data for third-party consumption (e.g. podcast generation).
       get "dynasties/:dynasty_id/seasons/:season_id/win_totals", to: "season_broadcasts#win_totals"
       get "dynasties/:dynasty_id/seasons/:season_id/weeks", to: "season_broadcasts#weeks"
+      get "dynasties/:dynasty_id/seasons/:season_id/big_game_breakdown", to: "season_broadcasts#big_game_breakdown"
       get "dynasties/:dynasty_id/seasons/:season_id/team_breakdown", to: "season_broadcasts#team_breakdown"
       get "dynasties/:dynasty_id/seasons/:season_id/midseason_report_cards", to: "season_broadcasts#midseason_report_cards"
       get "dynasties/:dynasty_id/seasons/:season_id/end_of_season_report_cards", to: "season_broadcasts#end_of_season_report_cards"

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_10_03_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_10_04_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -230,6 +230,19 @@ ActiveRecord::Schema[8.0].define(version: 2026_10_03_120000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["name"], name: "index_flags_on_name", unique: true
+  end
+
+  create_table "game_picks", force: :cascade do |t|
+    t.bigint "game_id", null: false
+    t.string "host", null: false
+    t.string "market", null: false
+    t.string "side", null: false
+    t.decimal "spread_line", precision: 4, scale: 1, null: false
+    t.decimal "total_line", precision: 4, scale: 1, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["game_id", "host"], name: "index_game_picks_on_game_id_and_host", unique: true
+    t.index ["game_id"], name: "index_game_picks_on_game_id"
   end
 
   create_table "games", force: :cascade do |t|
@@ -689,6 +702,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_10_03_120000) do
   add_foreign_key "college_week_rankings", "colleges"
   add_foreign_key "college_week_rankings", "weeks"
   add_foreign_key "dynasties", "users"
+  add_foreign_key "game_picks", "games"
   add_foreign_key "games", "colleges", column: "away_college_id"
   add_foreign_key "games", "colleges", column: "home_college_id"
   add_foreign_key "games", "student_seasons", column: "defensive_player_of_game_id"

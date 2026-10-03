@@ -31,6 +31,9 @@ class SeasonWeeksMarkdownPresenter
       lines.concat(week_section(week_data, primary: index.zero?))
     end
 
+    lines.concat(pick_report_lines)
+    lines.concat(sign_off_lines)
+
     lines.join("\n")
   end
 
@@ -65,7 +68,8 @@ class SeasonWeeksMarkdownPresenter
 
   def producer_note
     note = "PRODUCER NOTE: Welcome back to the studio, team. Below are your pre-show game notes for today's " \
-           "taping — results, standings movement, and next matchups for our guys."
+           "taping — results and standings movement for our guys. Next week's games are NOT previewed here; " \
+           "they belong to the Big Game Breakdown (see the sign-off at the bottom)."
 
     older_weeks = @data[:weeks][1..]
     if older_weeks.present?
@@ -98,7 +102,7 @@ class SeasonWeeksMarkdownPresenter
     pretty = Date.parse(info[:date]).strftime("%A, %B %-d, %Y")
     context =
       if info[:position] == "after"
-        "the day after Week #{info[:anchor_week]}'s last game"
+        "the Monday after Week #{info[:anchor_week]}'s games"
       else
         "the day before Week #{info[:anchor_week]} kicks off"
       end
@@ -124,8 +128,9 @@ class SeasonWeeksMarkdownPresenter
       injury_report_segment,
       recruitment_trail_segment(next_number),
       "Winners & Losers - the hosts each pick 1 team/player who won the week, and 1 who lost",
+      pick_report_segment,
       "#{poll_watch_label} — Discuss rankings and national standing shifts (if focused teams are included)",
-      "Week #{next_number} Preview — Look ahead to next week's opponents and the hosts make predictions"
+      sign_off_segment
     ].compact
   end
 
@@ -142,6 +147,22 @@ class SeasonWeeksMarkdownPresenter
 
   def all_teams
     @data[:weeks].flat_map { |week_data| week_data[:teams] }
+  end
+
+  def pick_report_segment
+    return nil if @data[:pick_report].blank?
+
+    "Betting Report Card — Grade each host's Big Game Breakdown bets for Week #{@data[:pick_report][:week_number]} " \
+      "and give the season record."
+  end
+
+  # The Review no longer previews next week's games; it hands off to the Big
+  # Game Breakdown instead.
+  def sign_off_segment
+    episode = @data[:next_episode]
+    return nil if episode.blank?
+
+    "Sign-Off — Tease #{episode[:show]}#{teaser_when(episode)}: name the games, no analysis and no predictions"
   end
 
   def injury_report_segment
@@ -649,7 +670,7 @@ class SeasonWeeksMarkdownPresenter
   def next_up_lines(next_game, lingering_injuries, season_outlook)
     lines =
       if next_game
-        next_game_preview_lines(next_game)
+        next_game_pointer_lines(next_game)
       elsif season_outlook
         season_outlook_lines(season_outlook)
       else
@@ -678,14 +699,57 @@ class SeasonWeeksMarkdownPresenter
     "#{bowl[:bowl_name]}#{round}#{matchup}"
   end
 
-  def next_game_preview_lines(next_game)
-    record = next_game[:opponent_record]
-    record_str = record && record[:wins] && record[:losses] ? " (#{record[:wins]}-#{record[:losses]})" : ""
-    lines = [ "- Week #{next_game[:week_number]} — #{opponent_line(next_game[:opponent])}#{record_str}" ]
-    lines << "  - Last: #{opponent_last_result_line(next_game[:opponent_last_result])}"
-    lines.concat(opponent_schedule_lines(next_game[:opponent_schedule]))
-    lines.concat(scouting_report_lines(next_game[:scouting_report]))
+  # Just who's next, nothing more: the opponent's record, schedule and
+  # scouting report, and any prediction, are saved for the Big Game Breakdown.
+  def next_game_pointer_lines(next_game)
+    [ "- Week #{next_game[:week_number]} — #{opponent_line(next_game[:opponent])} " \
+      "(name the opponent only; the preview and any predictions are saved for #{BigGameBreakdown::SHOW_NAME})" ]
+  end
+
+  # How each host's Big Game Breakdown bets on this week's games came out.
+  def pick_report_lines
+    report = @data[:pick_report]
+    return [] if report.blank?
+
+    lines = [ "---", "", "## 🧾 BETTING REPORT CARD — Week #{report[:week_number]} (from #{BigGameBreakdown::SHOW_NAME})", "" ]
+    report[:games].each do |game|
+      bets = game[:picks].map { |pick| "#{pick[:host]}: #{pick[:bet]} — #{pick_result_text(pick[:result])}" }.join(" · ")
+      lines << "- #{game[:away]} @ #{game[:home]}: #{bets}"
+    end
+    lines << ""
+    lines << "**Season record on bets:**"
+    report[:season_record].each { |host, record| lines << "- #{host}: #{record_text_with_pushes(record)}" }
+    lines << ""
     lines
+  end
+
+  def pick_result_text(result)
+    { win: "WON", loss: "LOST", push: "PUSH" }.fetch(result, "not graded yet (no final score on file)")
+  end
+
+  def record_text_with_pushes(record)
+    base = "#{record[:wins]}-#{record[:losses]}"
+    record[:pushes].to_i.positive? ? "#{base}-#{record[:pushes]}" : base
+  end
+
+  # The close of the show: when the Big Game Breakdown airs and which games it
+  # covers.
+  def sign_off_lines
+    episode = @data[:next_episode]
+    return [] if episode.blank?
+
+    games = episode[:games].map { |game| "#{game[:away]} @ #{game[:home]}" }
+    [ "---", "",
+      "## 👋 SIGN-OFF — TEASE #{episode[:show].upcase}", "",
+      "End the show by telling listeners to catch #{episode[:show]}#{teaser_when(episode)}, where we preview " \
+      "Week #{episode[:week_number]}'s games: #{games.join(', ')}. Name the games and nothing more: no analysis, no " \
+      "predictions, and no lines.", "" ]
+  end
+
+  def teaser_when(episode)
+    return "" if episode[:date].blank?
+
+    " on #{Date.parse(episode[:date]).strftime('%A, %B %-d')}"
   end
 
   # Injuries carried over from an earlier week (see
@@ -701,56 +765,6 @@ class SeasonWeeksMarkdownPresenter
   def lingering_injury_line(injury)
     status = injury[:status] == "out_for_season" ? "out for the season" : injury[:status].tr("_", " ")
     "#{injury[:name]} (#{injury[:position]}) — #{injury[:description]} (Week #{injury[:injured_week_number]} injury, #{status})"
-  end
-
-  def opponent_last_result_line(last_result)
-    return "Season opener — no games played yet." unless last_result
-    return "Bye (Week #{last_result[:week_number]})." if last_result[:status] == "bye"
-    return "Not yet uploaded (Week #{last_result[:week_number]})." if last_result[:status] == "missing"
-
-    result = last_result[:result]
-    outcome = result[:won] ? "W" : "L"
-    "#{outcome} #{result[:team_score]}-#{result[:opponent_score]} #{opponent_line(last_result[:opponent])} (Week #{last_result[:week_number]})"
-  end
-
-  # The opponent's full schedule so far this season — every week already
-  # covered by the single "Last:" line above, plus everything before it, so
-  # a recap can talk about their season arc, not just their most recent
-  # result. Silent for a Week 1 opponent (nothing came before it).
-  def opponent_schedule_lines(schedule)
-    return [] if schedule.blank?
-
-    lines = [ "  - Schedule so far:" ]
-    schedule.each { |entry| lines << "    - #{opponent_schedule_entry_line(entry)}" }
-    lines
-  end
-
-  def opponent_schedule_entry_line(entry)
-    week_label = "Week #{entry[:week][:number]}"
-    case entry[:status]
-    when "bye" then "#{week_label} — Bye"
-    when "missing" then "#{week_label} — Not yet uploaded"
-    else
-      result = entry[:result]
-      outcome = result[:won] ? "W" : "L"
-      "#{week_label} — #{outcome} #{result[:team_score]}-#{result[:opponent_score]} #{opponent_line(entry[:opponent])}"
-    end
-  end
-
-  def scouting_report_lines(report)
-    return [] if report.blank?
-
-    lines = []
-    if report[:overall] || report[:offense] || report[:defense]
-      lines << "  - Overall #{report[:overall] || '?'} | Offense #{report[:offense] || '?'} | Defense #{report[:defense] || '?'}"
-    end
-    lines << "  - Watch for on offense: #{scouting_player_line(report[:best_offensive_player])}" if report[:best_offensive_player]
-    lines << "  - Watch for on defense: #{scouting_player_line(report[:best_defensive_player])}" if report[:best_defensive_player]
-    lines
-  end
-
-  def scouting_player_line(player)
-    "#{player[:name]} (#{player[:position]}, #{player[:overall]} OVR)"
   end
 
   # Only rendered when this team actually won a National/Conference Player

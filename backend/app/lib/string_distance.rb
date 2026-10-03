@@ -17,6 +17,7 @@ module StringDistance
   def garbled_name?(name)
     text = name.to_s
     return true if text.match?(/[0-9|]/)
+    return true if text.match?(/\A[a-z]/) # a name never starts lowercase; a lowercase l is a capital I the font can't show
     return true if text.match?(/\.\z/) && !text.match?(/\b(Jr|Sr)\.\z/)
 
     text.split(/[\s'-]+/).any? { |token| token.match?(/\A[Il|]{2,}\z/) && token.include?("l") }

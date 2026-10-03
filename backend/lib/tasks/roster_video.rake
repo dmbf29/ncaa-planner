@@ -20,10 +20,12 @@ namespace :roster_import do
     cache_dir = Rails.root.join("tmp/roster_video/cache")
     FileUtils.mkdir_p(cache_dir)
     extractor = RosterVideoJob::TOOL_DIR.join("extract.py")
+    # Keyed on the extractor's OUTPUT_VERSION (not its edit time), so only changes that alter what it outputs re-read clips.
+    output_version = File.read(extractor)[/^OUTPUT_VERSION = (\d+)/, 1]
     abort "Roster video tool isn't set up (no Python at #{RosterVideoJob::PYTHON}); see tools/roster_video/README.md" unless File.executable?(RosterVideoJob::PYTHON)
 
     extract = lambda do |path|
-      cache = cache_dir.join("#{File.basename(path)}-#{File.mtime(path).to_i}-#{File.mtime(extractor).to_i}.json")
+      cache = cache_dir.join("#{File.basename(path)}-#{File.mtime(path).to_i}-v#{output_version}.json")
       next JSON.parse(File.read(cache)) if cache.exist?
 
       out, err, status = Open3.capture3(RosterVideoJob::PYTHON, extractor.to_s, path)

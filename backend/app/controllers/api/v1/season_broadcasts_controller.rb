@@ -23,6 +23,18 @@ module Api
         render_broadcast(data) { ::SeasonWeeksMarkdownPresenter.new(data).to_markdown }
       end
 
+      def big_game_breakdown
+        week_number = Integer(params[:week_number], exception: false)
+        if week_number.nil?
+          render json: { error: "week_number query param is required (e.g. ?week_number=5)", code: "bad_request" },
+                 status: :bad_request
+          return
+        end
+
+        data = ::BigGameBreakdownSerializer.new(@season, week_number).as_json
+        render_broadcast(data) { ::BigGameBreakdownMarkdownPresenter.new(data).to_markdown }
+      end
+
       def team_breakdown
         data = ::TeamBreakdownSerializer.new(@season).as_json
         render_broadcast(data) { ::TeamBreakdownMarkdownPresenter.new(data).to_markdown }

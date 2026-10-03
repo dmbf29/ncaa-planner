@@ -72,6 +72,25 @@ their real history. `bin/rails roster_import:audit_links` is a read-only check f
 teams without a clip (links whose class, side of the ball or overall jump look
 implausible).
 
+**Duplicates.** The reverse problem: the player matches fine, but the roster *also*
+holds them under another name or Student (a garbled `Moore Ill` next to `Moore III`, or
+`Amar Thomas` parked on `AJ Thomas`'s spot). The report lists these as `duplicate` and,
+with `REPAIR_LINKS=1`, removes the extra row — keeping whichever Student has real
+history, and refusing (with a reason) if anything else points at the row or the new
+name still looks garbled. All three checks only fire when a player has the same
+position, class and all seven ratings as another row on the roster.
+
+**Caching.** Readings are cached in `tmp/roster_video/cache`, keyed by file and the
+extractor's `OUTPUT_VERSION`. Bump that constant in `extract.py` when a change alters what
+the extractor outputs; a full re-read of ~140 clips takes ~20 minutes (`CLIPS_AT_ONCE`, default 2).
+
+**Name OCR, in short.** Last names combine both sources: the pane (ALL CAPS) gives the
+right *letters* (it can tell I from l and O from 0), the row gives the right
+*spacing, apostrophes and capitalisation* (the pane wraps long names, drops
+apostrophes and adds stray periods). A lowercase `l` at the start of a word is a capital
+`I`. Both sources can still misread a capital I as `L`/`l`; the batch's duplicate and
+wrong-link checks are what catch those.
+
 **From the command line:**
 
 ```bash

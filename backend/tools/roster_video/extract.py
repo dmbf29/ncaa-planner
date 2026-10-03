@@ -26,6 +26,8 @@ STAT_FIELDS = {"SPD": "speed", "ACC": "acceleration", "AGI": "agility",
 HOMOGLYPHS = str.maketrans("АВСЕНІКМОРТХаеорсху", "ABCEHIKMOPTXaeopcxy")
 VALID_POSITIONS = {"QB", "HB", "FB", "WR", "TE", "LT", "LG", "C", "RG", "RT", "LEDG", "REDG", "DT",
                    "MIKE", "WILL", "SAM", "CB", "FS", "SS", "K", "P"}
+# Bump when a change alters what the extractor OUTPUTS, so batch caches of earlier readings are re-read.
+OUTPUT_VERSION = 6
 STABLE_FRAMES = 4
 NAME_RE = re.compile(r"^[A-Za-z0-9]{1,2}\.\s*[A-Za-z]")  # the row's "J.Smith" shape
 
@@ -322,8 +324,10 @@ def align_to_pane(row_last, pane_last):
 
 
 def tidy_last_name(name):
-    """OCR leaves a space after an apostrophe ("D' Imperio") and a stray trailing period."""
+    """OCR leaves a space after an apostrophe ("D' Imperio") and a stray trailing period. A word never starts with a
+    lowercase l, so one there is a capital I that the row font renders the same way ("loane" -> "Ioane")."""
     name = re.sub(r"'\s+", "'", name).strip()
+    name = re.sub(r"(^|[\s'\-])l", r"\1I", name)
     return name if re.search(r"\b(Jr|Sr)\.$", name) else name.rstrip(". ")
 
 
