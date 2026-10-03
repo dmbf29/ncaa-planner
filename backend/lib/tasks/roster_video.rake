@@ -163,6 +163,17 @@ namespace :roster_import do
         end
       end
 
+      # Players the highlight skipped while scrolling: visible in the table, so we know their initial, last name, class,
+      # position and ratings, but never saw their pane (full first name). Fine if the roster already has them.
+      skipped_report = Array(clip[:result]["skipped"]).map do |s|
+        known = existing.values.find do |ss|
+          ss.student.first_name.to_s[0]&.casecmp?(s["first_initial"].to_s[0].to_s) && StringDistance.similar_name?(ss.student.last_name, s["last_name"]) &&
+            PositionBoardMapping.canonical(ss.position) == PositionBoardMapping.canonical(s["position"]) &&
+            ss.class_year == RosterImport::Matcher.normalize_class_year(s["class_year"]) && ss.overall == s["overall"].to_i
+        end
+        { entry: s, on_roster_as: known&.student&.name }
+      end
+
       commit_rows = writable.map do |row|
         next row unless row[:status] == "new"
 
@@ -186,6 +197,12 @@ namespace :roster_import do
       puts format("%-20s %2d players: %2d match, %2d new | %3d cell changes, %2d added to roster | skipped: %d ambiguous, %d reader-flagged, %d wrong links, %d duplicates%s",
                   college.name, players.size, counts["match"].to_i, counts["new"].to_i, changes.size, added, ambiguous.size, flagged.size,
                   wrong_links.size, duplicates.size, warnings.any? ? " | #{warnings.size} WARNINGS" : "")
+      skipped_report.each do |item|
+        s = item[:entry]
+        label = "#{s['row_name']} #{s['position']} #{s['class_year']} #{s['overall']}"
+        puts item[:on_roster_as] ? "    -- skipped by the highlight, already on the roster: #{label} (as #{item[:on_roster_as]})" :
+                                    "    -- SKIPPED BY THE HIGHLIGHT AND NOT ON THE ROSTER: #{label} (no full first name in the video)"
+      end
       duplicates.each do |finding|
         status = cleaned.positive? && !finding.manual_reason ? "REMOVED" : (finding.manual_reason ? "NEEDS MANUAL FIX (#{finding.manual_reason})" : "removable")
         puts "    ## duplicate [#{status}]: #{finding.describe}"
@@ -208,6 +225,7 @@ namespace :roster_import do
       totals[:changes] += changes.size
       totals[:wrong_links] += wrong_links.size
       totals[:duplicates] += duplicates.size
+      totals[:skipped_missing] += skipped_report.count { |item| item[:on_roster_as].nil? }
       totals[:ambiguous] += ambiguous.size
       totals[:flagged] += flagged.size
       totals[:warnings] += warnings.size
@@ -215,15 +233,16 @@ namespace :roster_import do
                           added_to_roster: added, ambiguous: ambiguous.map { |r| r.slice(:first_name, :last_name, :position, :class_year, :candidates) },
                           reader_flagged: flagged.map { |r| r.slice(:first_name, :last_name, :needs_review) }, warnings: warnings, auto_resolved: auto_resolved,
                           wrong_links: wrong_links.map { |f| { description: f.describe, repairable: f.repairable, student_season_id: f.student_season.id } },
-                          duplicates: duplicates.map { |f| { description: f.describe, manual_reason: f.manual_reason, student_season_id: f.drop.id } } }
+                          duplicates: duplicates.map { |f| { description: f.describe, manual_reason: f.manual_reason, student_season_id: f.drop.id } },
+                          skipped_by_highlight: skipped_report.map { |item| item[:entry].merge("on_roster_as" => item[:on_roster_as]) } }
     end
 
     puts
     report[:skipped_clips].each { |skipped| puts "SKIPPED #{skipped[:file]}: #{skipped[:reason]}" }
-    puts format("%s %d teams, %d players: %d matched, %d new, %d cell changes; not written: %d ambiguous, %d reader-flagged; %d probable wrong links%s, %d duplicates%s; %d warnings",
+    puts format("%s %d teams, %d players: %d matched, %d new, %d cell changes; not written: %d ambiguous, %d reader-flagged; %d probable wrong links%s, %d duplicates%s; %d players the highlight skipped and the roster lacks; %d warnings",
                 apply ? "Wrote" : "Would write", totals[:teams], totals[:players], totals[:match], totals[:new], totals[:changes],
                 totals[:ambiguous], totals[:flagged], totals[:wrong_links], (apply && repair_links ? " (repaired)" : ""),
-                totals[:duplicates], (apply && repair_links ? " (cleaned)" : ""), totals[:warnings])
+                totals[:duplicates], (apply && repair_links ? " (cleaned)" : ""), totals[:skipped_missing], totals[:warnings])
     puts "Re-run with APPLY=1 REPAIR_LINKS=1 to repair the wrong links and remove the duplicates." if (totals[:wrong_links] + totals[:duplicates]).positive? && !(apply && repair_links)
     path = Rails.root.join("tmp/roster_video/batch-#{apply ? 'applied' : 'dryrun'}-#{Time.current.strftime('%Y%m%d-%H%M%S')}.json")
     File.write(path, JSON.pretty_generate(report))

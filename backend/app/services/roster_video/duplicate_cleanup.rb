@@ -42,13 +42,12 @@ module RosterVideo
 
     def finding_for(row, matched)
       twins = @student_seasons.select do |ss|
-        ss.student_id != row[:student_id] && !matched.include?(ss.student_id) && same_signature?(ss, row) &&
-          StringDistance.similar_name?(ss.student.last_name, row[:last_name])
+        ss.student_id != row[:student_id] && !matched.include?(ss.student_id) && same_signature?(ss, row) && same_person_name?(ss, row)
       end
       return unless twins.size == 1
 
       twin = twins.first
-      kind = RosterImport::Matcher.same_first_name?(twin.student.first_name, row[:first_name]) ? :typo_duplicate : :wrong_person
+      kind = RosterImport::Matcher.same_first_name?(twin.student.first_name, row[:first_name]) || full_name_match?(twin, row) ? :typo_duplicate : :wrong_person
       Finding.new(kind: kind, row: row, matched_student_id: row[:student_id], drop: twin, manual_reason: manual_reason(kind, row, twin))
     end
 
@@ -77,9 +76,10 @@ module RosterVideo
       elsif twin_has_history
         # The twin's Student carries the real history: keep them (spelled correctly) and drop the other row.
         survivor = twin.student
-        drop = kept
         survivor.update!(first_name: row[:first_name], last_name: row[:last_name])
-        drop_row!(drop)
+        # the surviving row may hold an older reading: bring over the fresh one before dropping it
+        twin.update!(kept.attributes.slice("class_year", "position", "overall", "speed", "acceleration", "agility", "change_of_direction", "strength", "awareness"))
+        drop_row!(kept)
       else
         drop_row!(twin)
       end
@@ -96,6 +96,14 @@ module RosterVideo
     def delete_if_orphan!(student_id)
       student = Student.find_by(id: student_id)
       student&.destroy! if student && !student.student_seasons.exists? && !SignedRecruit.exists?(student_id: student_id)
+    end
+
+    def full_name_match?(student_season, row)
+      StringDistance.same_full_name?(student_season.student.first_name, student_season.student.last_name, row[:first_name], row[:last_name])
+    end
+
+    def same_person_name?(student_season, row)
+      StringDistance.similar_name?(student_season.student.last_name, row[:last_name]) || full_name_match?(student_season, row)
     end
 
     def same_signature?(student_season, row)

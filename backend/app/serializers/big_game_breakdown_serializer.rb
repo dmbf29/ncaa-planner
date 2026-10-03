@@ -40,6 +40,7 @@ class BigGameBreakdownSerializer
       podcast_date: podcast_date_json,
       season: { id: @season.id, year: @season.year, dynasty: @season.dynasty.name },
       week: { id: week.id, number: week.number, name: week.name },
+      poll_week_number: poll_week&.number,
       games: games,
       pick_ledger: pick_ledger_json
     }
@@ -169,6 +170,7 @@ class BigGameBreakdownSerializer
       college: { id: college_id, name: college_season.college.name, conference: college_season.conference },
       user_coached: coached_college_ids.include?(college_id),
       coach: college_season.coach && { name: college_season.coach.name },
+      previous_season: previous_season_json(college_id),
       record: record_json(results),
       conference_record: record_json(results.select { |result| result[:conference_game] }),
       ranking: ranking_for(college_id),
@@ -233,8 +235,41 @@ class BigGameBreakdownSerializer
   end
 
   def ranking_for(college_id)
-    @rankings ||= @week.college_week_rankings.index_by(&:college_id)
+    @rankings ||= poll_week ? poll_week.college_week_rankings.index_by(&:college_id) : {}
     @rankings[college_id]&.ranking
+  end
+
+  # The poll entering this week, or the latest earlier one on file when this
+  # week's hasn't been entered yet (e.g. only the preseason poll exists
+  # before Week 1).
+  def poll_week
+    return @poll_week if defined?(@poll_week)
+
+    @poll_week = @season.weeks.where("number <= ?", @week.number).order(number: :desc)
+                        .find { |week| week.college_week_rankings.exists? }
+  end
+
+  # Last season's record and scoring, from the season totals stored on its
+  # CollegeSeason (the game log only covers a fraction of other teams'
+  # games). nil until the dynasty has a prior season.
+  def previous_season_json(college_id)
+    previous = previous_college_seasons[college_id]
+    return nil unless previous && previous.wins && previous.losses
+
+    games = previous.wins + previous.losses
+    {
+      year: @season.previous_season.year,
+      wins: previous.wins,
+      losses: previous.losses,
+      conference_wins: previous.conference_wins,
+      conference_losses: previous.conference_losses,
+      points_per_game: previous.points_for && games.positive? ? (previous.points_for.to_f / games).round(1) : nil,
+      points_allowed_per_game: previous.points_against && games.positive? ? (previous.points_against.to_f / games).round(1) : nil
+    }
+  end
+
+  def previous_college_seasons
+    @previous_college_seasons ||= @season.previous_season&.college_seasons&.index_by(&:college_id) || {}
   end
 
   # ---- stakes -----------------------------------------------------------------

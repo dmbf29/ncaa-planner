@@ -53,6 +53,7 @@ class BigGameBreakdownMarkdownPresenter
     lines.concat(date_lines)
     lines << "> #{@data.dig(:focus, :instructions)}"
     lines << ""
+    lines.concat(poll_note_lines)
     lines.concat(scoreboard_lines)
 
     games.each_with_index { |game, index| lines.concat(game_section(game, index)) }
@@ -114,6 +115,15 @@ class BigGameBreakdownMarkdownPresenter
     end
     lines << ""
     lines
+  end
+
+  # Rankings come from the latest poll on file; say so when that isn't this
+  # week's own (e.g. the preseason poll heading into Week 1).
+  def poll_note_lines
+    poll_week = @data[:poll_week_number]
+    return [] if poll_week.nil? || poll_week == @data.dig(:week, :number)
+
+    [ "> Rankings below are from the latest poll on file (entering Week #{poll_week}), not a fresh one for this week.", "" ]
   end
 
   # ---- scoreboard --------------------------------------------------------------
@@ -212,9 +222,18 @@ class BigGameBreakdownMarkdownPresenter
     rank = team[:ranking] ? "ranked No. #{team[:ranking]}" : "unranked"
     record = team[:record]
     lines = [ "- **#{name}**#{coach}: #{record[:wins]}-#{record[:losses]}, #{rank}#{conference_record_text(team)}#{streak_text(team[:streak])}" ]
+    lines.concat(previous_season_lines(team[:previous_season]))
     lines << "  - Last #{team[:recent_results].size}: #{team[:recent_results].map { |r| result_text(r) }.join(' · ')}" if team[:recent_results].present?
     lines << "  - Scoring: #{team[:scoring][:points_per_game]} points a game, allowing #{team[:scoring][:points_allowed_per_game]}" if team[:scoring]
     lines
+  end
+
+  def previous_season_lines(previous)
+    return [] unless previous
+
+    conference = previous[:conference_wins] && previous[:conference_losses] ? " (#{previous[:conference_wins]}-#{previous[:conference_losses]} in conference)" : ""
+    scoring = previous[:points_per_game] && previous[:points_allowed_per_game] ? ", scoring #{previous[:points_per_game]} and allowing #{previous[:points_allowed_per_game]} a game" : ""
+    [ "  - Last season (#{previous[:year]}): #{previous[:wins]}-#{previous[:losses]}#{conference}#{scoring}" ]
   end
 
   def conference_record_text(team)

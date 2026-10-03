@@ -26,6 +26,11 @@ module BigGameBreakdown
     # trusted completely over the league average.
     FULL_SAMPLE_GAMES = 6
 
+    # Last season's scoring stands in for up to this many games of this
+    # season's (fewer as real games come in), so Week 1 isn't just the league
+    # average. Rosters turn over, so it's deliberately a light prior.
+    PRIOR_GAMES = 3
+
     def initialize(season, calculator: WinTotals::Calculator.new)
       @season = season
       @calculator = calculator
@@ -97,24 +102,60 @@ module BigGameBreakdown
       end
     end
 
-    # { games:, scored:, allowed: } per game, over the regular-season weeks
-    # before `week_number`.
+    # { games:, scored:, allowed: } per game over the regular-season weeks
+    # before `week_number`, topped up with last season's per-game numbers
+    # (worth PRIOR_GAMES games, less as the season fills in). `games` is the
+    # effective sample size.
     def scoring(college_id, week_number)
       results = results_by_college(week_number)[college_id] || []
-      return { games: 0, scored: 0.0, allowed: 0.0 } if results.empty?
+      prior = previous_scoring(college_id)
+      prior_games = prior ? [ PRIOR_GAMES - results.size, 0 ].max : 0
+      games = results.size + prior_games
+      return { games: 0, scored: 0.0, allowed: 0.0 } if games.zero?
 
-      {
-        games: results.size,
-        scored: results.sum { |scored, _allowed| scored }.to_f / results.size,
-        allowed: results.sum { |_scored, allowed| allowed }.to_f / results.size
-      }
+      scored = results.sum { |points, _allowed| points } + (prior_games * (prior&.fetch(:scored) || 0))
+      allowed = results.sum { |_points, conceded| conceded } + (prior_games * (prior&.fetch(:allowed) || 0))
+      { games: games, scored: scored.to_f / games, allowed: allowed.to_f / games }
     end
 
+    # Last season's points scored and allowed per game, from the totals on its
+    # CollegeSeason; nil when there's no prior season or no numbers.
+    def previous_scoring(college_id)
+      previous = previous_college_seasons[college_id]
+      return nil unless previous&.points_for && previous.points_against && previous.wins && previous.losses
+
+      games = previous.wins + previous.losses
+      return nil unless games.positive?
+
+      { scored: previous.points_for.to_f / games, allowed: previous.points_against.to_f / games }
+    end
+
+    def previous_college_seasons
+      @previous_college_seasons ||= @season.previous_season&.college_seasons&.index_by(&:college_id) || {}
+    end
+
+    # Average total in this season's games so far; before any are played, last
+    # season's league-wide average (two teams' worth of scoring per game), then
+    # the backtest default.
     def league_average_total(week_number)
       games = completed_games(week_number)
-      return DEFAULT_TOTAL if games.empty?
+      return previous_league_average_total || DEFAULT_TOTAL if games.empty?
 
       games.sum { |(_a, a_score), (_b, b_score)| a_score + b_score }.to_f / games.size
+    end
+
+    def previous_league_average_total
+      return @previous_league_average_total if defined?(@previous_league_average_total)
+
+      scored = 0
+      games = 0
+      previous_college_seasons.each_value do |previous|
+        next unless previous.points_for && previous.wins && previous.losses
+
+        scored += previous.points_for
+        games += previous.wins + previous.losses
+      end
+      @previous_league_average_total = games.positive? ? 2.0 * scored / games : nil
     end
 
     def results_by_college(week_number)

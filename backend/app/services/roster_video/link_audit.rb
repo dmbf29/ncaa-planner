@@ -69,7 +69,8 @@ module RosterVideo
     end
 
     def same_player?(student_season, row)
-      StringDistance.similar_name?(student_season.student.last_name, row[:last_name]) &&
+      (StringDistance.similar_name?(student_season.student.last_name, row[:last_name]) ||
+        StringDistance.same_full_name?(student_season.student.first_name, student_season.student.last_name, row[:first_name], row[:last_name])) &&
         PositionBoardMapping.canonical(student_season.position) == PositionBoardMapping.canonical(row[:position]) &&
         student_season.class_year == row[:class_year] &&
         STAT_KEYS.all? { |key| row[key].present? && student_season[key] == row[key].to_i }

@@ -377,9 +377,10 @@ def resolve_names(pane, row, pane_reads, row_names):
 
 def read_player(item):
     """Worker: OCR one player's pane crop + highlighted-row strip into (dedupe key, player dict)."""
-    pane_crop, strip = item
+    pane_crop, strip, below = item
     pane = read_pane(pane_crop)
     row = read_row(strip, COLS) if pane else None
+    below_row = read_row(below, COLS) if (pane and below is not None) else None
     if not pane or not row:
         return None
     aligned = align_to_pane(last_of(row["NAME"]), pane["last"])
@@ -392,7 +393,7 @@ def read_player(item):
         row_names = [row["NAME"]] + [" ".join(clean(t) for t, _, _ in ocr(upscale(name_strip, s))) for s in (2, 3)]
         pane, row = resolve_names(pane, row, pane_reads, row_names)
     key = (pane["first"], pane["last"], pane["position"], pane["class"], pane["jersey"])
-    return key, build(pane, row)
+    return key, build(pane, row), row["NAME"], below_row
 
 
 def scan(cap, total, shape):
@@ -415,13 +416,57 @@ def scan(cap, total, shape):
         if band is None:
             continue
         tw = int(frame.shape[1] * 0.76)
-        items.append((frame[y0:y1, x0:].copy(), frame[max(band[0] - 4, 0): band[1] + 4, :tw].copy()))
+        height = band[1] - band[0] + 1
+        below = frame[band[1] + 1: band[1] + 1 + height, :tw]
+        items.append((frame[y0:y1, x0:].copy(), frame[max(band[0] - 4, 0): band[1] + 4, :tw].copy(),
+                      below.copy() if below.shape[0] >= height * 0.8 else None))
     return items
 
 
 def worker_count():
     env = os.environ.get("ROSTER_VIDEO_WORKERS")
     return max(1, int(env)) if env else max(1, (os.cpu_count() or 2) // 2)
+
+
+def names_match(a, b):
+    """'J.Dodd' vs 'J.Dodd' once the I/l/1 and O/0 lookalikes are folded, allowing one slip."""
+    x, y = lookalike_key(a), lookalike_key(b)
+    return x == y or (abs(len(x) - len(y)) <= 1 and edit_distance(x, y) <= 1)
+
+
+def edit_distance(a, b):
+    previous = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        current = [i]
+        for j, cb in enumerate(b, 1):
+            current.append(min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (ca != cb)))
+        previous = current
+    return previous[-1]
+
+
+def find_skipped(ordered):
+    """Players visible in the table but never highlighted.
+
+    While the stick is held, the highlight occasionally jumps two rows between frames, so a player is never selected and
+    the pane (with the full first name) never shows them. The row directly below each highlighted player names who
+    comes next; if the next highlighted player is someone else, the player in between was skipped. Only the row's text
+    is readable for them (initial, last name, class, position and ratings), not the full first name.
+    """
+    skipped = []
+    for i, (_, player, _, below) in enumerate(ordered):
+        if not below or not below.get("NAME"):
+            continue
+        following = ordered[i + 1][2] if i + 1 < len(ordered) else None
+        if following is not None and names_match(below["NAME"], following):
+            continue
+        entry = {"after": f"{player['first_name']} {player['last_name']}", "row_name": below["NAME"],
+                 "first_initial": below["NAME"][:1], "last_name": tidy_last_name(last_of(below["NAME"])),
+                 "position": position_from_row(below["POS"]) if below.get("POS") else "",
+                 "class_year": (below.get("YEAR") or "").upper(), "overall": digits(below.get("OVR"))}
+        for col, field in STAT_FIELDS.items():
+            entry[field] = digits(below.get(col))
+        skipped.append(entry)
+    return skipped
 
 
 def main(path):
@@ -436,7 +481,7 @@ def main(path):
     cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
     items = scan(cap, int(cap.get(cv2.CAP_PROP_FRAME_COUNT)), first.shape)
 
-    players, seen = [], set()
+    players, seen, ordered = [], set(), []
     with multiprocessing.get_context("spawn").Pool(worker_count(), initializer=init_worker, initargs=(cols,)) as pool:
         for done, result in enumerate(pool.imap(read_player, items), start=1):
             print(f"progress read {done} {len(items)}", file=sys.stderr, flush=True)
@@ -444,9 +489,11 @@ def main(path):
                 continue
             seen.add(result[0])
             players.append(result[1])
+            ordered.append(result)
+    skipped = find_skipped(ordered)
     review = sum("needs_review" in p for p in players)
-    print(f"{len(players)} players, {review} flagged for review", file=sys.stderr)
-    json.dump({"team": team, "players": players}, sys.stdout, indent=1)
+    print(f"{len(players)} players, {review} flagged for review, {len(skipped)} skipped by the highlight", file=sys.stderr)
+    json.dump({"team": team, "players": players, "skipped": skipped}, sys.stdout, indent=1)
 
 
 if __name__ == "__main__":

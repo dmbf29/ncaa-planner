@@ -23,6 +23,12 @@ module StringDistance
     text.split(/[\s'-]+/).any? { |token| token.match?(/\A[Il|]{2,}\z/) && token.include?("l") }
   end
 
+  # The same person with the name split differently ("Jorge Diaz" / "Nicolas" vs "Jorge" / "Diaz Nicolas"): true when the
+  # full names match once spacing, case and the lookalike characters are ignored.
+  def same_full_name?(first_a, last_a, first_b, last_b)
+    similar_name?("#{first_a} #{last_a}", "#{first_b} #{last_b}")
+  end
+
   # Like levenshtein, but swapping two adjacent characters ("oiho" / "ohio") counts as one edit.
   def damerau(a, b)
     rows = Array.new(a.length + 1) { |i| [ i ] + Array.new(b.length, 0) }
