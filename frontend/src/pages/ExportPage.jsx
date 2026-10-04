@@ -27,7 +27,8 @@ const downloadFile = async (url, filename) => {
 };
 
 const EXPORT_TABS = [
-  { id: "weekly", label: "Weekly Recap & Preview" },
+  { id: "weekly", label: "Weekly Review" },
+  { id: "big_game_breakdown", label: "Big Game Breakdown" },
   { id: "win_totals", label: "Win Totals: Over/Under" },
   { id: "roster_breakdown", label: "Roster Breakdown" },
   { id: "midseason_report_cards", label: "Midseason Report Cards" },
@@ -184,6 +185,10 @@ function ExportPage() {
   const [weeksMode, setWeeksMode] = useState("download");
   const [selectedWeeks, setSelectedWeeks] = useState([]);
 
+  const [bigGameFormat, setBigGameFormat] = useState("markdown");
+  const [bigGameMode, setBigGameMode] = useState("download");
+  const [bigGameWeek, setBigGameWeek] = useState(null);
+
   const [teamBreakdownFormat, setTeamBreakdownFormat] = useState("markdown");
   const [teamBreakdownMode, setTeamBreakdownMode] = useState("download");
 
@@ -252,6 +257,14 @@ function ExportPage() {
       })()
     : "";
 
+  const bigGameUrl = season
+    ? (() => {
+        const params = new URLSearchParams({ week_number: bigGameWeek ?? "" });
+        if (bigGameFormat === "markdown") params.set("format", "markdown");
+        return `${API_BASE_URL}/api/v1/dynasties/${season.dynastyId}/seasons/${season.id}/big_game_breakdown?${params.toString()}`;
+      })()
+    : "";
+
   const teamBreakdownUrl = season
     ? `${API_BASE_URL}/api/v1/dynasties/${season.dynastyId}/seasons/${season.id}/team_breakdown${
         teamBreakdownFormat === "markdown" ? "?format=markdown" : ""
@@ -305,8 +318,8 @@ function ExportPage() {
 
           {activeTab === "weekly" && (
           <ExportCard
-            title="Weekly Recap & Preview"
-            description="Results, ranking movement, and next-game previews for our coached teams."
+            title="Weekly Review"
+            description="Results, ranking movement, and standings for our coached teams, a report card on the hosts' Big Game Breakdown bets, and a teaser for the next Big Game Breakdown."
             format={weeksFormat}
             setFormat={setWeeksFormat}
             mode={weeksMode}
@@ -320,9 +333,8 @@ function ExportPage() {
                   Week(s) to review
                 </p>
                 <p className="text-xs text-textSecondary/80">
-                  Pick the week(s) you&rsquo;re recapping — each one already includes that week&rsquo;s results plus
-                  every team&rsquo;s next scheduled game, so there&rsquo;s no separate &ldquo;preview week&rdquo; to
-                  choose.
+                  Pick the week(s) you&rsquo;re recapping. Next week&rsquo;s games aren&rsquo;t previewed here —
+                  they get their own show, Big Game Breakdown.
                 </p>
                 <div className="flex flex-wrap gap-2 pt-1">
                   {weeks.map((week) => (
@@ -333,6 +345,45 @@ function ExportPage() {
                       className={clsx(
                         "rounded-md border px-3 py-1.5 text-sm transition",
                         selectedWeeks.includes(week.number)
+                          ? "border-burnt bg-burnt text-white"
+                          : "border-border text-charcoal hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10",
+                      )}
+                    >
+                      {week.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            }
+          />
+          )}
+
+          {activeTab === "big_game_breakdown" && (
+          <ExportCard
+            title="Big Game Breakdown"
+            description="Midweek preview of the week's games for our coached teams, most lopsided to closest — stakes and history, film room, quarterback duel, and each host's one bet per game. The first export for a week locks its lines and picks; the Weekly Review grades them afterward."
+            format={bigGameFormat}
+            setFormat={setBigGameFormat}
+            mode={bigGameMode}
+            setMode={setBigGameMode}
+            url={bigGameUrl}
+            filename={`${season.year}_week-${bigGameWeek}-big-game-breakdown.${bigGameFormat === "markdown" ? "md" : "json"}`}
+            disabled={bigGameWeek === null}
+            extraControls={
+              <div className="space-y-1.5">
+                <p className="text-xs uppercase tracking-wide text-textSecondary">Week to preview</p>
+                <p className="text-xs text-textSecondary/80">
+                  Pick the week whose games are coming up. Generate it once the rosters and poll are updated.
+                </p>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {weeks.map((week) => (
+                    <button
+                      key={week.number}
+                      type="button"
+                      onClick={() => setBigGameWeek(week.number)}
+                      className={clsx(
+                        "rounded-md border px-3 py-1.5 text-sm transition",
+                        bigGameWeek === week.number
                           ? "border-burnt bg-burnt text-white"
                           : "border-border text-charcoal hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10",
                       )}

@@ -39,6 +39,7 @@ db/.DS_Store
 !/db/backups/.keep
 # Local screen recordings used to test tools/roster_video (hundreds of MB).
 /video_test/
+/roster_test/
 
 # Roster-video tool: local Python env.
 /tools/roster_video/venv/
