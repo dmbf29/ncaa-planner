@@ -197,6 +197,25 @@ export const analyzeRosterVideo = (dynastyId, seasonId, file, { onProgress, isCa
     );
 };
 
+// Local-only: Rails runs tools/team_builder_csv over a recording of the team's full roster table and resolves with
+// { csv, filename, playerCount, flagged, summary } -- a Team Builder Unleashed CSV; nothing is saved to the dynasty.
+const TEAM_BUILDER_EXPORT_POLL_TIMEOUT_MS = 30 * 60 * 1000; // a run takes a few minutes, longer if another is queued
+export const exportTeamBuilderCsv = (dynastyId, seasonId, collegeSeasonId, file, { onProgress, isCancelled } = {}) => {
+  const formData = new FormData();
+  formData.append("video", file);
+  formData.append("college_season_id", collegeSeasonId);
+  const base = `/api/v1/dynasties/${dynastyId}/seasons/${seasonId}`;
+  return api
+    .post(`${base}/start_team_builder_export`, formData, { headers: { "Content-Type": "multipart/form-data" } })
+    .then((r) =>
+      pollAnalysis(`${base}/team_builder_export_status`, r.data.token, {
+        onProgress,
+        isCancelled,
+        timeoutMs: TEAM_BUILDER_EXPORT_POLL_TIMEOUT_MS,
+      }),
+    );
+};
+
 export const commitRosterImport = (dynastyId, seasonId, collegeSeasonId, players) =>
   api
     .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_roster_import`, { collegeSeasonId, players })

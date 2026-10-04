@@ -63,6 +63,8 @@ Rails.application.routes.draw do
             post :commit_award_winners
             post :start_roster_video
             get :roster_video_status
+            post :start_team_builder_export
+            get :team_builder_export_status
             post :analyze_roster_import
             post :commit_roster_import
             get :search_previous_students

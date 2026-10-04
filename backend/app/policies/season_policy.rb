@@ -107,6 +107,14 @@ class SeasonPolicy < ApplicationPolicy
     owner?
   end
 
+  def start_team_builder_export?
+    owner?
+  end
+
+  def team_builder_export_status?
+    owner?
+  end
+
   def analyze_roster_import?
     owner?
   end

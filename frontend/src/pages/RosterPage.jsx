@@ -4,6 +4,7 @@ import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import { keysToSnake } from "../lib/case";
 import OverallBadge from "../components/OverallBadge";
+import ExportTeamBuilderForm from "../components/ExportTeamBuilderForm";
 import {
   fetchRoster,
   createInjury,
@@ -862,6 +863,7 @@ function RosterPage() {
   const [error, setError] = useState(null);
   const [injuryModal, setInjuryModal] = useState(null);
   const [showImport, setShowImport] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   const authed = Boolean(localStorage.getItem("jwt"));
 
   const reload = useCallback(() => {
@@ -887,10 +889,25 @@ function RosterPage() {
             {authed && (
               <button
                 type="button"
-                onClick={() => setShowImport((prev) => !prev)}
+                onClick={() => {
+                  setShowImport((prev) => !prev);
+                  setShowExport(false);
+                }}
                 className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
               >
                 Import
+              </button>
+            )}
+            {authed && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExport((prev) => !prev);
+                  setShowImport(false);
+                }}
+                className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+              >
+                Export
               </button>
             )}
             <Link
@@ -926,6 +943,18 @@ function RosterPage() {
             collegeSeasonId={collegeSeasonId}
             onClose={() => setShowImport(false)}
             onImported={reload}
+          />
+        </div>
+      )}
+
+      {showExport && data && (
+        <div className="mb-4">
+          <ExportTeamBuilderForm
+            dynastyId={dynastyId}
+            seasonId={seasonId}
+            collegeSeasonId={collegeSeasonId}
+            teamName={data.collegeSeason.college.name}
+            onClose={() => setShowExport(false)}
           />
         </div>
       )}

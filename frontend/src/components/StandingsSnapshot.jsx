@@ -23,7 +23,7 @@ function StandingsSnapshot({ standings, coachedConferences, dynastyId, seasonId 
               {conference.conference}
             </p>
             <div className="overflow-x-auto pb-1">
-              <StandingsTableBody teams={conference.teams} />
+              <StandingsTableBody teams={conference.teams} dynastyId={dynastyId} seasonId={seasonId} />
             </div>
           </div>
         ))

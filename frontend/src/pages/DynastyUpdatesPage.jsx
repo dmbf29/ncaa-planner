@@ -7,51 +7,42 @@ import { fetchDynasties, fetchSeason, fetchStandings, createSeason } from "../li
 const WEEKLY_UPDATES = [
   { key: "games", label: "Games/Results", icon: "fa-solid fa-stopwatch", description: "Upload the weekly schedule screenshots.", to: "/dynasty/updates/schedule" },
   { key: "top25", label: "Top 25", icon: "fa-solid fa-arrow-up-right-dots", description: "Upload the weekly AP-style poll screenshots.", to: "/dynasty/updates/top25" },
-  { key: "players-of-the-week", label: "Players of the Week", icon: "fa-solid fa-award", description: "Upload the weekly National/Conference Players of the Week screenshots.", to: "/dynasty/updates/players-of-the-week" },
+  { key: "players-of-the-week", label: "Players of the Week", icon: "fa-solid fa-award", description: "Upload the weekly Players of the Week screenshots.", to: "/dynasty/updates/players-of-the-week" },
   { key: "heisman", label: "Heisman Candidates", icon: "fa-solid fa-trophy", description: "Upload the weekly Heisman Watch List screenshot.", to: "/dynasty/updates/heisman" },
   { key: "standings", label: "Conference Standings", icon: "fa-solid fa-ranking-star", description: "Upload the conference standings screenshots.", to: "/dynasty/updates/standings" },
   { key: "team-schedule", label: "Team Schedule", icon: "fa-regular fa-rectangle-list", description: "Upload a team's full-season schedule screenshots.", to: "/dynasty/updates/team-schedule" },
-  { key: "recruitment-trail", label: "Recruitment Trail", icon: "fa-solid fa-file-signature", description: "Upload a team's recruiting-class screenshot to log recruits who signed this week.", to: "/dynasty/updates/recruitment-trail" },
+  { key: "recruitment-trail", label: "Recruitment Trail", icon: "fa-solid fa-file-signature", description: "Upload a team's weekly recruits.", to: "/dynasty/updates/recruitment-trail" },
+  { key: "register-injuries", label: "Register Injuries", icon: "fa-solid fa-user-injured", description: "Log injuries from the conference standings page.", toStandings: true },
 ];
 
-const OCCASIONAL_UPDATES = [
-  { key: "nil-spend", label: "NIL Spend", icon: "fa-solid fa-sack-dollar", description: "Upload the conference NIL spend screenshots.", to: "/dynasty/updates/nil-spend", tags: ["preseason"] },
-  { key: "coach-info", label: "Coach Info", icon: "fa-solid fa-user-tie", description: "Enter each user coach's NIL amount and job security.", to: "/dynasty/updates/coach-info", tags: ["preseason"] },
-  { key: "recruiting", label: "Recruiting Recap", icon: "fa-solid fa-signature", description: "Upload the national recruiting class rankings screenshots.", to: "/dynasty/updates/recruiting", tags: ["postseason"] },
-  { key: "award-winners", label: "Award Winners", icon: "fa-solid fa-medal", description: "Record this season's Heisman and the rest of the national award winners.", to: "/dynasty/updates/award-winners", tags: ["postseason"] },
-  { key: "all-americans", label: "All-Americans", icon: "fa-solid fa-people-line", description: "Upload the National/Conference All-American screenshots.", to: "/dynasty/updates/all-americans", tags: ["preseason", "postseason"] },
-  { key: "team-attributes", label: "Team Attributes", icon: "fa-solid fa-bars-progress", description: "Update overall, offense, defense, and prestige for every team.", to: "/dynasty/updates/team-attributes", tags: ["preseason"] },
+const MIDSEASON_UPDATES = [
   { key: "team-stats", label: "Team Stats", icon: "fa-solid fa-chart-gantt", description: "Upload the league-wide offense/defense stats screenshots.", to: "/dynasty/updates/team-stats" },
-  { key: "bowl-projections", label: "Bowl Projections", icon: "fa-solid fa-football", description: "Track who's projected to play in each bowl/CFP game.", to: "/dynasty/updates/bowl-projections", tags: ["midseason"] },
-  { key: "recruit-overalls", label: "Recruit Overalls", icon: "fa-solid fa-pen-to-square", description: "Type in each signed high school/JUCO recruit's overall for the signing day breakdown.", to: "/dynasty/updates/recruit-overalls", tags: ["postseason"] },
-  { key: "portal-preview", label: "Portal Preview", icon: "fa-solid fa-door-open", description: "Upload each team's \"players leaving\" screen ahead of the transfer portal.", to: "/dynasty/updates/portal-preview", tags: ["postseason"] },
-  { key: "season", label: "Start a New Season", icon: "fa-regular fa-calendar", description: "Create the next season for your dynasty.", tags: ["postseason"] },
+  { key: "bowl-projections", label: "Bowl Projections", icon: "fa-solid fa-football", description: "Track who's projected to play in each bowl/CFP game.", to: "/dynasty/updates/bowl-projections" },
 ];
 
-// Occasional updates are tagged by when in the year they come up, and the section sorts by
-// that tag (preseason before midseason before postseason) rather than the order above. An
-// update tagged with more than one sorts alongside its earliest tag but still shows every tag it carries.
-const TAG_ORDER = ["preseason", "midseason", "postseason"];
+const BOWL_WEEK_UPDATES = [
+  { key: "award-winners", label: "Award Winners", icon: "fa-solid fa-medal", description: "Record this season's national award winners.", to: "/dynasty/updates/award-winners" },
+  { key: "final-all-americans", label: "Final All-Americans", icon: "fa-solid fa-people-line", description: "Upload the National/Conference All-American screenshots.", to: "/dynasty/updates/all-americans" },
+];
 
-const TAG_LABELS = {
-  preseason: "Preseason",
-  midseason: "Midseason",
-  postseason: "Postseason",
-};
+const AFTER_CHAMPIONSHIP_UPDATES = [
+  { key: "portal-preview", label: "Portal Preview", icon: "fa-solid fa-door-open", description: "Upload each team's players leaving ahead of the transfer portal.", to: "/dynasty/updates/portal-preview" },
+  { key: "mark-transfers", label: "Mark Transfers", icon: "fa-solid fa-person-through-window", description: "Coming soon." },
+];
 
-const TAG_BADGE_CLASSES = {
-  preseason: "bg-olive/10 text-olive",
-  midseason: "bg-warning/10 text-warning",
-  postseason: "bg-burnt/10 text-burnt",
-};
+const SIGNING_DAY_UPDATES = [
+  { key: "recruiting", label: "Recruiting Recap", icon: "fa-solid fa-signature", description: "Upload the national recruiting class rankings screenshots.", to: "/dynasty/updates/recruiting" },
+  { key: "recruit-overalls", label: "Recruit Overalls", icon: "fa-solid fa-pen-to-square", description: "Set each new recruit's overall for the signing day breakdown.", to: "/dynasty/updates/recruit-overalls" },
+];
 
-function sortByTag(updates) {
-  return [...updates].sort((a, b) => {
-    const aRank = Math.min(...(a.tags || []).map((tag) => TAG_ORDER.indexOf(tag)));
-    const bRank = Math.min(...(b.tags || []).map((tag) => TAG_ORDER.indexOf(tag)));
-    return aRank - bRank;
-  });
-}
+const OFFSEASON_UPDATES = [
+  { key: "season", label: "Start a New Season", icon: "fa-regular fa-calendar", description: "Create the next season for your dynasty." },
+  { key: "import-rosters", label: "Import Rosters", icon: "fa-solid fa-file-import", description: "Import rosters for the new season.", toStandings: true },
+  { key: "nil-spend", label: "NIL Spend", icon: "fa-solid fa-sack-dollar", description: "Upload the conference NIL spend screenshots.", to: "/dynasty/updates/nil-spend" },
+  { key: "coach-info", label: "Coach Info", icon: "fa-solid fa-user-tie", description: "Enter each user coach's NIL amount and job security.", to: "/dynasty/updates/coach-info" },
+  { key: "preseason-all-americans", label: "Preseason All-Americans", icon: "fa-solid fa-people-line", description: "Upload the National/Conference All-American screenshots.", to: "/dynasty/updates/all-americans" },
+  { key: "team-attributes", label: "Team Attributes", icon: "fa-solid fa-bars-progress", description: "Update overall, offense, defense, and prestige for every team.", to: "/dynasty/updates/team-attributes" },
+];
 
 const COMING_SOON_UPDATES = [
   { key: "player-stats", label: "Player Stats", icon: "fa-solid fa-chart-line", description: "Coming soon." },
@@ -73,20 +64,6 @@ function WeeklyBadge({ status }) {
   );
 }
 
-function TagBadges({ tags }) {
-  if (!tags || tags.length === 0) return null;
-
-  return (
-    <div className="flex gap-1">
-      {tags.map((tag) => (
-        <span key={tag} className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${TAG_BADGE_CLASSES[tag]}`}>
-          {TAG_LABELS[tag]}
-        </span>
-      ))}
-    </div>
-  );
-}
-
 function UpdateCard({ update, status, onClick }) {
   const content = (
     <div className="p-5 space-y-1.5">
@@ -95,7 +72,7 @@ function UpdateCard({ update, status, onClick }) {
           {update.icon && <i className={`${update.icon} text-base text-burnt`} aria-hidden="true" />}
           {update.label}
         </h3>
-        {status ? <WeeklyBadge status={status} /> : <TagBadges tags={update.tags} />}
+        <WeeklyBadge status={status} />
       </div>
       <p className="text-sm text-textSecondary">{update.description}</p>
     </div>
@@ -120,7 +97,7 @@ function UpdateCard({ update, status, onClick }) {
   return <Card className="opacity-50">{content}</Card>;
 }
 
-function UpdateSection({ title, hint, updates, statuses, onSeasonClick }) {
+function UpdateSection({ title, hint, updates, statuses, onSeasonClick, standingsPath }) {
   return (
     <div className="space-y-3">
       <div>
@@ -131,7 +108,7 @@ function UpdateSection({ title, hint, updates, statuses, onSeasonClick }) {
         {updates.map((update) => (
           <UpdateCard
             key={update.key}
-            update={update}
+            update={update.toStandings ? { ...update, to: standingsPath } : update}
             status={statuses?.[update.key]}
             onClick={update.key === "season" ? onSeasonClick : undefined}
           />
@@ -198,6 +175,7 @@ function DynastyUpdatesPage() {
   const navigate = useNavigate();
 
   const [dynastyId, setDynastyId] = useState(null);
+  const [latestSeasonId, setLatestSeasonId] = useState(null);
   const [nextYear, setNextYear] = useState("");
   const [weeklyStatuses, setWeeklyStatuses] = useState({});
 
@@ -218,6 +196,7 @@ function DynastyUpdatesPage() {
 
         const latestSeason = [...(dynasty.seasons || [])].sort((a, b) => b.year - a.year)[0];
         if (!latestSeason) return;
+        setLatestSeasonId(latestSeason.id);
         const [season] = await Promise.all([
           fetchSeason(dynasty.id, latestSeason.id),
           fetchStandings(dynasty.id, latestSeason.id).catch(() => null),
@@ -266,6 +245,8 @@ function DynastyUpdatesPage() {
     }
   };
 
+  const standingsPath = dynastyId && latestSeasonId ? `/dynasty/${dynastyId}/seasons/${latestSeasonId}/standings` : undefined;
+
   return (
     <div className="max-w-5xl mx-auto px-4">
       <PageHeader
@@ -286,13 +267,13 @@ function DynastyUpdatesPage() {
           hint="Upload each of these once for every week you play."
           updates={WEEKLY_UPDATES}
           statuses={weeklyStatuses}
+          standingsPath={standingsPath}
         />
-        <UpdateSection
-          title="Occasional"
-          hint="Update these as needed — not tied to a specific week."
-          updates={sortByTag(OCCASIONAL_UPDATES)}
-          onSeasonClick={openSeasonModal}
-        />
+        <UpdateSection title="Midseason" updates={MIDSEASON_UPDATES} />
+        <UpdateSection title="Bowl Week" updates={BOWL_WEEK_UPDATES} />
+        <UpdateSection title="After National Championship" updates={AFTER_CHAMPIONSHIP_UPDATES} />
+        <UpdateSection title="National Signing Day" updates={SIGNING_DAY_UPDATES} />
+        <UpdateSection title="Offseason" updates={OFFSEASON_UPDATES} onSeasonClick={openSeasonModal} standingsPath={standingsPath} />
         <UpdateSection title="Coming Soon" updates={COMING_SOON_UPDATES} />
       </div>
 

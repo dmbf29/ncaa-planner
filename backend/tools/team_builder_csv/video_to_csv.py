@@ -52,6 +52,7 @@ TABLE_X1 = 0.76
 HEADER_Y = (0.27, 0.37)
 ROW0_CENTER, ROW_PITCH, ROWS = 0.3935, 0.0716, 9
 STABLE_FRAMES = 6
+MIN_CHANGE = 2.0  # mean pixel change (0-255, on a 96x40 thumbnail) before a still frame counts as a new view
 
 
 def table_region(frame):
@@ -84,11 +85,11 @@ def keep_still_frames(path, out_dir):
         prev = sig
         if stable != STABLE_FRAMES:
             continue
-        if last_kept is not None and np.abs(sig - last_kept).mean() < 2.0:
+        if last_kept is not None and np.abs(sig - last_kept).mean() < MIN_CHANGE:
             continue
         last_kept = sig
-        file = os.path.join(out_dir, f"frame_{len(kept):04d}.png")
-        cv2.imwrite(file, frame)
+        file = os.path.join(out_dir, f"frame_{len(kept):04d}.jpg")
+        cv2.imwrite(file, frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
         kept.append(file)
     return kept
 
@@ -198,6 +199,18 @@ STATE_INDEX = {entry.rsplit(" ", 1)[1]: i for i, entry in enumerate(STATES)}
 NON_US = 50
 
 
+LOOKALIKES = {"U": "V", "V": "U", "D": "O", "O": "D", "0": "O", "1": "I", "L": "I", "I": "L", "8": "B", "5": "S"}
+
+
+def state_index(text):
+    """Index of a US state abbreviation, forgiving one lookalike slip ('WU' for WV, 'DH' for OH); None if unknown."""
+    if text in STATE_INDEX:
+        return STATE_INDEX[text]
+    fixes = {STATE_INDEX[text[:i] + LOOKALIKES[c] + text[i + 1:]] for i, c in enumerate(text)
+             if c in LOOKALIKES and text[:i] + LOOKALIKES[c] + text[i + 1:] in STATE_INDEX}
+    return fixes.pop() if len(fixes) == 1 else None
+
+
 def read_pane_full(frame):
     """Read the pane; if height or weight didn't come out (OCR drops the quote mark sometimes), retry enlarged."""
     h, w = frame.shape[:2]
@@ -242,9 +255,10 @@ def _read_pane(crop):
     out["weight"] = int(wm.group(1)) if wm else None
     town = re.sub(r"[^A-Za-z0-9.,'\- ]", "", below("HOMETOWN", "l") or "").strip()
     city, _, st = town.rpartition(",")
-    out["hometown"] = city.strip() or None
+    out["hometown"] = (city.strip()[:1].upper() + city.strip()[1:]) or None
     st = st.strip().upper()
-    out["state"] = STATE_INDEX.get(st, NON_US if city else None)
+    known = state_index(st)
+    out["state"] = known if known is not None else (NON_US if city else None)
     out["state_text"] = st
     return out
 
@@ -280,7 +294,7 @@ def pane_vote(reads, table_last):
     mine = [r for r in reads if not table_last or lookalike_key(r["last"]) == lookalike_key(table_last)
             or edit_distance(lookalike_key(r["last"]), lookalike_key(table_last)) <= 1]
     result = {"reads": len(mine), "dropped": len(reads) - len(mine)}
-    for field in ("first", "last", "position", "lefty", "jersey", "height", "weight", "hometown", "state"):
+    for field in ("first", "last", "position", "lefty", "jersey", "height", "weight", "hometown", "state", "state_text"):
         top, n, total = vote([r.get(field) if not isinstance(r.get(field), bool) else int(r[field]) for r in mine])
         result[field] = bool(top) if field == "lefty" and top is not None else top
         result[field + "_votes"] = (n, total)
@@ -400,6 +414,10 @@ def db_first_name(db, initial, last, position, year):
     return pool[0]["first_name"] if len(pool) == 1 else None
 
 
+def pane_reads_position(reads):
+    return vote([r.get("position") for r in reads])[0] or ""
+
+
 def finalize(players, pane_reads, db):
     out = []
     for p in players:
@@ -420,7 +438,12 @@ def finalize(players, pane_reads, db):
         initial, table_last = parse_name(raw_name) if raw_name else ("", "")
         position = snap_position(re.split(r"[\s(]", value.get("POS", "") or "")[0]) if value.get("POS") else ""
         if position not in GAME_POSITIONS:
-            flags.append(f"unknown position {value.get('POS')!r}")
+            # The table's POS cell is occasionally unreadable ('P' next to the OVR column); the pane has it too.
+            pane_position = snap_position(pane_reads_position(pane_reads.get(p["id"], [])))
+            if pane_position in GAME_POSITIONS:
+                position = pane_position
+            else:
+                flags.append(f"unknown position {value.get('POS')!r}")
         year = re.match(r"\s*(FR|SO|JR|SR)", (value.get("YEAR") or "").upper())
         year = year.group(1) if year else ""
 
@@ -450,7 +473,7 @@ def finalize(players, pane_reads, db):
             flags.append(f"pane position {pane['position']!r} vs table {position!r}")
         if pane["reads"] and (pane.get("height") is None or pane.get("weight") is None):
             flags.append(f"height/weight unread (pane reads: {pane['reads']})")
-        if pane["reads"] and pane.get("state") == NON_US:
+        if pane["reads"] and pane.get("state") == NON_US and len(pane.get("state_text") or "") <= 3:
             flags.append("hometown state not a US abbreviation, set to Non-US")
 
         out.append({"first": first, "first_source": first_source, "last": last, "raw_name": raw_name,
@@ -491,7 +514,7 @@ def main(video, out_dir, db_roster=None):
     os.makedirs(out_dir, exist_ok=True)
     frame_dir = os.path.join(out_dir, "frames")
     os.makedirs(frame_dir, exist_ok=True)
-    files = sorted(os.path.join(frame_dir, f) for f in os.listdir(frame_dir) if f.endswith(".png"))
+    files = sorted(os.path.join(frame_dir, f) for f in os.listdir(frame_dir) if f.endswith(".jpg"))
     if not files or os.environ.get("RESCAN"):
         files = keep_still_frames(video, frame_dir)
     print(f"{len(files)} distinct still frames kept", file=sys.stderr, flush=True)

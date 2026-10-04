@@ -259,6 +259,42 @@ module Api
         end
       end
 
+      # Local-only: turns a recording of a team's full roster table (scrolled across every column) into a Team Builder
+      # Unleashed CSV via tools/team_builder_csv. Same background/poll shape as #start_roster_video, but nothing is
+      # saved to the dynasty -- the result is a CSV for the browser to download.
+      def start_team_builder_export
+        authorize @season
+        return render_roster_video_dev_only unless Rails.env.development?
+
+        video = params[:video]
+        return render json: { error: "No video uploaded", code: "missing_video" }, status: :unprocessable_entity unless video.respond_to?(:tempfile)
+
+        college_season = @season.college_seasons.find_by!(id: params[:college_season_id])
+        token = SecureRandom.uuid
+        path = RosterVideoJob.stash_upload(token, video)
+        AnalysisStatus.pending!(token)
+        TeamBuilderExportJob.perform_later(token: token, path: path.to_s, college_season_id: college_season.id)
+        render json: { token: token, status: "pending" }, status: :accepted
+      end
+
+      def team_builder_export_status
+        authorize @season
+        return render_roster_video_dev_only unless Rails.env.development?
+
+        status = AnalysisStatus.read(params[:token])
+        case status[:status]
+        when "completed"
+          render json: { status: "completed", analysis: status[:result] }
+        when "failed"
+          render json: { status: "failed", error: status[:error], code: "extraction_failed" }, status: :unprocessable_entity
+        when "not_found"
+          render json: { status: "failed", error: "Export job expired or not found — try again.", code: "extraction_failed" },
+                 status: :unprocessable_entity
+        else
+          render json: { status: "pending", progress: status[:progress] }
+        end
+      end
+
       def analyze_roster_import
         authorize @season
         college_season = @season.college_seasons.find_by!(id: params[:college_season_id])
