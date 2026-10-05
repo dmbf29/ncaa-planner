@@ -8,7 +8,6 @@
 class WinTotalsSerializer
   def initialize(season)
     @season = season
-    @calculator = WinTotals::Calculator.new
   end
 
   def as_json
@@ -22,6 +21,12 @@ class WinTotalsSerializer
   end
 
   private
+
+  # Built lazily because the overall-to-room offset is measured from this
+  # season's college_seasons (see WinTotals::Calculator.overall_offset_for).
+  def calculator
+    @calculator ||= WinTotals::Calculator.new(overall_offset: WinTotals::Calculator.overall_offset_for(all_college_seasons))
+  end
 
   def focus_json
     {
@@ -75,7 +80,7 @@ class WinTotalsSerializer
   end
 
   def strength_ranked
-    @strength_ranked ||= all_college_seasons.filter_map { |cs| [ cs, @calculator.team_strength(cs) ] }
+    @strength_ranked ||= all_college_seasons.filter_map { |cs| [ cs, calculator.team_strength(cs) ] }
                                              .select { |_cs, strength| strength }
                                              .sort_by { |_cs, strength| -strength }
   end
@@ -83,9 +88,9 @@ class WinTotalsSerializer
   def team_json(college_season)
     games = scheduled_games(college_season)
     schedule = games.map { |g| game_json(g) }
-    probabilities = games.map { |g| @calculator.win_probability(g[:college_season], g[:opponent], home: g[:home]) }
-    distribution = @calculator.win_distribution(probabilities)
-    line = @calculator.vegas_win_total(college_season, games)
+    probabilities = games.map { |g| calculator.win_probability(g[:college_season], g[:opponent], home: g[:home]) }
+    distribution = calculator.win_distribution(probabilities)
+    line = calculator.vegas_win_total(college_season, games)
 
     {
       college: college_json(college_season.college, college_season.conference),
@@ -125,7 +130,7 @@ class WinTotalsSerializer
     end
     WinTotals::HotSeat.new(
       coach: college_season.coach, line: line, games: games, distribution: distribution,
-      calculator: @calculator, bye_week_number: first_bye_week_number(college_season)
+      calculator: calculator, bye_week_number: first_bye_week_number(college_season)
     ).call
   end
 
@@ -180,7 +185,7 @@ class WinTotalsSerializer
 
   def game_json(context)
     opponent_cs = context[:opponent]
-    probability = @calculator.win_probability(context[:college_season], opponent_cs, home: context[:home])
+    probability = calculator.win_probability(context[:college_season], opponent_cs, home: context[:home])
 
     {
       week_number: context[:week].number,
@@ -190,7 +195,7 @@ class WinTotalsSerializer
       opponent_previous_season_record: previous_season_record_json(context[:opponent_college].id),
       opponent_key_players: opponent_cs && key_players_json(opponent_cs),
       win_probability: probability.round(2),
-      projection: @calculator.game_projection(probability),
+      projection: calculator.game_projection(probability),
       previous_meetings: previous_meetings_json(context[:college_season].college_id, context[:opponent_college].id)
     }
   end
@@ -281,14 +286,14 @@ class WinTotalsSerializer
 
   def conference_rival_json(college_season)
     games = scheduled_games(college_season)
-    strength = @calculator.team_strength(college_season)
+    strength = calculator.team_strength(college_season)
     {
       college: college_json(college_season.college, college_season.conference),
       overall: college_season.overall,
       power_rating: strength&.round(1),
       previous_season_record: previous_season_record_json(college_season.college_id),
       scheduled_games: games.size,
-      vegas_win_total: games.size >= MIN_GAMES_FOR_LINE ? @calculator.vegas_win_total(college_season, games) : nil
+      vegas_win_total: games.size >= MIN_GAMES_FOR_LINE ? calculator.vegas_win_total(college_season, games) : nil
     }
   end
 

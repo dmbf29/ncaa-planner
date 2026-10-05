@@ -179,6 +179,7 @@ class BigGameBreakdownSerializer
       recent_results: results.last(RECENT_RESULT_COUNT),
       scoring: scoring_json(results),
       injuries: injuries_json(college_season),
+      heisman_candidates: heisman_candidates_for(college_id),
       key_players: key_players_json(college_season)
     }
   end
@@ -464,6 +465,22 @@ class BigGameBreakdownSerializer
     return nil if @week.number < SeasonWeeksSerializer::MIN_WEEK_NUMBER_FOR_SEASON_STATS
 
     PlayerSeasonStats.call(student_season, through_week_number: @week.number - 1)
+  end
+
+  # Players from this team on the Heisman watch list for this game, with the
+  # usual player detail (production included), whoever's side they're on.
+  def heisman_candidates_for(college_id)
+    @heisman_candidates ||= heisman_week ? heisman_week.heisman_candidates.includes(student_season: [ :student, { college_season: :college } ]).to_a : []
+    @heisman_candidates.select { |candidate| candidate.student_season.college_season.college_id == college_id }
+                       .map { |candidate| player_json(candidate.student_season) }
+  end
+
+  # The watch list entering this week, or the latest earlier one on file.
+  def heisman_week
+    return @heisman_week if defined?(@heisman_week)
+
+    @heisman_week = @season.weeks.where("number <= ?", @week.number).order(number: :desc)
+                           .find { |week| week.heisman_candidates.exists? }
   end
 
   # The team's top-rated QB, the same stand-in for "the starter" the rest of

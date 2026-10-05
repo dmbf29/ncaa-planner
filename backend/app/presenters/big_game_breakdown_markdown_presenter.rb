@@ -32,6 +32,9 @@ class BigGameBreakdownMarkdownPresenter
     "about history.",
     "Injuries are part of the film room, not a segment of their own. An injury marked OUT matters; one marked " \
     "RETURNING is good news worth a line; skip the section entirely when there are none.",
+    "When a Heisman candidate is on the field (the Heisman watch line in a game's stakes), make it a storyline: " \
+    "what it means for the opposing defense to face him, or for our team if he's ours, and how his production " \
+    "backs it up. Only name players listed there; never invent a candidate.",
     "Any thoughts on a team's recent performance belong where they fit (the stakes, the film room, the " \
     "quarterback duel) rather than in a separate section, and there are no separate \"upset alert\" or \"trap " \
     "game\" segments. If a host feels one, a single sentence in the stakes is enough."
@@ -209,6 +212,7 @@ class BigGameBreakdownMarkdownPresenter
   def stakes_lines(game)
     lines = [ "### 🔥 THE STAKES", "" ]
     [ game[:away], game[:home] ].each { |team| lines.concat(team_status_lines(team)) }
+    lines.concat(heisman_lines(game))
     lines.concat(history_lines(game))
     lines.concat(conference_race_lines(game[:stakes][:conference_race]))
     lines.concat(elsewhere_lines(game[:stakes][:elsewhere]))
@@ -253,6 +257,23 @@ class BigGameBreakdownMarkdownPresenter
   def result_text(result)
     where = result[:home] ? "vs" : "@"
     "#{result[:won] ? 'W' : 'L'} #{result[:team_score]}-#{result[:opponent_score]} #{where} #{result[:opponent]} (Wk #{result[:week_number]})"
+  end
+
+  # Heisman candidates on either side. One facing our team (or ours facing a
+  # strong defense) is a storyline for the stakes; stay silent when there are
+  # none.
+  def heisman_lines(game)
+    entries = [ game[:away], game[:home] ].flat_map do |team|
+      team[:heisman_candidates].map { |player| [ team, player ] }
+    end
+    return [] if entries.empty?
+
+    lines = [ "- **Heisman watch:**" ]
+    entries.each do |team, player|
+      owner = team[:user_coached] ? "#{team[:college][:name]} [our coach]" : team[:college][:name]
+      lines << "  - #{player_text(player)} — #{owner}"
+    end
+    lines
   end
 
   def history_lines(game)

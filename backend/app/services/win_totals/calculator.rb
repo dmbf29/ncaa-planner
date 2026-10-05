@@ -7,9 +7,11 @@ module WinTotals
   # ratings (QB, RB, WR, TE, OL, DL, LB, DB), with the quarterback counting
   # most. The game doesn't expose an actual depth chart/starter flag, so a
   # room's "starters" are its highest-rated players (ROOM_SLOTS), the same
-  # stand-in the Roster Breakdown uses. A college with no scraped roster
-  # (most uncoached opponents in a team's first season) falls back to its
-  # hand-entered overall alone.
+  # stand-in the Roster Breakdown uses. A college with no scraped roster (an
+  # FCS opponent, say) falls back to its hand-entered overall, shifted onto the
+  # room scale by overall_offset: a hand-entered overall runs a few points
+  # lower than the room-based strength of an equally good team (3.6 points in
+  # 2026, 5.8 in 2027), so it would otherwise be treated as weaker than it is.
   #
   # The weights and the two curve constants below were chosen by backtesting
   # a full season of results (360 regular-season games): picking winners
@@ -53,11 +55,47 @@ module WinTotals
     LIKELY_WIN_THRESHOLD = 0.6
     LIKELY_LOSS_THRESHOLD = 0.4
 
+    # No game is a sure thing: even a big FBS favorite over an FCS team loses
+    # now and then, and the backtest's most lopsided games won 93% of the time,
+    # not 100%. Capping the odds keeps a "lock" from counting as a guaranteed
+    # win in the win total.
+    MIN_WIN_PROBABILITY = 0.03
+    MAX_WIN_PROBABILITY = 0.97
+
+    # Used when too few teams have both a roster and an overall to measure the
+    # real gap (see overall_offset_for).
+    DEFAULT_OVERALL_OFFSET = 5.0
+    MIN_TEAMS_TO_MEASURE_OFFSET = 10
+
+    # How far a hand-entered overall sits below the room-based strength, measured
+    # across the given college_seasons that have both (their student_seasons
+    # must be loaded). Falls back to DEFAULT_OVERALL_OFFSET without enough teams.
+    def self.overall_offset_for(college_seasons)
+      calculator = new
+      pairs = college_seasons.filter_map do |college_season|
+        strength = calculator.room_strength(college_season)
+        [ college_season.overall.to_f, strength ] if strength && college_season.overall
+      end
+      return DEFAULT_OVERALL_OFFSET if pairs.size < MIN_TEAMS_TO_MEASURE_OFFSET
+
+      (pairs.sum { |_overall, strength| strength } - pairs.sum { |overall, _strength| overall }) / pairs.size
+    end
+
+    def initialize(overall_offset: DEFAULT_OVERALL_OFFSET)
+      @overall_offset = overall_offset
+    end
+
     def team_strength(college_season)
       return nil unless college_season
 
+      room_strength(college_season) || (college_season.overall && college_season.overall + @overall_offset)
+    end
+
+    # The weighted average of the team's room starter ratings, or nil when it
+    # has no rated players at all.
+    def room_strength(college_season)
       averages = room_averages(college_season)
-      return college_season.overall&.to_f if averages.empty?
+      return nil if averages.empty?
 
       weights = averages.keys.sum { |room| ROOM_WEIGHTS.fetch(room) }
       averages.sum { |room, average| ROOM_WEIGHTS.fetch(room) * average } / weights
@@ -69,7 +107,7 @@ module WinTotals
       return 0.5 if team.nil? || opponent.nil?
 
       diff = (team - opponent) + (home ? HOME_FIELD_BONUS : -HOME_FIELD_BONUS)
-      1.0 / (1.0 + (10**(-diff / RATING_SCALE)))
+      (1.0 / (1.0 + (10**(-diff / RATING_SCALE)))).clamp(MIN_WIN_PROBABILITY, MAX_WIN_PROBABILITY)
     end
 
     # Sorts a single game's win probability into the three buckets the
