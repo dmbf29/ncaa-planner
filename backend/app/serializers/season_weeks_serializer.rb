@@ -303,6 +303,7 @@ class SeasonWeeksSerializer
       ranking: ranking_json(college_season.college_id, week),
       game: this_week_game_json(this_week_game, college_season.college_id),
       top_performers: top_performers_json(this_week_game, college_season),
+      heisman_in_game: heisman_in_game_json(this_week_game, college_season, week),
       players_of_the_week: players_of_the_week_json(college_season, week),
       recruiting_trail: primary ? combined_recruiting_trail_json(college_season) : [],
       injury_report: injuries[:new],
@@ -784,6 +785,40 @@ class SeasonWeeksSerializer
       position: student_season.position,
       stats: stat.attributes.slice(*stat_columns).compact.reject { |_key, value| value.zero? }
     }
+  end
+
+  # Heisman watch candidates who played in this team's game, on either side
+  # (our own player, or an opponent's), with what they did in it. Empty when
+  # the team had no game or nobody in it is on the watch list. The list is the
+  # one entering the reviewed week, or the latest earlier one on file.
+  def heisman_in_game_json(game, college_season, week)
+    return [] unless game
+
+    college_ids = [ game.home_college_id, game.away_college_id ]
+    stat_columns = StudentGameStat.column_names - %w[id game_id student_season_id created_at updated_at]
+    heisman_candidates_as_of(week).filter_map do |candidate|
+      student_season = candidate.student_season
+      next unless college_ids.include?(student_season.college_season.college_id)
+
+      stat = StudentGameStat.find_by(game_id: game.id, student_season_id: student_season.id)
+      {
+        name: student_season.student.name,
+        position: student_season.position,
+        college: { id: student_season.college_season.college_id, name: student_season.college_season.college.name },
+        ours: student_season.college_season.college_id == college_season.college_id,
+        user_coached: coached_college_ids.include?(student_season.college_season.college_id),
+        stats: stat ? performer_json(stat, stat_columns)[:stats] : {}
+      }
+    end
+  end
+
+  def heisman_candidates_as_of(week)
+    @heisman_candidates_as_of ||= {}
+    @heisman_candidates_as_of[week.number] ||= begin
+      list_week = @season.weeks.where("number <= ?", week.number).order(number: :desc)
+                         .find { |candidate_week| candidate_week.heisman_candidates.exists? }
+      list_week ? list_week.heisman_candidates.includes(student_season: [ :student, { college_season: :college } ]).to_a : []
+    end
   end
 
   def conference_results_for_week(week)

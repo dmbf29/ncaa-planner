@@ -369,31 +369,58 @@ class WinTotalsMarkdownPresenter
     return [] if @data[:champion_predictions].blank?
 
     lines = [ "---", "", "## 🏆 CONFERENCE CHAMPION PREDICTIONS", "" ]
+    lines << "For each conference, name the two teams that meet in the championship game, then say who the " \
+             "favorite is and how big a favorite (see below). The title-game teams are the two strongest in the conference."
+    lines << ""
     @data[:champion_predictions].each { |prediction| lines.concat(champion_prediction_bullets(prediction)) }
     lines
   end
 
-  def champion_prediction_bullets(prediction)
-    lines = [ "**#{prediction[:conference]}:**" ]
-    favorite = prediction[:favorite]
-    shot = prediction[:our_best_shot]
+  EDGE_WORDS = {
+    "clear" => "a clear favorite",
+    "slight" => "a slight favorite",
+    "pick_em" => "barely a favorite — this one is a pick 'em"
+  }.freeze
 
-    if favorite
-      note = favorite[:coached_by_us] ? " — one of ours!" : ""
-      last_season = record_line(favorite[:previous_season_record])
-      last_season_note = last_season ? ", last season #{last_season}" : ""
-      lines << "- Favorite: #{favorite[:college][:name]} (#{favorite[:team_strength]} power rating#{last_season_note})#{note}"
+  # Each conference gets a championship game: the two strongest teams, then
+  # who the hosts should call the favorite.
+  def champion_prediction_bullets(prediction)
+    lines = [ "**#{prediction[:conference]} Championship Game:**" ]
+    game = prediction[:championship_game]
+
+    if game
+      first, second = game[:teams]
+      lines << "- The matchup: #{first[:college][:name]} vs. #{second[:college][:name]}"
+      game[:teams].each { |team| lines << "  - #{finalist_line(team)}" }
+      favorite = game[:favorite][:college][:name]
+      lines << "- **Favorite: #{favorite}** — #{EDGE_WORDS.fetch(game[:edge])} over #{game[:underdog][:college][:name]} " \
+               "(backstage: about #{(game[:favorite_chance] * 100).round}%)"
     end
 
-    if shot && favorite && shot[:college][:id] != favorite[:college][:id]
-      gap = shot[:gap_to_favorite] ? " (#{shot[:gap_to_favorite]} behind the favorite)" : ""
+    shot = prediction[:our_best_shot]
+    if shot
       last_season = record_line(shot[:previous_season_record])
       last_season_note = last_season ? ", last season #{last_season}" : ""
-      lines << "- Our best shot: #{shot[:college][:name]} (#{shot[:team_strength]} power rating#{last_season_note})#{gap}"
+      lines << "- Best of ours, but not in the title game: #{shot[:college][:name]} " \
+               "(#{ordinal(shot[:rank])}-strongest in the conference, #{shot[:team_strength]} power rating#{last_season_note})"
     end
 
     lines << ""
     lines
+  end
+
+  def finalist_line(team)
+    last_season = record_line(team[:previous_season_record])
+    last_season_note = last_season ? ", last season #{last_season}" : ""
+    coach = team[:coach] ? ", Coach #{team[:coach][:name]}" : ""
+    note = team[:coached_by_us] ? " — one of ours!" : ""
+    "#{team[:college][:name]} (#{team[:team_strength]} power rating#{last_season_note}#{coach})#{note}"
+  end
+
+  def ordinal(number)
+    return "#{number}th" if (11..13).cover?(number % 100)
+
+    "#{number}#{{ 1 => 'st', 2 => 'nd', 3 => 'rd' }.fetch(number % 10, 'th')}"
   end
 
   def record_line(record)

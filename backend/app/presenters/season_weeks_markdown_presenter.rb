@@ -469,6 +469,7 @@ class SeasonWeeksMarkdownPresenter
 
     lines.concat(player_of_the_week_lines(team[:players_of_the_week]))
     lines.concat(top_performers_lines(team[:top_performers]))
+    lines.concat(heisman_in_game_lines(team[:heisman_in_game]))
     lines.concat(injury_report_lines(team[:injury_report]))
     lines.concat(recruiting_trail_lines(team[:recruiting_trail]))
     lines.concat(season_stats_lines(team[:season_stats]))
@@ -976,6 +977,23 @@ class SeasonWeeksMarkdownPresenter
       lines << "**#{group[:college][:name]}:**"
       group[:performers].each { |performer| lines << "- #{performer_line(performer)}" }
     end
+    lines << ""
+    lines
+  end
+
+  # Only when a Heisman watch candidate played in this team's game, whether
+  # he's ours or the opponent's; silent otherwise.
+  def heisman_in_game_lines(candidates)
+    return [] if candidates.blank?
+
+    lines = [ "### 🎖️ Heisman Watch In This Game" ]
+    candidates.each do |candidate|
+      side = candidate[:ours] ? "one of ours" : "the opponent's"
+      stat_line = candidate[:stats].map { |key, value| "#{value} #{key.to_s.tr('_', ' ')}" }.join(", ")
+      lines << "- #{candidate[:name]} (#{candidate[:position]}, #{candidate[:college][:name]}, #{side}): " \
+               "#{stat_line.presence || 'no stats recorded in this game'}"
+    end
+    lines << "Make it a storyline: did he live up to the Heisman hype, or did the other side's defense (or offense) shut him down?"
     lines << ""
     lines
   end

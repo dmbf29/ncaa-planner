@@ -302,15 +302,44 @@ class WinTotalsSerializer
 
     conferences.map do |conference|
       ranked = strength_ranked.select { |cs, _strength| cs.conference == conference }
-      favorite = ranked.first
-      our_best = ranked.find { |cs, _strength| coached_college_ids.include?(cs.college_id) }
+      top = ranked.first
+      our_best_index = ranked.index { |cs, _strength| coached_college_ids.include?(cs.college_id) }
+      our_best = our_best_index && ranked[our_best_index]
 
       {
         conference: conference,
-        favorite: favorite && strength_entry_json(favorite),
-        our_best_shot: our_best && strength_entry_json(our_best, gap_to: favorite&.last)
+        championship_game: championship_game_json(ranked.first(2)),
+        # Only worth a mention when none of ours made the title game.
+        our_best_shot: our_best && our_best_index >= CHAMPIONSHIP_GAME_TEAMS ? strength_entry_json(our_best, gap_to: top&.last).merge(rank: our_best_index + 1) : nil
       }
     end
+  end
+
+  CHAMPIONSHIP_GAME_TEAMS = 2
+
+  # The two strongest teams in the conference meet in the title game (there
+  # are no full conference schedules for the rest of the league, so power
+  # rating stands in for the standings). The favorite is whoever the odds
+  # favor at a neutral site.
+  def championship_game_json(finalists)
+    return nil if finalists.size < CHAMPIONSHIP_GAME_TEAMS
+
+    (favorite_cs, favorite_strength), (underdog_cs, underdog_strength) = finalists
+    chance = calculator.win_probability(favorite_cs, underdog_cs, home: nil)
+    {
+      teams: finalists.map { |entry| strength_entry_json(entry) },
+      favorite: strength_entry_json([ favorite_cs, favorite_strength ]),
+      underdog: strength_entry_json([ underdog_cs, underdog_strength ]),
+      favorite_chance: chance.round(2),
+      edge: championship_edge(chance)
+    }
+  end
+
+  def championship_edge(chance)
+    return "clear" if chance >= 0.75
+    return "slight" if chance >= 0.58
+
+    "pick_em"
   end
 
   def strength_entry_json((college_season, strength), gap_to: nil)

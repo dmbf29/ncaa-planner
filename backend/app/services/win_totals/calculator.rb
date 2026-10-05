@@ -101,12 +101,15 @@ module WinTotals
       averages.sum { |room, average| ROOM_WEIGHTS.fetch(room) * average } / weights
     end
 
+    # `home: nil` means a neutral site (no home bonus), e.g. a conference
+    # championship game.
     def win_probability(team_college_season, opponent_college_season, home:)
       team = team_strength(team_college_season)
       opponent = team_strength(opponent_college_season)
       return 0.5 if team.nil? || opponent.nil?
 
-      diff = (team - opponent) + (home ? HOME_FIELD_BONUS : -HOME_FIELD_BONUS)
+      bonus = home.nil? ? 0.0 : (home ? HOME_FIELD_BONUS : -HOME_FIELD_BONUS)
+      diff = (team - opponent) + bonus
       (1.0 / (1.0 + (10**(-diff / RATING_SCALE)))).clamp(MIN_WIN_PROBABILITY, MAX_WIN_PROBABILITY)
     end
 
