@@ -247,6 +247,7 @@ def build(pane, row):
         "position": pane["position"],
         "overall": digits(row.get("OVR")),
         "nil_amount": "",  # not tracked; kept empty so every team has the same shape
+        "nil": digits(row.get("NIL")),  # the NIL column's own reading, for importers that want it (batch update)
         "jersey": pane["jersey"],
     }
     for col, field in STAT_FIELDS.items():

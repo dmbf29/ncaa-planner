@@ -21,6 +21,14 @@ class TeamPolicy < ApplicationPolicy
     owner?
   end
 
+  def start_roster_video?
+    owner?
+  end
+
+  def roster_video_status?
+    owner?
+  end
+
   def commit_roster_update?
     owner?
   end

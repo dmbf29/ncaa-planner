@@ -41,7 +41,85 @@ module RosterUpdates
       { rows: rows, boards: board_options(team), existing_players: existing_players_json(active_players) }
     end
 
+    # Same output shape as #call, but built from players already read off a roster screen recording by
+    # tools/roster_video (local OCR) instead of from screenshots, so no AI call is made. The video gives full
+    # first names, which makes matching against the active roster more reliable than the screenshot path's
+    # first-initial + last name.
+    def call_from_video(team, video_players)
+      active_players = active_players(team)
+      rows = Array(video_players).map { |player| build_video_row(team, active_players, player) }
+
+      { rows: rows, boards: board_options(team), existing_players: existing_players_json(active_players) }
+    end
+
     private
+
+    HIGH_NIL = 200 # a NIL read above this is more likely an OCR slip than a real figure; flagged for review
+
+    NAME_SUFFIXES = %w[jr sr ii iii iv v].freeze
+
+    def build_video_row(team, active_players, player)
+      player = player.stringify_keys
+      full_name = [ player["first_name"], player["last_name"] ].map(&:to_s).map(&:strip).reject(&:blank?).join(" ")
+      position = player["position"].presence
+      matched = match_video_player(active_players, full_name, position)
+
+      # The screen says LEDG/REDG where boards are LE/RE; keep the screen's code if a board already matches it.
+      position = PositionBoardMapping.canonical(position) if position && resolve_board(team, position).nil?
+      row = build_row(team, active_players, {
+        "player_display_name" => full_name,
+        "player_id" => matched&.dig(:id),
+        "class_year" => video_class_year(player["class_year"]),
+        "position" => position,
+        "overall" => integer_or_nil(player["overall"])
+      }.merge(ATTRIBUTE_FIELDS.index_with { |field| integer_or_nil(player[field.to_s]) }.stringify_keys))
+
+      # The video tool reads the NIL column as "nil" (its "nil_amount" stays empty for the dynasty importer). A cell it
+      # couldn't read (a lone "0" next to the diamond sometimes drops out) keeps the stored value instead of blanking it.
+      stored_nil = matched ? team.players.find(matched[:id]).nil_amount : nil
+      video_nil = integer_or_nil(player["nil"])
+      row[:nil_amount] = video_nil || stored_nil
+      review = Array(player["needs_review"])
+      review += [ "NIL not read — kept current value" ] if video_nil.nil? && player.key?("nil")
+      review += [ "NIL #{video_nil} is unusually high — check it" ] if video_nil && video_nil > HIGH_NIL
+      row[:needs_review] = review.presence
+      row
+    end
+
+    # Exact full name first; otherwise last name + first initial, but only when that picks out exactly one
+    # active player (breaking a tie on position) -- a wrong auto-match silently overwrites a real player.
+    def match_video_player(active_players, full_name, position)
+      target = name_parts(full_name)
+      return nil if target.nil?
+
+      exact = active_players.select { |p| name_parts(p[:name]) == target }
+      return exact.first if exact.size == 1
+
+      candidates = active_players.select do |p|
+        parts = name_parts(p[:name])
+        parts && parts[:last] == target[:last] && parts[:first][0] == target[:first][0]
+      end
+      candidates = candidates.select { |p| p[:position].to_s.casecmp?(position.to_s) } if candidates.size > 1
+      candidates.size == 1 ? candidates.first : nil
+    end
+
+    def name_parts(name)
+      tokens = name.to_s.downcase.gsub(/[^a-z0-9\s]/, " ").split
+      tokens.pop while tokens.size > 1 && NAME_SUFFIXES.include?(tokens.last)
+      return nil if tokens.size < 2
+
+      { first: tokens.first.to_s, last: tokens.last.to_s }
+    end
+
+    # The screen shows "SO (RS)"; the planner stores "SO(RS)".
+    def video_class_year(value)
+      normalized = value.to_s.gsub(/\s+/, "").upcase
+      CLASS_YEARS.include?(normalized) ? normalized : nil
+    end
+
+    def integer_or_nil(value)
+      Integer(value.to_s.strip, exception: false)
+    end
 
     def run_group(team, images, fields, active_players)
       rows = fetch_group(team, images, fields, active_players)

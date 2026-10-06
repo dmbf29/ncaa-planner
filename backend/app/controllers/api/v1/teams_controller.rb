@@ -1,7 +1,7 @@
 module Api
   module V1
     class TeamsController < BaseController
-      before_action :set_team, only: %i[show update destroy import_roster analyze_roster_update commit_roster_update]
+      before_action :set_team, only: %i[show update destroy import_roster analyze_roster_update commit_roster_update start_roster_video roster_video_status]
 
       def index
         teams = policy_scope(Team.includes(:squads).where(user: current_user))
@@ -55,6 +55,41 @@ module Api
         render json: { error: "AI extraction failed: #{e.message}", code: "extraction_failed" }, status: :unprocessable_entity
       end
 
+      # Local-only alternative to #analyze_roster_update: OCRs a screen recording of the roster via
+      # tools/roster_video (no AI API) in the background. The frontend polls #roster_video_status.
+      def start_roster_video
+        authorize @team
+        return render_roster_video_dev_only unless Rails.env.development?
+
+        video = params[:video]
+        return render json: { error: "No video uploaded", code: "missing_video" }, status: :unprocessable_entity unless video.respond_to?(:tempfile)
+
+        token = SecureRandom.uuid
+        path = RosterVideoJob.stash_upload(token, video)
+        AnalysisStatus.pending!(token)
+        RosterVideoJob.perform_later(token: token, path: path.to_s)
+        render json: { token: token, status: "pending" }, status: :accepted
+      end
+
+      def roster_video_status
+        authorize @team
+        return render_roster_video_dev_only unless Rails.env.development?
+
+        status = AnalysisStatus.read(params[:token])
+        case status[:status]
+        when "completed"
+          analysis = RosterUpdates::Extractor.new.call_from_video(@team, status[:result]["players"])
+          render json: { status: "completed", analysis: analysis.merge(summary: status[:result]["summary"]) }
+        when "failed"
+          render json: { status: "failed", error: status[:error], code: "extraction_failed" }, status: :unprocessable_entity
+        when "not_found"
+          render json: { status: "failed", error: "Video job expired or not found — try again.", code: "extraction_failed" },
+                 status: :unprocessable_entity
+        else
+          render json: { status: "pending", progress: status[:progress] }
+        end
+      end
+
       def commit_roster_update
         authorize @team
         warnings = RosterUpdates::CommitService.new(@team).call(
@@ -67,6 +102,10 @@ module Api
       end
 
       private
+
+      def render_roster_video_dev_only
+        render json: { error: "Roster video import only runs on a local development server", code: "dev_only" }, status: :forbidden
+      end
 
       def set_team
         @team = policy_scope(Team).find(params[:id])

@@ -80,6 +80,23 @@ export const analyzeRosterUpdate = (teamId, files) => {
     .then((r) => r.data);
 };
 
+// Local-only alternative to analyzeRosterUpdate: Rails OCRs a screen recording of the roster (no AI API) in the
+// background and resolves with the same { rows, boards, existingPlayers } shape (plus a summary).
+export const analyzeRosterUpdateVideo = (teamId, file, { onProgress, isCancelled } = {}) => {
+  const formData = new FormData();
+  formData.append("video", file);
+  const base = `/api/v1/teams/${teamId}`;
+  return api
+    .post(`${base}/start_roster_video`, formData, { headers: { "Content-Type": "multipart/form-data" } })
+    .then((r) =>
+      pollAnalysis(`${base}/roster_video_status`, r.data.token, {
+        onProgress,
+        isCancelled,
+        timeoutMs: ROSTER_VIDEO_POLL_TIMEOUT_MS,
+      }),
+    );
+};
+
 export const commitRosterUpdate = (teamId, payload) =>
   api.post(`/api/v1/teams/${teamId}/commit_roster_update`, payload).then((r) => r.data);
 

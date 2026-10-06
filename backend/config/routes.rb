@@ -13,6 +13,8 @@ Rails.application.routes.draw do
           post :import_roster
           post :analyze_roster_update
           post :commit_roster_update
+          post :start_roster_video
+          get :roster_video_status
         end
         resources :squads, only: %i[index create update destroy]
         resources :position_boards, only: %i[index create update destroy]

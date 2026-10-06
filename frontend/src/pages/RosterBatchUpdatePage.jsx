@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import FileDropZone from "../components/FileDropZone";
-import { fetchTeam, analyzeRosterUpdate, commitRosterUpdate } from "../lib/apiClient";
+import { fetchTeam, analyzeRosterUpdate, analyzeRosterUpdateVideo, commitRosterUpdate } from "../lib/apiClient";
 
 const CLASS_YEARS = ["FR", "FR(RS)", "SO", "SO(RS)", "JR", "JR(RS)", "SR", "SR(RS)"];
 
@@ -95,6 +95,9 @@ function RosterRow({ row, existingPlayers, boards, onChange }) {
               Unmatched: &ldquo;{row.displayName}&rdquo; — will create new player
             </p>
           </>
+        )}
+        {row.needsReview?.length > 0 && (
+          <p className="mt-1 text-xs text-warning">Double-check: {row.needsReview.join("; ")}</p>
         )}
       </td>
       <td className="p-2 min-w-[160px]">
@@ -248,6 +251,8 @@ function RosterBatchUpdatePage() {
   const [files, setFiles] = useState([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState(null);
+  const [videoStatus, setVideoStatus] = useState(null); // { name, stage, percent, done, total } while a video is processing
+  const [dragOver, setDragOver] = useState(false);
 
   const [rows, setRows] = useState(null);
   const [boards, setBoards] = useState([]);
@@ -283,6 +288,35 @@ function RosterBatchUpdatePage() {
       setAnalyzeError(err.message);
     } finally {
       setAnalyzing(false);
+    }
+  };
+
+  // Local-only (dev builds): a roster screen recording is read by OCR on the Rails side, no AI call.
+  const handleVideoFile = async (file) => {
+    if (!file) return;
+    if (!file.type.startsWith("video/") && !/\.(mov|mp4|m4v)$/i.test(file.name)) {
+      setAnalyzeError("That doesn't look like a video file (.mov or .mp4).");
+      return;
+    }
+    setAnalyzeError(null);
+    setVideoStatus({ name: file.name, stage: "uploading" });
+    try {
+      const result = await analyzeRosterUpdateVideo(id, file, {
+        onProgress: (progress) => {
+          if (!progress) return;
+          // One bar across both phases: the quick scan is the first ~30%, reading the players the rest.
+          const fraction = progress.total ? progress.done / progress.total : 0;
+          const percent = Math.min(99, Math.round(progress.stage === "scanning" ? fraction * 30 : 30 + fraction * 70));
+          setVideoStatus({ name: file.name, stage: progress.stage, percent, done: progress.done, total: progress.total });
+        },
+      });
+      setRows(result.rows);
+      setBoards(result.boards);
+      setExistingPlayers(result.existingPlayers);
+    } catch (err) {
+      setAnalyzeError(err.message);
+    } finally {
+      setVideoStatus(null);
     }
   };
 
@@ -355,6 +389,57 @@ function RosterBatchUpdatePage() {
               NIL, and attributes — and proposes updates below for you to review before anything is saved.
             </p>
 
+            {import.meta.env.DEV && (
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOver(true);
+                }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOver(false);
+                  if (!videoStatus && !analyzing) handleVideoFile(e.dataTransfer.files?.[0]);
+                }}
+                className={`rounded-md border-2 border-dashed px-3 py-3 text-sm transition ${
+                  dragOver ? "border-burnt bg-burnt/10" : "border-border dark:border-darkborder"
+                }`}
+              >
+                {videoStatus ? (
+                  <div className="space-y-1.5">
+                    <p className="font-semibold text-textPrimary dark:text-white">{videoStatus.name}</p>
+                    <p className="text-textSecondary">
+                      {videoStatus.stage === "uploading" && "Uploading…"}
+                      {videoStatus.stage === "queued" && "Waiting for another video to finish…"}
+                      {videoStatus.stage === "starting" && "Starting…"}
+                      {videoStatus.stage === "scanning" && "Scanning video…"}
+                      {videoStatus.stage === "reading" && `Reading players… ${videoStatus.done} of ${videoStatus.total}`}
+                    </p>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-border dark:bg-darkborder">
+                      <div className="h-full bg-burnt transition-all" style={{ width: `${videoStatus.percent ?? 0}%` }} />
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-textSecondary">
+                    Local only: drop a roster screen recording here to read it without the AI, or{" "}
+                    <label className="cursor-pointer font-semibold text-burnt hover:underline">
+                      choose a video
+                      <input
+                        type="file"
+                        accept="video/*,.mov"
+                        className="hidden"
+                        onChange={(e) => {
+                          handleVideoFile(e.target.files?.[0]);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                    . Otherwise use screenshots below.
+                  </p>
+                )}
+              </div>
+            )}
+
             <FileDropZone
               title="Roster Screenshots"
               hint="Upload as many screenshots as it takes to cover the whole roster."
@@ -367,7 +452,7 @@ function RosterBatchUpdatePage() {
             <button
               type="button"
               onClick={handleAnalyze}
-              disabled={files.length === 0 || analyzing}
+              disabled={files.length === 0 || analyzing || !!videoStatus}
               className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {analyzing ? "Analyzing... this can take a minute" : `Analyze ${files.length || ""} Photo${files.length === 1 ? "" : "s"}`}
