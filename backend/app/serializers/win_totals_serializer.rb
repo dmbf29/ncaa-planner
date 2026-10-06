@@ -126,7 +126,7 @@ class WinTotalsSerializer
   def hot_seat_json(college_season, line, schedule, distribution)
     games = schedule.map do |game|
       { week_number: game[:week_number], home: game[:home], opponent: game[:opponent][:name],
-        projection: game[:projection], win_probability: game[:win_probability] }
+        projection: game[:projection], win_probability: game[:win_probability], point_spread: game[:point_spread] }
     end
     WinTotals::HotSeat.new(
       coach: college_season.coach, line: line, games: games, distribution: distribution,
@@ -195,9 +195,33 @@ class WinTotalsSerializer
       opponent_previous_season_record: previous_season_record_json(context[:opponent_college].id),
       opponent_key_players: opponent_cs && key_players_json(opponent_cs),
       win_probability: probability.round(2),
+      point_spread: point_spread_for(context),
       projection: calculator.game_projection(probability),
       previous_meetings: previous_meetings_json(context[:college_season].college_id, context[:opponent_college].id)
     }
+  end
+
+  # Past this, a spread stops being believable (a placeholder FCS team rated
+  # far below everyone would otherwise read as a 50-point favorite).
+  MAX_SPREAD = 40.0
+
+  # The game's house line from our team's side: positive = we're favored by
+  # that many points. It is the same line the Big Game Breakdown posts (see
+  # BigGameBreakdown::LineMaker), so a game reads the same on both shows. nil
+  # when the opponent has no data to rate.
+  def point_spread_for(context)
+    opponent = context[:opponent]
+    return nil unless opponent
+
+    home_cs = context[:home] ? context[:college_season] : opponent
+    away_cs = context[:home] ? opponent : context[:college_season]
+    home_line = line_maker.spread_for(home_cs, away_cs)
+    our_margin = context[:home] ? -home_line : home_line
+    our_margin.clamp(-MAX_SPREAD, MAX_SPREAD)
+  end
+
+  def line_maker
+    @line_maker ||= BigGameBreakdown::LineMaker.new(@season, calculator: calculator)
   end
 
   def key_players_json(college_season)

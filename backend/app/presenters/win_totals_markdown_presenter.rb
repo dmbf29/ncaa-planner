@@ -56,6 +56,10 @@ class WinTotalsMarkdownPresenter
     "Never say a percentage or a rating number out loud. Translate it into how oddsmakers and bettors actually " \
     "talk: a lopsided game is a \"lock\" or a \"lay-it-down favorite,\" a sneaky-tough one is a \"trap game\" or " \
     "a \"letdown spot,\" a close one is a \"pick 'em.\"",
+    "Point spreads ARE betting language, so use them: every game carries the line (favored by 7.5, underdog " \
+    "by 3.5, pick 'em). Say 'a touchdown favorite' or 'getting a field goal and a half' instead of reading " \
+    "decimals aloud, and let the spread set how loud the call is: a double-digit favorite is a lock, a field " \
+    "goal either way is a real fight.",
     "Build arguments out of scouting and betting language, not stats-speak: schedule spots, revenge games, " \
     "get-right games, home cooking, a defense that travels well, a shaky line on the road, a team that's live " \
     "underdog value. If a host would sound like a broadcast from a research lab, rewrite the line."
@@ -228,7 +232,9 @@ class WinTotalsMarkdownPresenter
   def early_test_lines(early, coach)
     return [] unless early
 
-    games = early[:games].map { |g| "Week #{g[:week_number]} #{g[:home] ? 'vs' : '@'} #{g[:opponent]} (#{PROJECTION_LABELS.fetch(g[:projection], '')})" }
+    games = early[:games].map do |g|
+      "Week #{g[:week_number]} #{g[:home] ? 'vs' : '@'} #{g[:opponent]} (#{PROJECTION_LABELS.fetch(g[:projection], '')}, #{spread_phrase(g[:point_spread])})"
+    end
     point = early[:decision_point]
     deadline = point[:kind] == "bye" ? "the Week #{point[:week]} bye" : "after Week #{point[:week]}"
     stakes =
@@ -310,11 +316,23 @@ class WinTotalsMarkdownPresenter
     label = PROJECTION_LABELS.fetch(game[:projection], "")
 
     lines = []
-    lines << "- #{label} — **Week #{game[:week_number]} #{where} #{game[:opponent][:name]}** " \
+    lines << "- #{label} (#{spread_phrase(game[:point_spread])}) — **Week #{game[:week_number]} #{where} #{game[:opponent][:name]}** " \
              "— #{opp_summary}#{last_season_note} — #{lean}"
     lines.concat(opponent_key_players_bullets(game[:opponent_key_players]))
     lines.concat(previous_meetings_bullets(game[:previous_meetings]))
     lines
+  end
+
+  # The game's line from our team's side, in sportsbook terms.
+  def spread_phrase(spread)
+    return "line unknown" if spread.nil?
+    return "pick 'em" if spread.abs <= 0.5
+
+    spread.positive? ? "favored by #{format_spread(spread)}" : "underdog by #{format_spread(spread.abs)}"
+  end
+
+  def format_spread(spread)
+    spread % 1 == 0 ? spread.to_i.to_s : spread.to_s
   end
 
   def opponent_key_players_bullets(key_players)

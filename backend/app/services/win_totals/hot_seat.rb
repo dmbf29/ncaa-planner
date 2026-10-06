@@ -34,7 +34,7 @@ module WinTotals
     ].freeze
 
     # coach: needs #name, #job_security, #nil_amount
-    # games: [{ week_number:, home:, opponent:, projection:, win_probability: }] in week order
+    # games: [{ week_number:, home:, opponent:, projection:, win_probability:, point_spread: }] in week order
     # bye_week_number: the team's first bye after the preseason week, or nil
     def initialize(coach:, line:, games:, distribution:, calculator:, bye_week_number: nil)
       @coach = coach
@@ -139,7 +139,7 @@ module WinTotals
       window_distribution = @calculator.win_distribution(early_window.map { |g| g[:win_probability] })
       wins_needed = early_window.size - [ allowed_early_losses, 0 ].max
       {
-        games: early_window.map { |g| g.slice(:week_number, :home, :opponent, :projection, :win_probability) },
+        games: early_window.map { |g| g.slice(:week_number, :home, :opponent, :projection, :win_probability, :point_spread) },
         decision_point: decision_point,
         allowed_losses: [ allowed_early_losses, 0 ].max,
         wins_needed: wins_needed,

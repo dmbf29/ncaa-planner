@@ -56,6 +56,12 @@ module BigGameBreakdown
       }
     end
 
+    # Just the home-side spread for two teams (-6.5 = home favored by 6.5), for
+    # other shows that want the same line without the totals work.
+    def spread_for(home_cs, away_cs)
+      home_line(home_cs, away_cs)
+    end
+
     private
 
     def college_season(college_id)
