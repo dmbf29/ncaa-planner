@@ -22,6 +22,11 @@ module PodcastShow
     "this is an actual season of college football that is actually happening, full stop."
   ].freeze
 
+  # Every kickoff time on the shows is Eastern (see config.time_zone). Presenters and the schedule convert to
+  # this explicitly rather than trusting the process's zone, so a stale or differently configured server can't
+  # print the wrong clock.
+  TIME_ZONE = ActiveSupport::TimeZone["Eastern Time (US & Canada)"]
+
   TONE = "Energetic, sharp, humorous ESPN-style studio show banter.".freeze
 
   module_function

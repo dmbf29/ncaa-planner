@@ -65,7 +65,7 @@ module BowlProjections
       hour = match[1].to_i % 12
       hour += 12 if match[3].casecmp?("PM")
       year = month.to_i == 1 ? @season_year + 1 : @season_year
-      Time.new(year, month, day, hour, match[2].to_i)
+      Time.zone.local(year, month, day, hour, match[2].to_i)
     rescue ArgumentError
       nil
     end

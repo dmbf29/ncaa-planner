@@ -25,16 +25,27 @@ module BigGameBreakdown
     def week_results(week_number)
       picks = picks_in_weeks { |number| number == week_number }
       picks.group_by(&:game).map do |game, game_picks|
+        home_score, away_score = final_scores(game)
         {
           game_id: game.id,
           home: game.home_college.name,
           away: game.away_college.name,
+          home_score: home_score,
+          away_score: away_score,
           picks: game_picks.map { |pick| { host: pick.host, bet: pick.description, result: pick.result } }
         }
       end
     end
 
     private
+
+    # [home, away] final scores, or [nil, nil] until the game is played.
+    def final_scores(game)
+      stats = game.college_game_stats
+      home = stats.find { |stat| stat.college_id == game.home_college_id }&.final_score
+      away = stats.find { |stat| stat.college_id == game.away_college_id }&.final_score
+      home && away ? [ home, away ] : [ nil, nil ]
+    end
 
     def picks_in_weeks
       GamePick.joins(game: :week)

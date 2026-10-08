@@ -33,7 +33,11 @@ module Backend
     # These settings can be overridden in specific environments using the files
     # in config/environments, which are processed later.
     #
-    # config.time_zone = "Central Time (US & Canada)"
+    # Every game and bowl time comes from a schedule screenshot, which shows
+    # Eastern time. Commit services save those wall-clock times in this zone
+    # (Time.zone.local), so kickoff times read the same everywhere regardless
+    # of where the server or browser happens to be. Stored values stay UTC.
+    config.time_zone = "Eastern Time (US & Canada)"
     # config.eager_load_paths << Rails.root.join("extras")
 
     # Only loads a smaller set of middleware suitable for API only apps.

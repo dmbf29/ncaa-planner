@@ -127,12 +127,34 @@ class BigGameBreakdownSerializer
       stakes: stakes_json(game),
       film_room: film_room_json(game),
       quarterback_duel: { home: quarterback_json(game.home_college_id), away: quarterback_json(game.away_college_id) },
-      picks: picks.map { |pick| pick_json(pick) }
+      picks: picks.map { |pick| pick_json(pick, game) }
     }
   end
 
-  def pick_json(pick)
-    { host: pick.host, market: pick.market, side: pick.side, bet: pick.description }
+  # `team`, `number` and `favorite` are what a host says out loud ("Kansas
+  # State plus eleven and a half"): the backed team (spread bets only), the
+  # points on the line, and whether that team is laying the points.
+  def pick_json(pick, game)
+    {
+      host: pick.host, market: pick.market, side: pick.side, bet: pick.description,
+      team: pick_team(pick, game),
+      number: (pick.market == "total" ? pick.total_line : pick.spread_line.abs).to_f,
+      favorite: pick_favorite?(pick)
+    }
+  end
+
+  def pick_team(pick, game)
+    return nil unless pick.market == "spread"
+
+    (pick.side == "home" ? game.home_college : game.away_college).name
+  end
+
+  # nil for a total; for a spread, true when the backed side is the favorite
+  # (the home line is negative when home is favored).
+  def pick_favorite?(pick)
+    return nil unless pick.market == "spread"
+
+    pick.side == "home" ? pick.spread_line.negative? : pick.spread_line.positive?
   end
 
   def both_coached?(game)
@@ -156,8 +178,27 @@ class BigGameBreakdownSerializer
       underdog: (favorite_home ? game.away_college : game.home_college).name,
       spread: lines[:spread].abs,
       total: lines[:total],
-      home_win_probability: lines[:home_win_probability]
+      home_win_probability: lines[:home_win_probability],
+      form: form_json(game, lines)
     }
+  end
+
+  # How each team's results compare with what its roster predicted (points
+  # per game above or below), once it has played. Only reported where it's
+  # big enough to explain a line, so the hosts can say why the number moved.
+  def form_json(game, lines)
+    form = lines[:form]
+    {
+      home: team_form(game.home_college.name, form[:home]),
+      away: team_form(game.away_college.name, form[:away]),
+      spread_moved_by: form[:adjustment]
+    }
+  end
+
+  def team_form(name, form)
+    return nil if form[:average].nil?
+
+    { team: name, games: form[:games], points_vs_roster: form[:average] }
   end
 
   # ---- teams -------------------------------------------------------------------
@@ -184,7 +225,7 @@ class BigGameBreakdownSerializer
     }
   end
 
-  # Every regular-season game this team already played, oldest first.
+  # Every game this team already played this season (Week 0 included), oldest first.
   def results_for(college_id)
     @results_for ||= {}
     @results_for[college_id] ||= all_games.filter_map { |game| result_for(game, college_id) }
@@ -192,7 +233,7 @@ class BigGameBreakdownSerializer
   end
 
   def result_for(game, college_id)
-    return nil unless game.week.number.positive? && game.week.number < @week.number
+    return nil unless game.week.number < @week.number
     return nil unless game.home_college_id == college_id || game.away_college_id == college_id
 
     home = game.home_college_id == college_id

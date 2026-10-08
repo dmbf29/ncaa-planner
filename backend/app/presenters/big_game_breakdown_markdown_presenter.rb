@@ -18,13 +18,15 @@ class BigGameBreakdownMarkdownPresenter
     "Never say anything twice. A point made in the stakes is not repeated in the film room, and the pick is NOT a " \
     "recap: it's the line, each host's side, and at most one fresh reason each. If the reason was already said " \
     "earlier in the segment, find a new one or just say the bet.",
-    "Each host has exactly one bet per game, already decided and listed under THE PICK. Take that side and sell " \
-    "it. Say the number out loud the way a bettor would (\"Marshall minus seventeen and a half,\" \"the Over at " \
-    "fifty-five and a half\"), and never switch a side or hedge. When both hosts have the same side, it's a " \
-    "love-fest; when they split, it's a fight. Never reveal that the bets were handed out.",
-    "After the last game, run THE BETTING SLIP: every game, both hosts' bet, one line per game, ten seconds each, " \
-    "no new reasoning and no re-arguing. Then give each host's season record from THE SCOREBOARD (if there is one) " \
-    "and tease the Review show on the date shown, where these bets get graded.",
+    "Each host has exactly one bet per game, already decided and written out under THE PICK as a mandatory " \
+    "dialogue beat. BOTH hosts must say their call out loud, in their own voice but with the exact team, side and " \
+    "number written there (\"Marshall minus seventeen and a half,\" \"the Over at fifty-five and a half\"), and " \
+    "they must do it before moving on to the next game. Never skip it, never switch a side or hedge. When both " \
+    "hosts have the same side, it's a love-fest; when they split, it's a fight. Never reveal that the bets were " \
+    "handed out.",
+    "After the last game's pick, go straight to the NEXT EPISODE tease. Do NOT recap the bets: they were all just " \
+    "said out loud, game by game. Tease the reactions episode on the date shown, where we react to how these " \
+    "games played out and grade these picks.",
     "Mention games elsewhere only when they're listed under \"Elsewhere\" for a game, and only as a quick note on " \
     "how they bear on this one. Don't preview other games, and never run a segment on games we don't have a stake in.",
     "Only talk about conference standings and the poll when a game's data includes them. Never invent a ranking, a " \
@@ -47,6 +49,7 @@ class BigGameBreakdownMarkdownPresenter
   def to_markdown
     lines = []
     lines.concat(PodcastShow.directive_lines(show_name: SHOW_NAME))
+    lines.concat(show_brief_lines)
     lines.concat(format_lines)
     lines.concat(tone_lines)
     lines.concat(PodcastShow.opening_script_lines(show_name: SHOW_NAME, framing_hint: "the games on the board this week"))
@@ -60,7 +63,7 @@ class BigGameBreakdownMarkdownPresenter
     lines.concat(scoreboard_lines)
 
     games.each_with_index { |game, index| lines.concat(game_section(game, index)) }
-    lines.concat(betting_slip_lines) if games.any?
+    lines.concat(next_episode_lines) if games.any?
 
     lines.join("\n")
   end
@@ -69,6 +72,39 @@ class BigGameBreakdownMarkdownPresenter
 
   def games
     @data[:games]
+  end
+
+  # What the episode is and how the time is spent, up front, so the hosts
+  # stay on the games instead of drifting into big-picture talk and rushing
+  # the picks. Written to hold up even when the producer's own request is
+  # short or says something different.
+  def show_brief_lines
+    return [] if games.empty?
+
+    lines = [ "## 🎯 SHOW BRIEF (READ FIRST, DO NOT READ ALOUD)", "",
+              "This episode is ONLY the #{games.size} game#{'s' if games.size != 1} below, in this exact order. There is no " \
+              "big-picture season talk, no general college football discussion and no state-of-the-sport opening: the " \
+              "opening line sets the scene, and everything after it is about these games.", "" ]
+    step = 0
+    lines << "#{step += 1}. The mandatory opening, word for word."
+    lines << "#{step += 1}. The Card: ONE sentence naming the games on the board, in order. No analysis."
+    lines << "#{step += 1}. The Scoreboard: last week's bets, game by game, about fifteen seconds a game, then each host's season record." if last_week_results.any?
+    games.each_with_index do |game, index|
+      finale = index == games.size - 1 ? " (THE FINALE)" : ""
+      lines << "#{step += 1}. Game #{index + 1}: #{matchup_title(game)}#{finale}. In order: Stakes, Film Room, Quarterback Duel, The Pick."
+    end
+    lines << "#{step + 1}. The Next Episode tease. Do not recap the bets."
+    lines << ""
+    early = last_week_results.any? ? "The opening, the card and the scoreboard together are" : "The opening and the card together are"
+    lines << "**PACING.** #{early} roughly the first tenth of the show: get to " \
+             "Game 1 quickly. The games share the rest about evenly, with the finale getting roughly double a regular " \
+             "game's time. THE PICK is a real beat, not a throwaway: at the end of EACH game, both hosts say their exact " \
+             "bet out loud, give one fresh reason, and react to the other host's call (about thirty to forty-five " \
+             "seconds), then move on. Never save the picks for the end of the show and never bunch them together."
+    lines << ""
+    lines << "If any outside request conflicts with this brief on structure or order, follow this brief."
+    lines << ""
+    lines
   end
 
   def format_lines
@@ -92,12 +128,12 @@ class BigGameBreakdownMarkdownPresenter
   end
 
   def segments
-    list = [ "The Card — set the stakes for the week" ]
-    list << "The Scoreboard — each host's season record on their bets so far" if season_record.present?
+    list = [ "The Card — one sentence naming the games on the board, in order. No analysis, no big-picture talk" ]
+    list << scoreboard_segment if season_record.present?
     games.each_with_index do |game, index|
       list << "Game #{index + 1}: #{matchup_title(game)} — Stakes, Film Room, Quarterback Duel, The Pick"
     end
-    list << "The Betting Slip — every pick, one line each" if games.any?
+    list << next_episode_segment if games.any?
     list
   end
 
@@ -135,22 +171,49 @@ class BigGameBreakdownMarkdownPresenter
     @data.dig(:pick_ledger, :season_record)
   end
 
+  def scoreboard_segment
+    if last_week_results.any?
+      "The Scoreboard — a quick game-by-game review of last week's bets (final score, each host's bet, hit or miss, " \
+        "one short reaction each), then each host's season record"
+    else
+      "The Scoreboard — each host's season record on their bets so far"
+    end
+  end
+
+  def last_week_results
+    @last_week_results ||= Array(@data.dig(:pick_ledger, :last_week)).select { |game| game[:picks].any? { |pick| pick[:result] } }
+  end
+
+  # A mandatory, fast recap: hosts reliably give the record and skip the
+  # bets themselves unless told to walk through them.
   def scoreboard_lines
     return [] if season_record.blank?
 
-    lines = [ "## 📊 THE SCOREBOARD (season record on bets so far)", "" ]
-    season_record.each { |host, record| lines << "- **#{host}:** #{record_text(record)}" }
-    last_week = @data.dig(:pick_ledger, :last_week)
-    if last_week.present?
+    lines = [ "## 📊 THE SCOREBOARD (MANDATORY DIALOGUE BEAT)", "" ]
+    if last_week_results.any?
+      lines << "Right after the opening, before the first game, give last week's bets a quick game-by-game review. " \
+               "For EACH game below, in this order: name the game and its final score, say each host's bet and " \
+               "whether it hit or missed, and give ONE short reaction each (a jab, a victory lap, a groan, or a " \
+               "one-line reason it hit or missed). No re-analysis; about fifteen seconds a game. Then give each " \
+               "host's season record. Do NOT skip straight to the records."
       lines << ""
-      lines << "Last week's bets:"
-      last_week.each do |game|
-        picks = game[:picks].map { |pick| "#{pick[:host]} #{pick[:bet]} (#{pick[:result] || 'not played'})" }.join("; ")
-        lines << "- #{game[:away]} @ #{game[:home]}: #{picks}"
-      end
+      last_week_results.each { |game| lines << recap_line(game) }
+      lines << ""
     end
+    lines << "**Season record on bets:**"
+    season_record.each { |host, record| lines << "- **#{host}:** #{record_text(record)}" }
     lines << ""
     lines
+  end
+
+  def recap_line(game)
+    final = game[:home_score] ? " — Final: #{game[:away]} #{game[:away_score]}, #{game[:home]} #{game[:home_score]}" : ""
+    bets = game[:picks].map { |pick| "#{pick[:host]}: #{pick[:bet]} — #{pick_result_word(pick[:result])}" }.join(" · ")
+    "- #{game[:away]} @ #{game[:home]}#{final}. #{bets}"
+  end
+
+  def pick_result_word(result)
+    { win: "HIT", loss: "MISSED", push: "PUSH" }.fetch(result, "not graded")
   end
 
   def record_text(record)
@@ -174,7 +237,7 @@ class BigGameBreakdownMarkdownPresenter
   end
 
   def kickoff_text(time)
-    Time.iso8601(time).strftime("%a %b %-d, %-I:%M %p ET")
+    Time.iso8601(time).in_time_zone(PodcastShow::TIME_ZONE).strftime("%a %b %-d, %-I:%M %p ET")
   end
 
   def matchup_type(game)
@@ -192,8 +255,27 @@ class BigGameBreakdownMarkdownPresenter
       "",
       "**THE LINE:** #{line[:favorite]} -#{line[:spread]} (favorite, #{where}) · Total: #{line[:total]}",
       "**How the house sees it:** #{line[:favorite]} is #{confidence_text(line)}",
+      *form_lines(line[:form]),
       ""
     ]
+  end
+
+  # Results vs. what the roster says, only when it's far enough off to matter.
+  # The line already reflects it; this is the story behind the number.
+  FORM_NOTABLE_POINTS = 4.0
+  FORM_MIN_GAMES = 3
+
+  def form_lines(form)
+    notes = [ form[:away], form[:home] ].compact.filter_map do |team|
+      next if team[:games] < FORM_MIN_GAMES || team[:points_vs_roster].abs < FORM_NOTABLE_POINTS
+
+      verdict = team[:points_vs_roster].positive? ? "playing better than its roster suggests" : "playing worse than its roster suggests"
+      "#{team[:team]} has been #{verdict} over #{team[:games]} game#{'s' unless team[:games] == 1} " \
+        "(backstage: #{team[:points_vs_roster].positive? ? '+' : ''}#{team[:points_vs_roster]} points a game vs. expectation)"
+    end
+    return [] if notes.empty?
+
+    [ "**Form (already priced into the line):**", *notes.map { |note| "- #{note}" } ]
   end
 
   def confidence_text(line)
@@ -406,25 +488,78 @@ class BigGameBreakdownMarkdownPresenter
   # ---- the pick ----------------------------------------------------------------
 
   def pick_lines(game)
-    lines = [ "### 💰 THE PICK", "" ]
-    if game[:picks].empty?
-      lines << "No bet was recorded for this game (it has already been played), so skip THE PICK for it."
-    else
-      game[:picks].each { |pick| lines << "- **#{pick[:host]}:** #{pick[:bet]}" }
+    return [ "### 💰 THE PICK", "", "No bet was recorded for this game (it has already been played), so skip THE PICK for it.", "" ] if game[:picks].empty?
+
+    lines = [ "### 💰 THE PICK (MANDATORY DIALOGUE BEAT)", "",
+              "Before moving on, BOTH hosts must state their exact bet out loud, give one fresh reason, and react to " \
+              "the other host's call (thirty to forty-five seconds total):" ]
+    game[:picks].each_with_index do |pick, index|
+      same_as_first = index.positive? && pick[:bet] == game[:picks].first[:bet]
+      lines << "- **#{pick[:host]}'s Call:** \"#{spoken_call(pick, same_as_first)}\""
     end
+    lines << "*(Hosts MUST announce their picks out loud for this game before #{pick_transition(game)}.)*"
     lines << ""
     lines
   end
 
-  def betting_slip_lines
-    lines = [ "---", "", "## 🧾 THE BETTING SLIP", "", "One line per game, both hosts' bet. No new reasoning.", "" ]
-    games.each do |game|
-      next if game[:picks].empty?
+  def pick_transition(game)
+    index = games.index(game)
+    index == games.size - 1 ? "the Next Episode tease" : "transitioning to Game #{index + 2}"
+  end
 
-      bets = game[:picks].map { |pick| "#{pick[:host]}: #{pick[:bet]}" }.join(" · ")
-      lines << "- #{matchup_title(game)} — #{bets}"
-    end
-    lines << ""
-    lines
+  # What a host says: "I'm taking Kansas State plus eleven and a half." The
+  # favorite is "laying the points"; a second host on the same side picks up
+  # on the first ("Same side for me").
+  def spoken_call(pick, same_as_first)
+    lead = same_as_first ? "Same side for me: " : ""
+    number = spoken_number(pick[:number])
+    call =
+      if pick[:market] == "total"
+        "I'm taking the #{pick[:side]} at #{number}."
+      elsif pick[:favorite]
+        "I'm laying the points with #{pick[:team]} minus #{number}."
+      else
+        "I'm taking #{pick[:team]} plus #{number}."
+      end
+    "#{lead}#{call}"
+  end
+
+  ONES = %w[zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen
+            seventeen eighteen nineteen].freeze
+  TENS = %w[_ _ twenty thirty forty fifty sixty seventy eighty ninety].freeze
+
+  # 11.5 -> "eleven and a half", 0.5 -> "a half", 55.5 -> "fifty-five and a half".
+  def spoken_number(number)
+    whole = number.floor
+    remainder = number - whole
+    half = (remainder - 0.5).abs < 0.001
+    return number.to_s unless whole < 100 && (half || remainder.zero?)
+
+    words = whole < 20 ? ONES[whole] : [ TENS[whole / 10], (ONES[whole % 10] unless (whole % 10).zero?) ].compact.join("-")
+    return words unless half
+
+    whole.zero? ? "a half" : "#{words} and a half"
+  end
+
+  def next_episode_segment
+    "Next Episode — tease the Week #{@data.dig(:week, :number)} reactions episode#{next_episode_when}, where these bets " \
+      "get graded (no recap of the picks)"
+  end
+
+  # " on Monday, September 13", or " later this week" with no date on file.
+  def next_episode_when
+    review = @data.dig(:podcast_date, :review_date)
+    review ? " on #{Date.parse(review).strftime('%A, %B %-d')}" : " later this week"
+  end
+
+  # The close of the show. Each pick was already said out loud at the end of
+  # its game, so there's deliberately no recap of the bets here.
+  def next_episode_lines
+    week = @data.dig(:week, :number)
+
+    [ "---", "", "## 👋 NEXT EPISODE — WEEK #{week} REACTIONS", "",
+      "End the show by telling listeners to catch the Week #{week} reactions episode#{next_episode_when}, where we " \
+      "react to how these games played out and grade today's picks. The bets are already on the record, so do not " \
+      "recap or re-read them, and don't predict anything further. Just the tease.", "" ]
   end
 end

@@ -367,7 +367,7 @@ function ExportPage() {
             mode={bigGameMode}
             setMode={setBigGameMode}
             url={bigGameUrl}
-            filename={`${season.year}_week-${bigGameWeek}-big-game-breakdown.${bigGameFormat === "markdown" ? "md" : "json"}`}
+            filename={`${season.year}_week-${bigGameWeek}-preview.${bigGameFormat === "markdown" ? "md" : "json"}`}
             disabled={bigGameWeek === null}
             extraControls={
               <div className="space-y-1.5">

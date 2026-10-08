@@ -1,10 +1,10 @@
 import { Link } from "react-router-dom";
 import { clsx } from "clsx";
+import { formatEasternDate } from "../lib/easternTime";
 
 export const weekLabel = (week) => week.name || (week.number === 0 ? "Week 0" : `Week ${week.number}`);
 
-const gameDateLabel = (time) =>
-  time ? new Date(time).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : null;
+const gameDateLabel = (time) => (time ? formatEasternDate(time) : null);
 
 const CFP_ROUND_LABELS = {
   first_round: "CFP First Round",

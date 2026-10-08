@@ -108,7 +108,7 @@ module TeamSchedule
       hour += 12 if match[3].casecmp?("PM")
       # Bowl weeks (post-season) can fall in January of the calendar year after the season's start year.
       year = month.to_i == 1 && week.post_season? ? @season.year + 1 : @season.year
-      game.update!(time: Time.new(year, month, day, hour, match[2].to_i))
+      game.update!(time: Time.zone.local(year, month, day, hour, match[2].to_i))
     rescue ArgumentError
       nil
     end

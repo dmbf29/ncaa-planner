@@ -50,7 +50,7 @@ class PodcastSchedule
       week_numbers = @season.weeks.pluck(:id, :number).to_h
       Game.where(week_id: week_numbers.keys).where.not(time: nil).pluck(:week_id, :time)
           .group_by { |week_id, _time| week_numbers[week_id] }
-          .transform_values { |rows| rows.map { |_week_id, time| time.to_date } }
+          .transform_values { |rows| rows.map { |_week_id, time| time.in_time_zone(PodcastShow::TIME_ZONE).to_date } }
     end
   end
 

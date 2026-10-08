@@ -159,13 +159,12 @@ class WinTotalsSerializer
     { overall: college_season.overall, offense: college_season.offense, defense: college_season.defense }
   end
 
-  # Every regular-season game (week 0 is preseason/exhibition, so it's
-  # excluded same as the other broadcast serializers).
+  # Every game on the team's schedule, Week 0 included (it's a real game in
+  # this dynasty and counts toward the record).
   def scheduled_games(college_season)
     college_season.games
                    .includes(:home_college, :away_college, week: :season)
                    .map { |game| [ game, game.week ] }
-                   .reject { |_game, week| week.number.zero? }
                    .sort_by { |_game, week| week.number }
                    .map { |game, week| game_context(college_season, game, week) }
   end
@@ -205,10 +204,11 @@ class WinTotalsSerializer
   # far below everyone would otherwise read as a 50-point favorite).
   MAX_SPREAD = 40.0
 
-  # The game's house line from our team's side: positive = we're favored by
-  # that many points. It is the same line the Big Game Breakdown posts (see
-  # BigGameBreakdown::LineMaker), so a game reads the same on both shows. nil
-  # when the opponent has no data to rate.
+  # The game's preseason house line from our team's side: positive = we're
+  # favored by that many points. It's the roster-only line the Big Game
+  # Breakdown starts from (see BigGameBreakdown::LineMaker#spread_for); the
+  # Breakdown then adjusts it for results as the season goes on. nil when the
+  # opponent has no data to rate.
   def point_spread_for(context)
     opponent = context[:opponent]
     return nil unless opponent

@@ -421,7 +421,7 @@ class SeasonWeeksMarkdownPresenter
     round = projection[:cfp_round].present? ? projection[:cfp_round].tr("_", " ").upcase : "—"
     away = projection[:projected_away] || "TBD"
     home = projection[:projected_home] || "TBD"
-    date = projection[:time].present? ? projection[:time].strftime("%a %b %-d, %-I:%M %p ET") : "—"
+    date = projection[:time].present? ? projection[:time].in_time_zone(PodcastShow::TIME_ZONE).strftime("%a %b %-d, %-I:%M %p ET") : "—"
     "| #{projection[:bowl_name]} | #{round} | #{away} @ #{home} | #{date} |"
   end
 
@@ -741,7 +741,7 @@ class SeasonWeeksMarkdownPresenter
 
     games = episode[:games].map { |game| "#{game[:away]} @ #{game[:home]}" }
     [ "---", "",
-      "## 👋 SIGN-OFF — TEASE #{episode[:show].upcase}", "",
+      "## 👋 NEXT EPISODE — #{episode[:show].upcase}", "",
       "End the show by telling listeners to catch #{episode[:show]}#{teaser_when(episode)}, where we preview " \
       "Week #{episode[:week_number]}'s games: #{games.join(', ')}. Name the games and nothing more: no analysis, no " \
       "predictions, and no lines.", "" ]

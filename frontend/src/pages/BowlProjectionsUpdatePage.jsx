@@ -14,6 +14,7 @@ import {
   analyzeBowlProjections,
   commitBowlProjections,
 } from "../lib/apiClient";
+import { formatEasternDateTime, toEasternDateTimeLocal } from "../lib/easternTime";
 
 const inputClass =
   "w-full rounded-md border border-border bg-white px-2 py-1.5 text-sm text-textPrimary focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface dark:text-white";
@@ -32,27 +33,10 @@ const CFP_ROUND_LABELS = CFP_ROUND_OPTIONS.reduce((acc, opt) => (opt.value ? { .
 
 const emptyForm = { bowlName: "", cfpRound: "", time: "", projectedHomeCollegeId: null, projectedAwayCollegeId: null };
 
-// Formats an ISO datetime string for display, e.g. "Fri, Dec 26, 7:30 PM" — mirrors the screenshots' own format.
-const formatDateTime = (isoString) => {
-  if (!isoString) return "—";
-  return new Date(isoString).toLocaleString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-};
-
-// Converts an ISO datetime string to the "YYYY-MM-DDTHH:mm" shape a
-// datetime-local input needs — the input renders blank (not an error) if
-// this doesn't match, so a null/malformed value is safe to pass through.
-const toDateTimeLocal = (isoString) => {
-  if (!isoString) return "";
-  const date = new Date(isoString);
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-};
+// Display and datetime-local conversion are in Eastern time (see lib/easternTime.js). A null/malformed
+// value is safe to pass to the datetime-local input, which renders blank rather than erroring.
+const formatDateTime = (isoString) => (isoString ? formatEasternDateTime(isoString) : "—");
+const toDateTimeLocal = (isoString) => (isoString ? toEasternDateTimeLocal(isoString) : "");
 
 // Bowl projections are revealed all at once, in a single screenshot, once
 // the CFP picture starts coming into focus — starting around Week 10 and

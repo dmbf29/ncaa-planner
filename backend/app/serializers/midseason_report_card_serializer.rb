@@ -147,9 +147,9 @@ class MidseasonReportCardSerializer
     wins.to_f / total
   end
 
-  # Every regular-season game (week 0 is preseason/exhibition, so it's
-  # excluded same as the other broadcast serializers), tagged with whether
-  # it's been played and, if so, the result. Memoized per college_season
+  # Every game on the schedule, Week 0 included (a real game in this dynasty,
+  # same as WinTotalsSerializer so the preseason number covers the same
+  # games), tagged with whether it's been played and, if so, the result. Memoized per college_season
   # since EndOfSeasonReportCardSerializer looks this up again for an
   # opponent's own record (see opponent_final_record) — often the same
   # opponent across several of our teams' schedules.
@@ -158,7 +158,6 @@ class MidseasonReportCardSerializer
     @scheduled_games_cache[college_season.id] ||= college_season.games
                                                                   .includes(:home_college, :away_college, :college_game_stats, week: :season)
                                                                   .map { |game| [ game, game.week ] }
-                                                                  .reject { |_game, week| week.number.zero? }
                                                                   .sort_by { |_game, week| week.number }
                                                                   .map { |game, week| game_context(college_season, game, week) }
   end
@@ -315,8 +314,8 @@ class MidseasonReportCardSerializer
 
   # Lightweight games-played count for conference-wide leaderboards (every
   # team in the conference, not just ours) — deliberately mirrors the
-  # played/not-played definition in game_result above (week 0 excluded,
-  # both sides' final_score present) so this never disagrees with the
+  # played/not-played definition in game_result above (both sides'
+  # final_score present) so this never disagrees with the
   # games_played shown elsewhere in the same report.
   def games_played_count(college_season)
     @games_played_counts ||= {}
@@ -326,8 +325,6 @@ class MidseasonReportCardSerializer
   end
 
   def played_game?(game)
-    return false if game.week.number.zero?
-
     stats = game.college_game_stats
     stats.size == 2 && stats.all? { |s| s.final_score.present? }
   end
