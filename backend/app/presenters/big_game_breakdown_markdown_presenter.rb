@@ -88,7 +88,7 @@ class BigGameBreakdownMarkdownPresenter
     step = 0
     lines << "#{step += 1}. The mandatory opening, word for word."
     lines << "#{step += 1}. The Card: ONE sentence naming the games on the board, in order. No analysis."
-    lines << "#{step += 1}. The Scoreboard: last week's bets, game by game, about fifteen seconds a game, then each host's season record." if last_week_results.any?
+    lines << "#{step += 1}. The Scoreboard: #{recap_label} bets, game by game, about fifteen seconds a game, then each host's season record." if last_week_results.any?
     games.each_with_index do |game, index|
       finale = index == games.size - 1 ? " (THE FINALE)" : ""
       lines << "#{step += 1}. Game #{index + 1}: #{matchup_title(game)}#{finale}. In order: Stakes, Film Room, Quarterback Duel, The Pick."
@@ -137,8 +137,14 @@ class BigGameBreakdownMarkdownPresenter
     list
   end
 
+  # "No. 13 Arizona State @ Marshall": a ranked team carries its poll number.
   def matchup_title(game)
-    "#{game[:away][:college][:name]} @ #{game[:home][:college][:name]}"
+    "#{ranked_name(game[:away])} @ #{ranked_name(game[:home])}"
+  end
+
+  def ranked_name(team)
+    name = team[:college][:name]
+    team[:ranking] ? "No. #{team[:ranking]} #{name}" : name
   end
 
   def date_lines
@@ -173,11 +179,19 @@ class BigGameBreakdownMarkdownPresenter
 
   def scoreboard_segment
     if last_week_results.any?
-      "The Scoreboard — a quick game-by-game review of last week's bets (final score, each host's bet, hit or miss, " \
+      "The Scoreboard — a quick game-by-game review of #{recap_label} bets (final score, each host's bet, hit or miss, " \
         "one short reaction each), then each host's season record"
     else
       "The Scoreboard — each host's season record on their bets so far"
     end
+  end
+
+  # "last week's" normally; "Week 2's" when the most recent bets are older
+  # than last week (a week our teams had no games, so no show for it).
+  def recap_label
+    recap_week = @data.dig(:pick_ledger, :last_week_number)
+    current = @data.dig(:week, :number)
+    recap_week.nil? || recap_week == current - 1 ? "last week's" : "Week #{recap_week}'s"
   end
 
   def last_week_results
@@ -191,7 +205,7 @@ class BigGameBreakdownMarkdownPresenter
 
     lines = [ "## 📊 THE SCOREBOARD (MANDATORY DIALOGUE BEAT)", "" ]
     if last_week_results.any?
-      lines << "Right after the opening, before the first game, give last week's bets a quick game-by-game review. " \
+      lines << "Right after the opening, before the first game, give #{recap_label} bets a quick game-by-game review. " \
                "For EACH game below, in this order: name the game and its final score, say each host's bet and " \
                "whether it hit or missed, and give ONE short reaction each (a jab, a victory lap, a groan, or a " \
                "one-line reason it hit or missed). No re-analysis; about fifteen seconds a game. Then give each " \
@@ -226,7 +240,8 @@ class BigGameBreakdownMarkdownPresenter
   def game_section(game, index)
     lines = [ "---", "" ]
     lines << "## 🏈 GAME #{index + 1} OF #{games.size}: #{matchup_title(game)}#{' — THE FINALE' if index == games.size - 1}"
-    lines << "**Kickoff:** #{kickoff_text(game[:time])}" if game[:time]
+    lines << "**Kickoff:** #{kickoff_text(game[:time])} · #{game[:broadcast]}" if game[:time]
+    lines << "**Broadcast:** #{game[:broadcast]}" unless game[:time]
     lines << "**Matchup type:** #{matchup_type(game)}"
     lines.concat(line_lines(game))
     lines.concat(stakes_lines(game))
@@ -307,7 +322,8 @@ class BigGameBreakdownMarkdownPresenter
     coach = team[:coach] ? " (Coach #{team[:coach][:name]}, one of our coaches)" : ""
     rank = team[:ranking] ? "ranked No. #{team[:ranking]}" : "unranked"
     record = team[:record]
-    lines = [ "- **#{name}**#{coach}: #{record[:wins]}-#{record[:losses]}, #{rank}#{conference_record_text(team)}#{streak_text(team[:streak])}" ]
+    lines = [ "- **#{name}**#{coach}: #{record[:wins]}-#{record[:losses]}, #{rank}#{conference_record_text(team)}" ]
+    lines << "  - Current streak: #{streak_text(team[:streak])}" if streak_text(team[:streak])
     lines.concat(previous_season_lines(team[:previous_season]))
     lines << "  - Last #{team[:recent_results].size}: #{team[:recent_results].map { |r| result_text(r) }.join(' · ')}" if team[:recent_results].present?
     lines << "  - Scoring: #{team[:scoring][:points_per_game]} points a game, allowing #{team[:scoring][:points_allowed_per_game]}" if team[:scoring]
@@ -329,11 +345,12 @@ class BigGameBreakdownMarkdownPresenter
     " (#{record[:wins]}-#{record[:losses]} in conference)"
   end
 
+  # "3 wins in a row" / "2 losses in a row"; nil for a streak of one game
+  # (the last result is already listed).
   def streak_text(streak)
-    return "" unless streak && streak[:length] >= 2
+    return nil unless streak && streak[:length] >= 2
 
-    kind = streak[:kind] == "W" ? "winning" : "losing"
-    ", on a #{streak[:length]}-game #{kind} streak"
+    "#{streak[:length]} #{streak[:kind] == 'W' ? 'wins' : 'losses'} in a row"
   end
 
   def result_text(result)

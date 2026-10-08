@@ -123,6 +123,7 @@ class BigGameBreakdownSerializer
       both_user_coached: both_coached?(game),
       home: team_json(game.home_college_id),
       away: team_json(game.away_college_id),
+      broadcast: broadcast_text(game),
       line: line_json(game, lines),
       stakes: stakes_json(game),
       film_room: film_room_json(game),
@@ -155,6 +156,30 @@ class BigGameBreakdownSerializer
     return nil unless pick.market == "spread"
 
     pick.side == "home" ? pick.spread_line.negative? : pick.spread_line.positive?
+  end
+
+  # Where the game is on, from who's playing: anything not on a Saturday is
+  # ESPN; otherwise ranked vs. ranked is ABC, one ranked team is ESPN, and
+  # two unranked teams stream on the home team's conference network. A game
+  # with no kickoff time on file is treated as a Saturday game.
+  def broadcast_text(game)
+    ranked = [ game.home_college_id, game.away_college_id ].count { |id| ranking_for(id).present? }
+    saturday = game.time.nil? || game.time.in_time_zone(PodcastShow::TIME_ZONE).saturday?
+
+    if !saturday || ranked == 1 then "showing on ESPN"
+    elsif ranked == 2 then "showing on ABC"
+    else "streaming on #{streaming_network(conference_of(game.home_college_id))}"
+    end
+  end
+
+  # "the Sun Belt Network"; ESPN+ for a home team with no conference network
+  # (an FCS or independent program, or no conference on file).
+  NO_CONFERENCE_NETWORK = [ "FCS", "Independent" ].freeze
+
+  def streaming_network(conference)
+    return "ESPN+" if conference.blank? || NO_CONFERENCE_NETWORK.include?(conference)
+
+    "the #{conference} Network"
   end
 
   def both_coached?(game)
@@ -570,12 +595,24 @@ class BigGameBreakdownSerializer
 
   # ---- pick ledger -------------------------------------------------------------
 
-  # The hosts' record entering this week plus how last week's bets went, so
-  # the show can open on where the scoreboard stands.
+  # The hosts' record entering this week plus how their most recent bets went,
+  # so the show can open on where the scoreboard stands. "Most recent" is the
+  # latest earlier week that has bets, not just the week before: a week with no
+  # games for our teams (all byes) has no Big Game Breakdown, so the bets from
+  # the week before it still get their recap.
   def pick_ledger_json
+    recap_week = last_picked_week_number
     {
       season_record: @scorecard.record(through_week_number: @week.number - 1),
-      last_week: @scorecard.week_results(@week.number - 1)
+      last_week_number: recap_week,
+      last_week: recap_week ? @scorecard.week_results(recap_week) : []
     }
+  end
+
+  def last_picked_week_number
+    GamePick.joins(game: :week)
+            .where(weeks: { season_id: @season.id })
+            .where("weeks.number < ?", @week.number)
+            .maximum("weeks.number")
   end
 end
