@@ -37,6 +37,11 @@ module Api
         render json: ::CollegeSeasonRosterSerializer.new(college_season).as_json
       end
 
+      def signing_class
+        college_season = set_season.college_seasons.find(params[:college_season_id])
+        render json: ::SigningClassSerializer.new(college_season).as_json
+      end
+
       def teams
         dynasty = Dynasty.find(params[:dynasty_id])
         render json: ::DynastyTeamsSerializer.new(dynasty).as_json

@@ -33,9 +33,8 @@ function PositionBar({ entry, maxPoints }) {
   );
 }
 
-function TeamSpendBlock({ team }) {
+function TeamSpendBlock({ team, maxPoints }) {
   const byPosition = team.nilSpendByPosition || [];
-  const maxPoints = byPosition.reduce((max, entry) => Math.max(max, entry.points || 0), 0);
 
   return (
     <div className="space-y-2 border-b border-border px-4 py-3 last:border-0 dark:border-darkborder">
@@ -68,13 +67,19 @@ function TeamSpendBlock({ team }) {
 function NilSquadSpending({ teams }) {
   const funded = (teams || []).filter((team) => team.nilSpend != null || (team.nilSpendByPosition || []).length > 0);
 
+  // One shared scale so bar lengths are comparable across teams.
+  const maxPoints = funded.reduce(
+    (max, team) => (team.nilSpendByPosition || []).reduce((m, entry) => Math.max(m, entry.points || 0), max),
+    0,
+  );
+
   return (
     <Card className="overflow-hidden">
       <div className="border-b border-border bg-charcoal px-4 py-3 text-white dark:border-darkborder">
         <h3 className="font-varsity text-lg uppercase tracking-[0.06em]">NIL Squad Spending</h3>
       </div>
       {funded.length > 0 ? (
-        funded.map((team) => <TeamSpendBlock key={team.id} team={team} />)
+        funded.map((team) => <TeamSpendBlock key={team.id} team={team} maxPoints={maxPoints} />)
       ) : (
         <p className="px-4 py-3 text-sm text-textSecondary">No NIL spend uploaded yet for this season.</p>
       )}

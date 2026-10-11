@@ -302,13 +302,27 @@ function NextGameBanner({ nextGame }) {
   );
 }
 
+// The team header doubles as the link to the full roster.
+function HeaderWrapper({ to, children }) {
+  const className = "border-b border-border bg-charcoal px-4 py-3 text-white dark:border-darkborder";
+  if (!to) return <div className={className}>{children}</div>;
+
+  return (
+    <Link to={to} title="Full roster" className={`block ${className} transition hover:bg-charcoal/90`}>
+      {children}
+    </Link>
+  );
+}
+
 function TeamDashboardCard({ team, dynastyId, seasonId }) {
   const record = team.wins != null || team.losses != null ? `${team.wins ?? 0}-${team.losses ?? 0}` : "—";
   const weeks = (team.weeks || []).filter((w) => w.number !== 0);
 
   return (
     <Card className="flex flex-col overflow-hidden">
-      <div className="border-b border-border bg-charcoal px-4 py-3 text-white dark:border-darkborder">
+      <HeaderWrapper
+        to={dynastyId && seasonId ? `/dynasty/${dynastyId}/seasons/${seasonId}/college_seasons/${team.id}/roster` : null}
+      >
         <h3 className="flex items-center gap-2 font-varsity text-lg uppercase tracking-[0.06em]">
           {team.currentRank ? (
             <span className="rounded-full bg-burnt px-2 py-0.5 text-xs">#{team.currentRank}</span>
@@ -331,7 +345,7 @@ function TeamDashboardCard({ team, dynastyId, seasonId }) {
             </span>
           ) : null}
         </p>
-      </div>
+      </HeaderWrapper>
 
       <NextGameBanner nextGame={team.nextGame} />
 
@@ -370,10 +384,10 @@ function TeamDashboardCard({ team, dynastyId, seasonId }) {
       {dynastyId && seasonId && (
         <>
           <Link
-            to={`/dynasty/${dynastyId}/seasons/${seasonId}/college_seasons/${team.id}/roster`}
+            to={`/dynasty/${dynastyId}/seasons/${seasonId}/college_seasons/${team.id}/signing-class`}
             className="border-t border-border px-4 py-2 text-center text-xs font-semibold uppercase tracking-wide text-burnt hover:bg-burnt/5 dark:border-darkborder"
           >
-            Full Roster &rarr;
+            Signing Class &rarr;
           </Link>
           <Link
             to={`/dynasty/${dynastyId}/player-stats?collegeId=${team.college.id}`}

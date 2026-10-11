@@ -31,7 +31,6 @@ class SeasonWeeksMarkdownPresenter
       lines.concat(week_section(week_data, primary: index.zero?))
     end
 
-    lines.concat(pick_report_lines)
     lines.concat(sign_off_lines)
 
     lines.join("\n")
@@ -128,7 +127,6 @@ class SeasonWeeksMarkdownPresenter
       injury_report_segment,
       recruitment_trail_segment(next_number),
       "Winners & Losers - the hosts each pick 1 team/player who won the week, and 1 who lost",
-      pick_report_segment,
       "#{poll_watch_label} — Discuss rankings and national standing shifts (if focused teams are included)",
       sign_off_segment
     ].compact
@@ -147,13 +145,6 @@ class SeasonWeeksMarkdownPresenter
 
   def all_teams
     @data[:weeks].flat_map { |week_data| week_data[:teams] }
-  end
-
-  def pick_report_segment
-    return nil if @data[:pick_report].blank?
-
-    "Betting Report Card — Grade each host's Big Game Breakdown bets for Week #{@data[:pick_report][:week_number]} " \
-      "and give the season record."
   end
 
   # The Review no longer previews next week's games; it hands off to the Big
@@ -705,32 +696,6 @@ class SeasonWeeksMarkdownPresenter
   def next_game_pointer_lines(next_game)
     [ "- Week #{next_game[:week_number]} — #{opponent_line(next_game[:opponent])} " \
       "(name the opponent only; the preview and any predictions are saved for #{BigGameBreakdown::SHOW_NAME})" ]
-  end
-
-  # How each host's Big Game Breakdown bets on this week's games came out.
-  def pick_report_lines
-    report = @data[:pick_report]
-    return [] if report.blank?
-
-    lines = [ "---", "", "## 🧾 BETTING REPORT CARD — Week #{report[:week_number]} (from #{BigGameBreakdown::SHOW_NAME})", "" ]
-    report[:games].each do |game|
-      bets = game[:picks].map { |pick| "#{pick[:host]}: #{pick[:bet]} — #{pick_result_text(pick[:result])}" }.join(" · ")
-      lines << "- #{game[:away]} @ #{game[:home]}: #{bets}"
-    end
-    lines << ""
-    lines << "**Season record on bets:**"
-    report[:season_record].each { |host, record| lines << "- #{host}: #{record_text_with_pushes(record)}" }
-    lines << ""
-    lines
-  end
-
-  def pick_result_text(result)
-    { win: "WON", loss: "LOST", push: "PUSH" }.fetch(result, "not graded yet (no final score on file)")
-  end
-
-  def record_text_with_pushes(record)
-    base = "#{record[:wins]}-#{record[:losses]}"
-    record[:pushes].to_i.positive? ? "#{base}-#{record[:pushes]}" : base
   end
 
   # The close of the show: when the Big Game Breakdown airs and which games it

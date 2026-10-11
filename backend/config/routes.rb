@@ -122,6 +122,8 @@ Rails.application.routes.draw do
       get "dynasties/:dynasty_id/seasons/:season_id/all_americans", to: "dynasty_portals#all_americans"
       get "dynasties/:dynasty_id/seasons/:season_id/college_seasons/:college_season_id/roster",
           to: "dynasty_portals#roster"
+      get "dynasties/:dynasty_id/seasons/:season_id/college_seasons/:college_season_id/signing_class",
+          to: "dynasty_portals#signing_class"
       get "dynasties/:dynasty_id/teams", to: "dynasty_portals#teams"
       get "dynasties/:dynasty_id/player_stats", to: "dynasty_portals#player_stats"
       get "dynasties/:dynasty_id/seasons/:season_id/student_seasons", to: "dynasty_portals#student_seasons"

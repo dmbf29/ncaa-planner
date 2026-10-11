@@ -172,6 +172,11 @@ export const fetchRoster = (dynastyId, seasonId, collegeSeasonId) =>
     .get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/college_seasons/${collegeSeasonId}/roster`)
     .then((r) => r.data);
 
+export const fetchSigningClass = (dynastyId, seasonId, collegeSeasonId) =>
+  api
+    .get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/college_seasons/${collegeSeasonId}/signing_class`)
+    .then((r) => r.data);
+
 export const fetchDynastyTeams = (dynastyId) =>
   api.get(`/api/v1/dynasties/${dynastyId}/teams`).then((r) => r.data);
 

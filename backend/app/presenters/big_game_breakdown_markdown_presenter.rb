@@ -26,7 +26,7 @@ class BigGameBreakdownMarkdownPresenter
     "handed out.",
     "After the last game's pick, go straight to the NEXT EPISODE tease. Do NOT recap the bets: they were all just " \
     "said out loud, game by game. Tease the reactions episode on the date shown, where we react to how these " \
-    "games played out and grade these picks.",
+    "games played out.",
     "Mention games elsewhere only when they're listed under \"Elsewhere\" for a game, and only as a quick note on " \
     "how they bear on this one. Don't preview other games, and never run a segment on games we don't have a stake in.",
     "Only talk about conference standings and the poll when a game's data includes them. Never invent a ranking, a " \
@@ -156,7 +156,7 @@ class BigGameBreakdownMarkdownPresenter
               "reference (\"tomorrow night\", \"this Saturday\") to this date." ]
     if info[:review_date]
       review = Date.parse(info[:review_date]).strftime("%A, %B %-d")
-      lines << "**Next show:** the Review show airs #{review}, where these bets get graded."
+      lines << "**Next show:** the Week #{info[:week_number]} reactions episode airs #{review}."
     end
     lines << ""
     lines
@@ -559,8 +559,8 @@ class BigGameBreakdownMarkdownPresenter
   end
 
   def next_episode_segment
-    "Next Episode — tease the Week #{@data.dig(:week, :number)} reactions episode#{next_episode_when}, where these bets " \
-      "get graded (no recap of the picks)"
+    "Next Episode — tease the Week #{@data.dig(:week, :number)} reactions episode#{next_episode_when} " \
+      "(no recap of the picks)"
   end
 
   # " on Monday, September 13", or " later this week" with no date on file.
@@ -576,7 +576,7 @@ class BigGameBreakdownMarkdownPresenter
 
     [ "---", "", "## 👋 NEXT EPISODE — WEEK #{week} REACTIONS", "",
       "End the show by telling listeners to catch the Week #{week} reactions episode#{next_episode_when}, where we " \
-      "react to how these games played out and grade today's picks. The bets are already on the record, so do not " \
-      "recap or re-read them, and don't predict anything further. Just the tease.", "" ]
+      "react to how these games played out. The bets are already on the record, so do not recap or re-read them, " \
+      "and don't predict anything further. Just the tease.", "" ]
   end
 end

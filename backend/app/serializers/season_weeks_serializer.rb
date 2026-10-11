@@ -29,7 +29,6 @@ class SeasonWeeksSerializer
       focus: focus_json(weeks.first),
       podcast_date: podcast_date_json,
       next_episode: next_episode_json,
-      pick_report: pick_report_json,
       season: {
         id: @season.id,
         year: @season.year,
@@ -54,34 +53,23 @@ class SeasonWeeksSerializer
   end
 
   # The teaser the Review closes on: when the Big Game Breakdown airs and
-  # which of our games it previews, in place of previewing them here. nil when
-  # none of our teams plays the following week.
+  # which of our games it previews, in place of previewing them here. It looks
+  # ahead to the next week our teams actually play (skipping a week where
+  # they're all on byes, which has no Big Game Breakdown), and is nil when
+  # they have no games left.
   def next_episode_json
     number = primary_week_number
     return nil unless number
 
-    next_week = @season.weeks.find_by(number: number + 1)
-    return nil unless next_week
+    @season.weeks.where("number > ?", number).order(:number).each do |week|
+      matchups = coached_matchups_for_next_week(week)
+      next if matchups.empty?
 
-    matchups = coached_matchups_for_next_week(next_week)
-    return nil if matchups.empty?
+      date = podcast_schedule.preview_date(week.number)
+      return { show: BigGameBreakdown::SHOW_NAME, week_number: week.number, date: date&.iso8601, games: matchups }
+    end
 
-    date = podcast_schedule.preview_date(next_week.number)
-    { show: BigGameBreakdown::SHOW_NAME, week_number: next_week.number, date: date&.iso8601, games: matchups }
-  end
-
-  # How the hosts' Big Game Breakdown bets on the primary week's games came
-  # out, plus their season record through that week. nil when no bets were
-  # locked for the week.
-  def pick_report_json
-    number = primary_week_number
-    return nil unless number
-
-    scorecard = BigGameBreakdown::Scorecard.new(@season)
-    games = scorecard.week_results(number)
-    return nil if games.empty?
-
-    { week_number: number, games: games, season_record: scorecard.record(through_week_number: number) }
+    nil
   end
 
   def podcast_schedule
