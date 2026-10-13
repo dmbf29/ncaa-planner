@@ -380,7 +380,7 @@ class BigGameBreakdownMarkdownPresenter
     return [] if meetings.blank?
 
     series = game[:stakes][:series].map { |name, wins| "#{name} #{wins}" }.join(", ")
-    lines = [ "- **History** (series in this dynasty: #{series}):" ]
+    lines = [ "- **History** (series record: #{series}):" ]
     meetings.each do |meeting|
       lines << "  - #{meeting[:year]} Wk #{meeting[:week_number]}: #{meeting[:away][:name]} #{meeting[:away][:score]}, " \
                "#{meeting[:home][:name]} #{meeting[:home][:score]}"

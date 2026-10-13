@@ -4,6 +4,7 @@ import { clsx } from "clsx";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import { API_BASE_URL, fetchDynasties, fetchSeason } from "../lib/apiClient";
+import { bigGameBreakdownPrompt, weeklyReviewPrompt, winTotalsPrompt } from "../lib/podcastPrompts";
 
 const weekLabel = (week) => {
   if (week.conferenceChampionship) return "Conf. Champ";
@@ -81,10 +82,11 @@ function SegmentedControl({ options, value, onChange }) {
   );
 }
 
-function ExportCard({ title, description, format, setFormat, mode, setMode, url, filename, extraControls, disabled }) {
+function ExportCard({ title, description, format, setFormat, mode, setMode, url, filename, extraControls, disabled, prompt }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [promptCopied, setPromptCopied] = useState(false);
 
   const handleExport = async () => {
     setError(null);
@@ -106,6 +108,12 @@ function ExportCard({ title, description, format, setFormat, mode, setMode, url,
     await navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
+  };
+
+  const handleCopyPrompt = async () => {
+    await navigator.clipboard.writeText(prompt);
+    setPromptCopied(true);
+    setTimeout(() => setPromptCopied(false), 1500);
   };
 
   return (
@@ -167,6 +175,24 @@ function ExportCard({ title, description, format, setFormat, mode, setMode, url,
         <p className="break-all rounded-md bg-charcoal/5 px-3 py-2 font-mono text-xs text-textSecondary dark:bg-white/10">
           {url}
         </p>
+
+        {prompt && (
+          <div className="space-y-1.5 border-t border-border pt-4 dark:border-darkborder">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-wide text-textSecondary">NotebookLM prompt</p>
+              <button
+                type="button"
+                onClick={handleCopyPrompt}
+                className="rounded-md border border-border px-3 py-1.5 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+              >
+                {promptCopied ? "Copied!" : "Copy Prompt"}
+              </button>
+            </div>
+            <pre className="whitespace-pre-wrap rounded-md bg-charcoal/5 px-3 py-2 font-mono text-xs text-textSecondary dark:bg-white/10">
+              {prompt}
+            </pre>
+          </div>
+        )}
       </div>
     </Card>
   );
@@ -242,6 +268,18 @@ function ExportPage() {
   const toggleWeek = (number) => {
     setSelectedWeeks((prev) => (prev.includes(number) ? prev.filter((n) => n !== number) : [...prev, number].sort((a, b) => a - b)));
   };
+
+  const coachedTeamNames = (season?.teams || []).map((team) => team.college.name);
+  const weeklyPrompt =
+    season && selectedWeeks.length > 0
+      ? weeklyReviewPrompt({
+          year: season.year,
+          weekNumbers: selectedWeeks,
+          filename: `${season.year}_week-${selectedWeeks.join("-")}-recap.md`,
+        })
+      : null;
+  const bigGamePrompt = bigGameWeek !== null ? bigGameBreakdownPrompt({ weekNumber: bigGameWeek }) : null;
+  const winTotalsPromptText = coachedTeamNames.length > 0 ? winTotalsPrompt({ teamNames: coachedTeamNames }) : null;
 
   const winTotalsUrl = season
     ? `${API_BASE_URL}/api/v1/dynasties/${season.dynastyId}/seasons/${season.id}/win_totals${
@@ -327,6 +365,7 @@ function ExportPage() {
             url={weeksUrl}
             filename={`${season.year}_week-${selectedWeeks.join("-")}-recap.${weeksFormat === "markdown" ? "md" : "json"}`}
             disabled={selectedWeeks.length === 0}
+            prompt={weeklyPrompt}
             extraControls={
               <div className="space-y-1.5">
                 <p className="text-xs uppercase tracking-wide text-textSecondary">
@@ -369,6 +408,7 @@ function ExportPage() {
             url={bigGameUrl}
             filename={`${season.year}_week-${bigGameWeek}-preview.${bigGameFormat === "markdown" ? "md" : "json"}`}
             disabled={bigGameWeek === null}
+            prompt={bigGamePrompt}
             extraControls={
               <div className="space-y-1.5">
                 <p className="text-xs uppercase tracking-wide text-textSecondary">Week to preview</p>
@@ -407,6 +447,7 @@ function ExportPage() {
             setMode={setWinTotalsMode}
             url={winTotalsUrl}
             filename={`${season.year}_win-totals.${winTotalsFormat === "markdown" ? "md" : "json"}`}
+            prompt={winTotalsPromptText}
           />
           )}
 
