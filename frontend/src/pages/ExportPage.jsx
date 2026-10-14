@@ -400,7 +400,7 @@ function ExportPage() {
           {activeTab === "big_game_breakdown" && (
           <ExportCard
             title="Big Game Breakdown"
-            description="Midweek preview of the week's games for our coached teams, most lopsided to closest — stakes and history, film room, quarterback duel, and each host's one bet per game. The first export for a week locks its lines and picks; the Weekly Review grades them afterward."
+            description="Midweek preview of the week's games for our coached teams, most lopsided to closest — stakes and history, film room, quarterback duel, and each host's one bet per game. The first export for a week locks its lines and picks; the next Big Game Breakdown grades them in its opening Scoreboard, and a short Also on the Board heads-up at the end covers the other Sun Belt and ranked-vs-ranked games."
             format={bigGameFormat}
             setFormat={setBigGameFormat}
             mode={bigGameMode}

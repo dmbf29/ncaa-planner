@@ -6,8 +6,12 @@
 #                       Big Game Breakdown the Thursday before the next
 #                       Saturday
 #
-# A week's "anchor" is the most common game date (the Saturday slate). A
-# week with no timed games (a schedule that's been uploaded without
+# A week's "anchor" is the most common game date across the whole league (the
+# Saturday slate). The shows only cover our coached teams' games, though, so
+# the exceptions that move an air date (a Thursday or Tuesday kickoff, a
+# Sunday or Monday finish) only count when one of OUR games is the one played
+# then; a midweek game between two other teams doesn't pull the show earlier.
+# A week with no timed games (a schedule that's been uploaded without
 # kickoffs) is inferred from the nearest timed regular-season week, seven days
 # per week of distance, so the shows still get dates until real ones are
 # entered. Postseason weeks are irregular and never inferred.
@@ -45,21 +49,40 @@ class PodcastSchedule
 
   private
 
+  # { week number => [date, ...] } for every timed game in the league.
   def game_dates_by_week
-    @game_dates_by_week ||= begin
-      week_numbers = @season.weeks.pluck(:id, :number).to_h
-      Game.where(week_id: week_numbers.keys).where.not(time: nil).pluck(:week_id, :time)
-          .group_by { |week_id, _time| week_numbers[week_id] }
-          .transform_values { |rows| rows.map { |_week_id, time| time.in_time_zone(PodcastShow::TIME_ZONE).to_date } }
-    end
+    @game_dates_by_week ||= dates_by_week(timed_games)
+  end
+
+  # The same, for games involving one of our coached teams only.
+  def our_game_dates_by_week
+    @our_game_dates_by_week ||= dates_by_week(timed_games.select { |_week_id, _time, home_id, away_id| coached_college_ids.include?(home_id) || coached_college_ids.include?(away_id) })
+  end
+
+  def timed_games
+    @timed_games ||= Game.where(week_id: week_numbers_by_id.keys).where.not(time: nil)
+                         .pluck(:week_id, :time, :home_college_id, :away_college_id)
+  end
+
+  def week_numbers_by_id
+    @week_numbers_by_id ||= @season.weeks.pluck(:id, :number).to_h
+  end
+
+  def coached_college_ids
+    @coached_college_ids ||= @season.college_seasons.where.not(coach_id: nil).pluck(:college_id).to_set
+  end
+
+  def dates_by_week(games)
+    games.group_by { |week_id, *| week_numbers_by_id[week_id] }
+         .transform_values { |rows| rows.map { |_week_id, time, *| time.in_time_zone(PodcastShow::TIME_ZONE).to_date } }
   end
 
   def last_game_date(week_number)
-    game_dates_by_week[week_number]&.max
+    our_game_dates_by_week[week_number]&.max
   end
 
   def earliest_game_date(week_number)
-    game_dates_by_week[week_number]&.min
+    our_game_dates_by_week[week_number]&.min
   end
 
   def anchor_date(week_number)

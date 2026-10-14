@@ -36,9 +36,10 @@ export const bigGameBreakdownPrompt = ({ weekNumber }) =>
     "",
     numbered([
       "Execute the mandatory show opening word for word.",
-      "Follow the brief's order exactly: the card, the scoreboard, then every game in the listed sequence, using the 4-beat format (Stakes, Film Room, Quarterback Duel, The Pick).",
+      "Follow the brief's order exactly: the card, the scoreboard (if the brief lists one), then every game in the listed sequence, using the 4-beat format (Stakes, Film Room, Quarterback Duel, The Pick).",
       "At the end of each game, both hosts must say their exact bet out loud before moving on to the next game.",
-      "Build the runtime and intensity toward the finale, the last game listed.",
+      "Build the runtime and intensity toward the finale, the last of the games with picks.",
+      "After the finale, give the quick Also on the Board heads-up if the brief lists one: name each game, say when and where it's on, and mention the line casually. No picks, no predictions and no analysis, about ten seconds a game.",
       "Follow all betting-language rules and forbidden terms in the document.",
       "Close with the Next Episode tease, with no recap of the picks.",
     ]),

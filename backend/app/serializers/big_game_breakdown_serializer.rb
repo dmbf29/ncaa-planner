@@ -42,6 +42,7 @@ class BigGameBreakdownSerializer
       week: { id: week.id, number: week.number, name: week.name },
       poll_week_number: poll_week&.number,
       games: games,
+      also_on: also_on_json,
       pick_ledger: pick_ledger_json
     }
   end
@@ -591,6 +592,62 @@ class BigGameBreakdownSerializer
     return "out_for_season" if injury.out_for_season?
 
     injury.return_week_number > @week.number ? "out_this_game" : "returning_this_game"
+  end
+
+  # ---- also on the board --------------------------------------------------------
+
+  ALSO_ON_LIMIT = 8
+
+  # A heads-up list of games we have no stake in: games between two teams from
+  # a conference one of our coaches is in (the rest of the league), and ranked
+  # vs. ranked games anywhere. Ranked matchups come first, best-ranked first,
+  # then the rest by kickoff. No bets are made on these, so nothing is locked
+  # for them; they just carry a line when both teams can be rated.
+  def also_on_json
+    our_ids = our_week_games.map(&:id)
+    entries = week_games.reject { |game| our_ids.include?(game.id) }.filter_map { |game| also_on_entry(game) }
+
+    entries.sort_by { |entry| [ entry[:ranked_matchup] ? 0 : 1, entry[:best_rank] || 99, entry[:time].to_s ] }
+           .first(ALSO_ON_LIMIT).map { |entry| entry.except(:best_rank) }
+  end
+
+  def also_on_entry(game)
+    home_rank = ranking_for(game.home_college_id)
+    away_rank = ranking_for(game.away_college_id)
+    ranked_matchup = home_rank.present? && away_rank.present?
+    league_game = both_in_coached_conference?(game)
+    return nil unless ranked_matchup || league_game
+
+    {
+      conference: league_game ? conference_of(game.home_college_id) : nil,
+      ranked_matchup: ranked_matchup,
+      best_rank: [ home_rank, away_rank ].compact.min,
+      time: game.time&.iso8601,
+      broadcast: broadcast_text(game),
+      away: also_on_team(game.away_college_id),
+      home: also_on_team(game.home_college_id),
+      line: also_on_line(game)
+    }
+  end
+
+  def both_in_coached_conference?(game)
+    coached_conferences = coached_college_seasons.filter_map(&:conference).to_set
+    [ game.home_college_id, game.away_college_id ].all? { |id| coached_conferences.include?(conference_of(id)) }
+  end
+
+  def also_on_team(college_id)
+    { name: college_seasons_by_college_id[college_id].college.name, ranking: ranking_for(college_id),
+      record: record_json(results_for(college_id)) }
+  end
+
+  # The house line for a game we're not betting, or nil when a team can't be
+  # rated (so a placeholder number never gets read as a real line).
+  def also_on_line(game)
+    lines = @line_maker.call(game, @week.number)
+    return nil unless lines[:rated]
+
+    favorite_home = lines[:favorite] == "home"
+    { favorite: (favorite_home ? game.home_college : game.away_college).name, spread: lines[:spread].abs, total: lines[:total] }
   end
 
   # ---- pick ledger -------------------------------------------------------------

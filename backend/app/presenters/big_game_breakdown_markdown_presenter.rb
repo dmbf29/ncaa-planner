@@ -28,7 +28,8 @@ class BigGameBreakdownMarkdownPresenter
     "said out loud, game by game. Tease the reactions episode on the date shown, where we react to how these " \
     "games played out.",
     "Mention games elsewhere only when they're listed under \"Elsewhere\" for a game, and only as a quick note on " \
-    "how they bear on this one. Don't preview other games, and never run a segment on games we don't have a stake in.",
+    "how they bear on this one. Don't preview other games during the main segments. The only time other games get " \
+    "airtime is the ALSO ON THE BOARD heads-up at the end of the show, and it is strictly a heads-up.",
     "Only talk about conference standings and the poll when a game's data includes them. Never invent a ranking, a " \
     "streak or a head-to-head result that isn't written below. If a game has no previous meetings, say nothing " \
     "about history.",
@@ -63,6 +64,7 @@ class BigGameBreakdownMarkdownPresenter
     lines.concat(scoreboard_lines)
 
     games.each_with_index { |game, index| lines.concat(game_section(game, index)) }
+    lines.concat(also_on_lines) if games.any?
     lines.concat(next_episode_lines) if games.any?
 
     lines.join("\n")
@@ -82,7 +84,7 @@ class BigGameBreakdownMarkdownPresenter
     return [] if games.empty?
 
     lines = [ "## 🎯 SHOW BRIEF (READ FIRST, DO NOT READ ALOUD)", "",
-              "This episode is ONLY the #{games.size} game#{'s' if games.size != 1} below, in this exact order. There is no " \
+              "This episode is the #{games.size} game#{'s' if games.size != 1} below, in this exact order#{', plus a short heads-up on other games at the very end' if also_on.any?}. There is no " \
               "big-picture season talk, no general college football discussion and no state-of-the-sport opening: the " \
               "opening line sets the scene, and everything after it is about these games.", "" ]
     step = 0
@@ -93,6 +95,7 @@ class BigGameBreakdownMarkdownPresenter
       finale = index == games.size - 1 ? " (THE FINALE)" : ""
       lines << "#{step += 1}. Game #{index + 1}: #{matchup_title(game)}#{finale}. In order: Stakes, Film Room, Quarterback Duel, The Pick."
     end
+    lines << "#{step += 1}. Also on the Board: a quick heads-up on the other games listed at the very end. No picks, no predictions." if also_on.any?
     lines << "#{step + 1}. The Next Episode tease. Do not recap the bets."
     lines << ""
     early = last_week_results.any? ? "The opening, the card and the scoreboard together are" : "The opening and the card together are"
@@ -133,6 +136,7 @@ class BigGameBreakdownMarkdownPresenter
     games.each_with_index do |game, index|
       list << "Game #{index + 1}: #{matchup_title(game)} — Stakes, Film Room, Quarterback Duel, The Pick"
     end
+    list << also_on_segment if also_on.any?
     list << next_episode_segment if games.any?
     list
   end
@@ -321,8 +325,9 @@ class BigGameBreakdownMarkdownPresenter
     name = team[:college][:name]
     coach = team[:coach] ? " (Coach #{team[:coach][:name]}, one of our coaches)" : ""
     rank = team[:ranking] ? "ranked No. #{team[:ranking]}" : "unranked"
-    record = team[:record]
-    lines = [ "- **#{name}**#{coach}: #{record[:wins]}-#{record[:losses]}, #{rank}#{conference_record_text(team)}" ]
+    lines = [ "- **#{name}**#{coach}: #{rank}" ]
+    lines << "  - **#{@data.dig(:season, :year)} record: #{record_phrase(team[:record])}**"
+    lines.concat(conference_record_lines(team[:conference_record]))
     lines << "  - Current streak: #{streak_text(team[:streak])}" if streak_text(team[:streak])
     lines.concat(previous_season_lines(team[:previous_season]))
     lines << "  - Last #{team[:recent_results].size}: #{team[:recent_results].map { |r| result_text(r) }.join(' · ')}" if team[:recent_results].present?
@@ -338,11 +343,20 @@ class BigGameBreakdownMarkdownPresenter
     [ "  - Last season (#{previous[:year]}): #{previous[:wins]}-#{previous[:losses]}#{conference}#{scoring}" ]
   end
 
-  def conference_record_text(team)
-    record = team[:conference_record]
-    return "" if record[:wins].zero? && record[:losses].zero?
+  # "1-1 (1 win, 1 loss)": spelled out so the record can't be misread, and
+  # "0-0 (no games played yet)" before a team has played.
+  def record_phrase(record)
+    wins = record[:wins]
+    losses = record[:losses]
+    return "0-0 (no games played yet)" if wins.zero? && losses.zero?
 
-    " (#{record[:wins]}-#{record[:losses]} in conference)"
+    "#{wins}-#{losses} (#{wins} #{wins == 1 ? 'win' : 'wins'}, #{losses} #{losses == 1 ? 'loss' : 'losses'})"
+  end
+
+  def conference_record_lines(record)
+    return [] if record[:wins].zero? && record[:losses].zero?
+
+    [ "  - Conference record: #{record_phrase(record)}" ]
   end
 
   # "3 wins in a row" / "2 losses in a row"; nil for a streak of one game
@@ -556,6 +570,48 @@ class BigGameBreakdownMarkdownPresenter
     return words unless half
 
     whole.zero? ? "a half" : "#{words} and a half"
+  end
+
+  def also_on
+    Array(@data[:also_on])
+  end
+
+  def also_on_segment
+    "Also on the Board — a quick heads-up on #{also_on.size} other game#{'s' if also_on.size != 1} worth knowing about " \
+      "(no picks, no predictions, no analysis)"
+  end
+
+  # A short list at the very end for games we have no stake in: the rest of
+  # our league and any ranked-vs-ranked game. Information only, so the hosts
+  # are told not to bet, predict or analyze.
+  def also_on_lines
+    return [] if also_on.empty?
+
+    lines = [ "---", "", "## 📋 ALSO ON THE BOARD (HEADS-UP ONLY)", "",
+              "A quick heads-up for listeners on other games worth knowing about, after the last pick and before the " \
+              "Next Episode tease. These are NOT bets: no picks, no predictions, no analysis and no film room. For each " \
+              "game: name it (with rankings), say when and where it's on, and mention the line casually if one is " \
+              "listed (\"favored by a field goal\"). About ten seconds a game, then move on.", "" ]
+    also_on.each { |entry| lines << also_on_line_text(entry) }
+    lines << ""
+    lines
+  end
+
+  def also_on_line_text(entry)
+    tags = []
+    tags << "ranked vs. ranked" if entry[:ranked_matchup]
+    tags << "#{entry[:conference]} game" if entry[:conference]
+    parts = [ tags.join(" · "), (kickoff_text(entry[:time]) if entry[:time]), entry[:broadcast], line_note(entry[:line]) ].compact_blank
+    "- #{also_on_team_text(entry[:away])} @ #{also_on_team_text(entry[:home])} — #{parts.join(' · ')}"
+  end
+
+  def also_on_team_text(team)
+    record = "#{team[:record][:wins]}-#{team[:record][:losses]}"
+    "#{team[:ranking] ? "No. #{team[:ranking]} " : ''}#{team[:name]} (#{record})"
+  end
+
+  def line_note(line)
+    line ? "Line: #{line[:favorite]} -#{line[:spread]}, total #{line[:total]}" : nil
   end
 
   def next_episode_segment

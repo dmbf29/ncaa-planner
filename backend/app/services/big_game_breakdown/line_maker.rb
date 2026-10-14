@@ -65,6 +65,8 @@ module BigGameBreakdown
     #                 points per game above/below what the roster predicted;
     #                 nil average before the team has played), and
     #                 adjustment: the points the spread moved for results
+    #   rated:        false when either team has nothing to rate (no roster),
+    #                 in which case the line is a placeholder, not a real line
     def call(game, week_number)
       home_cs = college_season(game.home_college_id)
       away_cs = college_season(game.away_college_id)
@@ -79,7 +81,8 @@ module BigGameBreakdown
         total: nearest_half(projected_total(game, week_number)),
         total_edge: (projected_total(game, week_number) - league_average_total(week_number)).round(1),
         home_win_probability: shifted_probability(@calculator.win_probability(home_cs, away_cs, home: true), adjustment).round(2),
-        form: { home: home_form, away: away_form, adjustment: adjustment.round(1) }
+        form: { home: home_form, away: away_form, adjustment: adjustment.round(1) },
+        rated: !@calculator.team_strength(home_cs).nil? && !@calculator.team_strength(away_cs).nil?
       }
     end
 

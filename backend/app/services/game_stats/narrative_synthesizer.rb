@@ -16,18 +16,26 @@ module GameStats
 
     def call(college_stats:, player_stats:)
       raw = chat.ask(prompt(college_stats, player_stats)).content
-      valid_ids = player_stats.filter_map { |row| row[:student_season_id] }.to_set
+      offense_ids = ids_for(player_stats) { |row| row[:category].to_s != "defense" }
+      defense_ids = ids_for(player_stats) { |row| row[:category].to_s == "defense" }
 
       {
         narrative_summary: raw["narrative_summary"],
-        offense_player_of_game_id: valid_id(raw["offense_player_of_game_student_season_id"], valid_ids),
+        offense_player_of_game_id: valid_id(raw["offense_player_of_game_student_season_id"], offense_ids),
         offense_player_stat_line: raw["offense_player_stat_line"],
-        defense_player_of_game_id: valid_id(raw["defense_player_of_game_student_season_id"], valid_ids),
+        defense_player_of_game_id: valid_id(raw["defense_player_of_game_student_season_id"], defense_ids),
         defense_player_stat_line: raw["defense_player_stat_line"]
       }
     end
 
     private
+
+    # The model has picked a QB as defensive player of the game (right name in
+    # the stat line, wrong id), so each pick must come from a stat row of the
+    # matching side — offense = passing/rushing/receiving, defense = defense.
+    def ids_for(player_stats, &block)
+      player_stats.select(&block).filter_map { |row| row[:student_season_id] }.to_set
+    end
 
     def valid_id(id, valid_ids)
       id if id && valid_ids.include?(id)
