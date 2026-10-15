@@ -31,7 +31,8 @@ module Api
           return
         end
 
-        data = ::BigGameBreakdownSerializer.new(@season, week_number).as_json
+        # preview=true is read-only: it never locks the week's lines and picks.
+        data = ::BigGameBreakdownSerializer.new(@season, week_number, lock: params[:preview].to_s != "true").as_json
         render_broadcast(data) { ::BigGameBreakdownMarkdownPresenter.new(data).to_markdown }
       end
 

@@ -22,6 +22,11 @@ module BigGameBreakdown
       @hosts = hosts
     end
 
+    # The picks already locked for a game, without creating any (for previews).
+    def existing(game)
+      GamePick.where(game_id: game.id).order(:id).to_a
+    end
+
     # `lines` is the LineMaker result for the game. Returns the game's picks
     # (existing ones if already locked), or [] for a game already played.
     def call(game, lines)

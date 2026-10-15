@@ -253,6 +253,15 @@ export const searchPreviousStudents = (dynastyId, seasonId, collegeSeasonId, q) 
 export const fetchWeekGames = (dynastyId, seasonId, weekNumber) =>
   api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/weeks/${weekNumber}/games`).then((r) => r.data);
 
+// A read-only look at a week's Big Game Breakdown (games, lines, any picks already locked). preview=true
+// keeps the endpoint from locking the week's lines and picks, which a normal export does.
+export const fetchBigGamePreview = (dynastyId, seasonId, weekNumber) =>
+  api
+    .get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/big_game_breakdown`, {
+      params: { week_number: weekNumber, preview: true },
+    })
+    .then((r) => r.data);
+
 export const fetchSeason = (dynastyId, seasonId) =>
   api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}`).then((r) => r.data);
 

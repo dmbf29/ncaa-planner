@@ -3,7 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { clsx } from "clsx";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
-import { API_BASE_URL, fetchDynasties, fetchSeason } from "../lib/apiClient";
+import { API_BASE_URL, fetchBigGamePreview, fetchDynasties, fetchSeason } from "../lib/apiClient";
+import BigGamePreviewTable from "../components/BigGamePreviewTable";
 import { bigGameBreakdownPrompt, weeklyReviewPrompt, winTotalsPrompt } from "../lib/podcastPrompts";
 
 const weekLabel = (week) => {
@@ -214,6 +215,9 @@ function ExportPage() {
   const [bigGameFormat, setBigGameFormat] = useState("markdown");
   const [bigGameMode, setBigGameMode] = useState("download");
   const [bigGameWeek, setBigGameWeek] = useState(null);
+  const [bigGamePreview, setBigGamePreview] = useState(null);
+  const [bigGamePreviewLoading, setBigGamePreviewLoading] = useState(false);
+  const [bigGamePreviewError, setBigGamePreviewError] = useState(null);
 
   const [teamBreakdownFormat, setTeamBreakdownFormat] = useState("markdown");
   const [teamBreakdownMode, setTeamBreakdownMode] = useState("download");
@@ -259,6 +263,33 @@ function ExportPage() {
     };
     load();
   }, [navigate]);
+
+  // The week's games, lines and any locked picks, shown above the export controls. Read-only: it never locks.
+  useEffect(() => {
+    if (!season || bigGameWeek === null) {
+      setBigGamePreview(null);
+      return undefined;
+    }
+    let cancelled = false;
+    setBigGamePreviewLoading(true);
+    setBigGamePreviewError(null);
+    fetchBigGamePreview(season.dynastyId, season.id, bigGameWeek)
+      .then((data) => {
+        if (!cancelled) setBigGamePreview(data);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setBigGamePreview(null);
+          setBigGamePreviewError(err.message);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setBigGamePreviewLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [season, bigGameWeek]);
 
   const weeks = useMemo(() => {
     const source = season?.teams?.[0]?.weeks || [];
@@ -432,6 +463,11 @@ function ExportPage() {
                     </button>
                   ))}
                 </div>
+                {bigGameWeek !== null && (
+                  <div className="pt-3">
+                    <BigGamePreviewTable preview={bigGamePreview} loading={bigGamePreviewLoading} error={bigGamePreviewError} />
+                  </div>
+                )}
               </div>
             }
           />

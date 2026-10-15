@@ -122,14 +122,54 @@ class SeasonWeeksMarkdownPresenter
 
     [
       "#{current_label} Kickoff & Headlines",
-      "Results Recap & Rival Matchups — Deep dive into the highlighted games.",
+      *game_segments,
       "Around the #{conference_label} — Quick hits on other conference games.",
       injury_report_segment,
       recruitment_trail_segment(next_number),
-      "Winners & Losers - the hosts each pick 1 team/player who won the week, and 1 who lost",
       "#{poll_watch_label} — Discuss rankings and national standing shifts (if focused teams are included)",
       sign_off_segment
     ].compact
+  end
+
+  # One segment per game our teams played, closest final margin first so the
+  # most compelling games lead the show. A single catch-all "results" segment
+  # let the hosts skim past a game entirely, so every game is named and gets
+  # its own slot. Reviews the primary week's games; when that week had none
+  # (all byes), falls back to every reviewed week, same as the producer note.
+  def game_segments
+    games = recap_games.sort_by { |entry| entry[:margin] }
+    games.map { |entry| game_segment(entry) }
+  end
+
+  def recap_games
+    weeks = primary_week_has_results? ? [ primary_week ] : @data[:weeks]
+    seen = {}
+
+    weeks.flat_map do |week_data|
+      week_data[:teams].filter_map do |team|
+        game = team[:game]
+        next unless game[:status] == "final"
+
+        # Two of our coaches facing each other show up once per team; cover it once.
+        key = [ week_data[:week][:number], [ team[:college][:id], game[:opponent][:id] ].sort ]
+        next if seen[key]
+
+        seen[key] = true
+        { team: team, game: game, week: week_data[:week],
+          margin: (game[:result][:team_score] - game[:result][:opponent_score]).abs }
+      end
+    end
+  end
+
+  def game_segment(entry)
+    team, game, week = entry.values_at(:team, :game, :week)
+    result = game[:result]
+    tag = @data[:weeks].size > 1 ? " (#{week_label(week)})" : ""
+    high, low = [ result[:team_score], result[:opponent_score] ].minmax.reverse
+    "Game Recap#{tag}: #{team[:college][:name]} #{result[:won] ? 'def.' : 'lost to'} #{game[:opponent][:name]} " \
+      "#{high}-#{low} — " \
+      "A full segment on this game alone: how it was won or lost, the key moments, the standout performers and what " \
+      "it means for the season. Do not fold it into another segment."
   end
 
   # Scans every reviewed week, not just the primary one: when Week 13 + Week

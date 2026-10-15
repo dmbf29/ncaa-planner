@@ -19,9 +19,12 @@ class BigGameBreakdownSerializer
   POLL_NEIGHBOR_RANGE = 3
   RECENT_RESULT_COUNT = 3
 
-  def initialize(season, week_number)
+  # `lock: false` is a read-only preview: games, lines and any picks already
+  # locked, but nothing gets locked by asking (see ExportPage's preview table).
+  def initialize(season, week_number, lock: true)
     @season = season
     @week_number = week_number
+    @lock = lock
     @line_maker = BigGameBreakdown::LineMaker.new(season)
     @pick_locker = BigGameBreakdown::PickLocker.new
     @scorecard = BigGameBreakdown::Scorecard.new(season)
@@ -39,6 +42,7 @@ class BigGameBreakdownSerializer
       focus: focus_json(games),
       podcast_date: podcast_date_json,
       season: { id: @season.id, year: @season.year, dynasty: @season.dynasty.name },
+      hosts: PodcastShow.host_first_names,
       week: { id: week.id, number: week.number, name: week.name },
       poll_week_number: poll_week&.number,
       games: games,
@@ -101,7 +105,7 @@ class BigGameBreakdownSerializer
   def ordered_games
     our_week_games.map do |game|
       lines = @line_maker.call(game, @week.number)
-      picks = @pick_locker.call(game, lines)
+      picks = @lock ? @pick_locker.call(game, lines) : @pick_locker.existing(game)
       lines = locked_lines(lines, picks)
       [ game, lines, picks ]
     end.sort_by { |game, lines, _picks| [ -lines[:spread].abs, game.id ] }
@@ -129,6 +133,7 @@ class BigGameBreakdownSerializer
       stakes: stakes_json(game),
       film_room: film_room_json(game),
       quarterback_duel: { home: quarterback_json(game.home_college_id), away: quarterback_json(game.away_college_id) },
+      picks_locked: picks.any?,
       picks: picks.map { |pick| pick_json(pick, game) }
     }
   end
