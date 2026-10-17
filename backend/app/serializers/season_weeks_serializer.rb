@@ -651,6 +651,7 @@ class SeasonWeeksSerializer
       opponent: opponent_json(opponent, home),
       result: result,
       narrative_summary: result ? game.narrative_summary : nil,
+      defining_storyline: result ? game.additional_context.presence : nil,
       offensive_player_of_game: result ? player_of_game_json(game.offensive_player_of_game, game.offensive_player_stat_line) : nil,
       defensive_player_of_game: result ? player_of_game_json(game.defensive_player_of_game, game.defensive_player_stat_line) : nil,
       team_stats: result ? team_stats_json(game, college_id, opponent.id) : nil

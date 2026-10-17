@@ -131,13 +131,14 @@ class SeasonWeeksMarkdownPresenter
     ].compact
   end
 
-  # One segment per game our teams played, closest final margin first so the
-  # most compelling games lead the show. A single catch-all "results" segment
+  # One segment per game our teams played. Games between two of our coaches
+  # (the rivals) lead the show and get a longer slot; the rest run closest
+  # final margin first so the most compelling games come next. A single catch-all "results" segment
   # let the hosts skim past a game entirely, so every game is named and gets
   # its own slot. Reviews the primary week's games; when that week had none
   # (all byes), falls back to every reviewed week, same as the producer note.
   def game_segments
-    games = recap_games.sort_by { |entry| entry[:margin] }
+    games = recap_games.sort_by { |entry| [ entry[:head_to_head] ? 0 : 1, entry[:margin] ] }
     games.map { |entry| game_segment(entry) }
   end
 
@@ -152,11 +153,14 @@ class SeasonWeeksMarkdownPresenter
 
         # Two of our coaches facing each other show up once per team; cover it once.
         key = [ week_data[:week][:number], [ team[:college][:id], game[:opponent][:id] ].sort ]
-        next if seen[key]
+        # The second sighting of the same game is the other coach's side: a rivals matchup.
+        if seen[key]
+          seen[key][:head_to_head] = true
+          next
+        end
 
-        seen[key] = true
-        { team: team, game: game, week: week_data[:week],
-          margin: (game[:result][:team_score] - game[:result][:opponent_score]).abs }
+        seen[key] = { team: team, game: game, week: week_data[:week], head_to_head: false,
+                      margin: (game[:result][:team_score] - game[:result][:opponent_score]).abs }
       end
     end
   end
@@ -166,10 +170,31 @@ class SeasonWeeksMarkdownPresenter
     result = game[:result]
     tag = @data[:weeks].size > 1 ? " (#{week_label(week)})" : ""
     high, low = [ result[:team_score], result[:opponent_score] ].minmax.reverse
-    "Game Recap#{tag}: #{team[:college][:name]} #{result[:won] ? 'def.' : 'lost to'} #{game[:opponent][:name]} " \
+    label = entry[:head_to_head] ? "Rivals Showdown" : "Game Recap"
+    "#{label}#{tag}: #{team[:college][:name]} #{result[:won] ? 'def.' : 'lost to'} #{game[:opponent][:name]} " \
       "#{high}-#{low} — " \
-      "A full segment on this game alone: how it was won or lost, the key moments, the standout performers and what " \
-      "it means for the season. Do not fold it into another segment."
+      "#{head_to_head_clause(entry)}A full segment on this game alone: how it was won or lost, the key moments, the standout performers and what " \
+      "it means for the season. Do not fold it into another segment." \
+      "#{defining_storyline_clause(game)}"
+  end
+
+  # Two of our coaches played each other, so one side's win is the other's loss: the show's biggest
+  # story of the week. Opens the game segments and gets the most airtime.
+  def head_to_head_clause(entry)
+    return "" unless entry[:head_to_head]
+
+    "Our two rivals went head to head, so this is the headline game of the show and gets the longest " \
+      "segment of the episode, roughly double a normal game recap: cover both coaches' perspectives, the " \
+      "swing for each team's season, and what it means for the rivalry. "
+  end
+
+  # Games where the studio flagged a storyline (a last-play finish, a coaching decision that cost a
+  # game) make it the spine of the segment, without scripting what the hosts say about it.
+  def defining_storyline_clause(game)
+    return "" if game[:defining_storyline].blank?
+
+    " This game has a Defining Storyline listed in its data — it is the heart of this game, so build the segment " \
+      "around it, in your own words and with your own takes."
   end
 
   # Scans every reviewed week, not just the primary one: when Week 13 + Week
@@ -480,6 +505,13 @@ class SeasonWeeksMarkdownPresenter
     lines << ""
 
     lines.concat(team_stats_lines(team))
+
+    if team[:game][:defining_storyline].present?
+      lines << "### 🎯 Defining Storyline"
+      lines << "*The storyline of this game as the studio saw it — the main talking point of the segment.*"
+      lines << team[:game][:defining_storyline]
+      lines << ""
+    end
 
     if team[:game][:narrative_summary].present?
       lines << "### 📖 Narrative"
