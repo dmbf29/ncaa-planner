@@ -108,7 +108,8 @@ module Api
         authorize @game
         payload = analysis_params
         narrative = GameStats::NarrativeSynthesizer.new(home_college: @game.home_college, away_college: @game.away_college)
-                                                    .call(college_stats: payload[:college_stats] || [], player_stats: payload[:player_stats] || [])
+                                                    .call(college_stats: payload[:college_stats] || [], player_stats: payload[:player_stats] || [],
+                                                          additional_context: payload[:additional_context])
         render json: { narrative: narrative }
       rescue RubyLLM::Error => e
         render json: { error: "AI analysis failed: #{e.message}", code: "narrative_failed" }, status: :unprocessable_entity
@@ -190,6 +191,7 @@ module Api
           player_stats: existing_player_stats_json,
           narrative: {
             narrative_summary: @game.narrative_summary,
+            additional_context: @game.additional_context,
             offense_player_of_game_id: @game.offensive_player_of_game_id,
             offense_player_stat_line: @game.offensive_player_stat_line,
             defense_player_of_game_id: @game.defensive_player_of_game_id,

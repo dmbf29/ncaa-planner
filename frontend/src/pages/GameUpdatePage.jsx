@@ -27,6 +27,7 @@ import {
 
 const EMPTY_NARRATIVE = {
   narrativeSummary: "",
+  additionalContext: "",
   offensePlayerOfGameId: null,
   offensePlayerStatLine: "",
   defensePlayerOfGameId: null,
@@ -282,6 +283,7 @@ function ScreenshotUploadRow({
 function NarrativeBody({ narrative, onChange, roster, onRunAnalysis, running, error }) {
   const update = (key, value) => onChange({ ...narrative, [key]: value });
   const hasContent = Boolean(narrative.narrativeSummary || narrative.offensePlayerOfGameId || narrative.defensePlayerOfGameId);
+  const [showContext, setShowContext] = useState(false);
 
   return (
     <>
@@ -300,6 +302,26 @@ function NarrativeBody({ narrative, onChange, roster, onRunAnalysis, running, er
         </button>
       </div>
       {error && <p className="text-sm text-danger">{error}</p>}
+      {showContext || narrative.additionalContext ? (
+        <label className="flex flex-col gap-1 text-sm border p-3 rounded">
+          <span className="text-xs uppercase tracking-wide text-textSecondary">Additional Context</span>
+          <textarea
+            rows={3}
+            value={narrative.additionalContext || ""}
+            onChange={(e) => update("additionalContext", e.target.value)}
+            placeholder="Things you saw that the box score can't show (e.g. walk-off field goal, decided on the last play). Included the next time you run Game Analysis."
+            className={inputClass}
+          />
+        </label>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowContext(true)}
+          className="self-start text-xs font-semibold text-burnt hover:underline"
+        >
+          + Add additional context
+        </button>
+      )}
       <label className="flex flex-col gap-1 text-sm border p-3 rounded">
         <span className="text-xs uppercase tracking-wide text-textSecondary">Narrative Summary</span>
         <textarea
@@ -843,8 +865,12 @@ function GameUpdatePage() {
       const result = await analyzeGameNarrative(gameId, {
         collegeStats: analysis.collegeStats,
         playerStats: analysis.playerStats,
+        additionalContext: analysis.narrative?.additionalContext,
       });
-      updateAnalysis((prev) => ({ ...prev, narrative: result.narrative }));
+      updateAnalysis((prev) => ({
+        ...prev,
+        narrative: { ...result.narrative, additionalContext: prev.narrative?.additionalContext || "" },
+      }));
       setPendingAutoSave(true);
     } catch (err) {
       setNarrativeError(err.message);

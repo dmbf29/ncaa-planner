@@ -497,8 +497,8 @@ export const reanalyzeGameStats = (id, section) =>
     .post(`/api/v1/games/${id}/reanalyze`, { section: section === "boxScore" ? "box_score" : section })
     .then((r) => pollAnalysis(`/api/v1/games/${id}/analyze_status`, r.data.token));
 
-export const analyzeGameNarrative = (id, { collegeStats, playerStats }) =>
-  api.post(`/api/v1/games/${id}/analyze_narrative`, { analysis: { collegeStats, playerStats } }).then((r) => r.data);
+export const analyzeGameNarrative = (id, { collegeStats, playerStats, additionalContext }) =>
+  api.post(`/api/v1/games/${id}/analyze_narrative`, { analysis: { collegeStats, playerStats, additionalContext } }).then((r) => r.data);
 
 export const commitGameStats = (id, analysis) =>
   api.post(`/api/v1/games/${id}/commit`, { analysis }).then((r) => r.data);

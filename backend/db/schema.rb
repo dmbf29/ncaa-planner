@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_10_04_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_10_17_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -259,6 +259,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_10_04_120000) do
     t.string "defensive_player_stat_line"
     t.string "bowl_name"
     t.integer "cfp_round"
+    t.text "additional_context"
     t.index ["away_college_id"], name: "index_games_on_away_college_id"
     t.index ["defensive_player_of_game_id"], name: "index_games_on_defensive_player_of_game_id"
     t.index ["home_college_id"], name: "index_games_on_home_college_id"

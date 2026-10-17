@@ -14,8 +14,8 @@ module GameStats
       @away_college = away_college
     end
 
-    def call(college_stats:, player_stats:)
-      raw = chat.ask(prompt(college_stats, player_stats)).content
+    def call(college_stats:, player_stats:, additional_context: nil)
+      raw = chat.ask(prompt(college_stats, player_stats, additional_context)).content
       offense_ids = ids_for(player_stats) { |row| row[:category].to_s != "defense" }
       defense_ids = ids_for(player_stats) { |row| row[:category].to_s == "defense" }
 
@@ -64,7 +64,7 @@ module GameStats
       end
     end
 
-    def prompt(college_stats, player_stats)
+    def prompt(college_stats, player_stats, additional_context = nil)
       progression = scoring_progression(college_stats)
 
       <<~PROMPT
@@ -77,13 +77,29 @@ module GameStats
         Player stat lines:
         #{player_stats.map { |row| player_line(row) }.join("\n")}
 
-        Pick the offense and defense players of the game from either team. If the standout player has no
+        #{context_section(additional_context)}Pick the offense and defense players of the game from either team. If the standout player has no
         student_season_id listed above, you may still mention them by name in the narrative summary, but
         leave the corresponding *_student_season_id field unset rather than guessing an id.
         Do not describe any quarter or half as "scoreless" or a team as "shut out" over a span unless the
         running score line above shows no change for that team across that exact span — check it, don't
         infer it from the final margin.
       PROMPT
+    end
+
+    # The coach's own eyewitness notes (last-play finishes, walk-off kicks, etc.)
+    # that a box score can't show. Treated as true, but only as an addition to the stats-driven recap.
+    def context_section(additional_context)
+      return "" unless present?(additional_context)
+
+      <<~SECTION
+        Coach's eyewitness notes (things the box score can't show):
+        #{additional_context.to_s.strip}
+
+        These notes are supplemental, not the whole story. Still write the full recap described above —
+        the game's flow, turning points, standout stats and the final margin, grounded in the data — and
+        weave these notes in where they fit (e.g. how the game ended) as true facts. Don't just restate
+        or polish the notes.
+      SECTION
     end
 
     # Per-quarter point totals are correct in the data but the model has

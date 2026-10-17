@@ -46,6 +46,7 @@ module GameStats
 
       @game.update!(
         narrative_summary: narrative[:narrative_summary].presence,
+        additional_context: narrative[:additional_context].presence,
         offensive_player_of_game_id: narrative[:offense_player_of_game_id].presence,
         offensive_player_stat_line: narrative[:offense_player_stat_line].presence,
         defensive_player_of_game_id: narrative[:defense_player_of_game_id].presence,
