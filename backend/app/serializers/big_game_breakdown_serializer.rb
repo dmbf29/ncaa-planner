@@ -555,12 +555,40 @@ class BigGameBreakdownSerializer
                            .find { |week| week.heisman_candidates.exists? }
   end
 
-  # The team's top-rated QB, the same stand-in for "the starter" the rest of
-  # the app uses.
+  # The quarterback who actually plays: the one with the most pass attempts so
+  # far this season, since a coach doesn't always start his highest-rated QB
+  # (some prefer a faster, lower-rated one). A QB who's out for this game is
+  # skipped. Before anyone has thrown a pass (Week 1), it's the highest-rated
+  # healthy QB. When the starter isn't the top-rated QB on the roster, the
+  # higher-rated one is noted so the hosts can use it.
   def quarterback_json(college_id)
-    college_season = college_seasons_by_college_id[college_id]
-    qb = college_season.student_seasons.includes(:student).where(position: "QB").order(overall: :desc).first
-    qb && player_json(qb)
+    quarterbacks = college_seasons_by_college_id[college_id].student_seasons
+                                                            .includes(:student, injuries: { game: :week })
+                                                            .where(position: "QB").to_a
+    return nil if quarterbacks.empty?
+
+    attempts = passing_attempts_by_student_season(quarterbacks.map(&:id))
+    available = quarterbacks.reject { |qb| out_for_this_game?(qb) }.presence || quarterbacks
+    starter = available.max_by { |qb| [ attempts[qb.id].to_i, qb.overall || -1 ] }
+    top_rated = quarterbacks.max_by { |qb| qb.overall || -1 }
+
+    player_json(starter).merge(
+      over_higher_rated: top_rated != starter && top_rated.overall.to_i > starter.overall.to_i ? { name: top_rated.student.name, overall: top_rated.overall } : nil
+    )
+  end
+
+  def passing_attempts_by_student_season(student_season_ids)
+    StudentGameStat.joins(game: :week)
+                   .where(student_season_id: student_season_ids)
+                   .where("weeks.number < ?", @week.number)
+                   .group(:student_season_id).sum(:passing_attempts)
+  end
+
+  def out_for_this_game?(student_season)
+    previous_week = @season.weeks.find_by(number: @week.number - 1)
+    return false unless previous_week
+
+    student_season.injuries.any? { |injury| injury.active_as_of?(previous_week) && injury_status(injury) != "returning_this_game" }
   end
 
   # Players hurt as of the previous week's games: the injury that matters for

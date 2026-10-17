@@ -482,7 +482,7 @@ class BigGameBreakdownMarkdownPresenter
     parts << "#{receiving[:receptions]} catches for #{receiving[:yards]} yds, #{receiving[:tds]} TD" if receiving
     defense = stats[:defense]
     parts << "#{defense[:tackles].to_i} tackles, #{defense[:tfl].to_f} TFL, #{defense[:sacks].to_f} sacks, #{defense[:interceptions].to_i} INT" if defense
-    parts.empty? ? nil : "#{parts.join('; ')} in #{stats[:games_played]} games"
+    parts.empty? ? nil : "#{parts.join('; ')} in #{stats[:games_played]} #{stats[:games_played] == 1 ? 'game' : 'games'}"
   end
 
   def injury_lines(game)
@@ -510,10 +510,17 @@ class BigGameBreakdownMarkdownPresenter
     return [] unless away && home
 
     lines = [ "### 🎯 THE QUARTERBACK DUEL", "" ]
-    lines << "- **#{game[:away][:college][:name]}:** #{player_text(away)}"
-    lines << "- **#{game[:home][:college][:name]}:** #{player_text(home)}"
+    lines << "- **#{game[:away][:college][:name]}:** #{player_text(away)}#{starter_note(away)}"
+    lines << "- **#{game[:home][:college][:name]}:** #{player_text(home)}#{starter_note(home)}"
     lines << ""
     lines
+  end
+
+  # Shown when the coach starts a quarterback over a higher-rated teammate:
+  # a storyline for the hosts, with the rating itself kept backstage.
+  def starter_note(quarterback)
+    higher = quarterback[:over_higher_rated]
+    higher ? " — this is the quarterback actually playing; the coach starts him over higher-rated #{higher[:name]} (backstage #{higher[:overall]})" : ""
   end
 
   # ---- the pick ----------------------------------------------------------------
