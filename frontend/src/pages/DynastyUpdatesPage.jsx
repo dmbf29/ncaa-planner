@@ -10,7 +10,7 @@ const WEEKLY_UPDATES = [
   { key: "players-of-the-week", label: "Players of the Week", icon: "fa-solid fa-award", description: "Upload the weekly Players of the Week screenshots.", to: "/dynasty/updates/players-of-the-week" },
   { key: "heisman", label: "Heisman Candidates", icon: "fa-solid fa-trophy", description: "Upload the weekly Heisman Watch List screenshot.", to: "/dynasty/updates/heisman" },
   { key: "standings", label: "Conference Standings", icon: "fa-solid fa-ranking-star", description: "Upload the conference standings screenshots.", to: "/dynasty/updates/standings" },
-  { key: "team-schedule", label: "Team Schedule", icon: "fa-regular fa-rectangle-list", description: "Upload a team's full-season schedule screenshots.", to: "/dynasty/updates/team-schedule" },
+  { key: "coach-info", label: "Coach Info", icon: "fa-solid fa-user-tie", description: "Enter each user coach's NIL amount and job security.", to: "/dynasty/updates/coach-info" },
   { key: "recruitment-trail", label: "Recruitment Trail", icon: "fa-solid fa-file-signature", description: "Upload a team's weekly recruits.", to: "/dynasty/updates/recruitment-trail" },
   { key: "register-injuries", label: "Register Injuries", icon: "fa-solid fa-user-injured", description: "Log injuries from the conference standings page.", toStandings: true },
 ];
@@ -39,7 +39,7 @@ const OFFSEASON_UPDATES = [
   { key: "season", label: "Start a New Season", icon: "fa-regular fa-calendar", description: "Create the next season for your dynasty." },
   { key: "import-rosters", label: "Import Rosters", icon: "fa-solid fa-file-import", description: "Import rosters for the new season.", toStandings: true },
   { key: "nil-spend", label: "NIL Spend", icon: "fa-solid fa-sack-dollar", description: "Upload the conference NIL spend screenshots.", to: "/dynasty/updates/nil-spend" },
-  { key: "coach-info", label: "Coach Info", icon: "fa-solid fa-user-tie", description: "Enter each user coach's NIL amount and job security.", to: "/dynasty/updates/coach-info" },
+  { key: "team-schedule", label: "Team Schedule", icon: "fa-regular fa-rectangle-list", description: "Upload a team's full-season schedule screenshots.", to: "/dynasty/updates/team-schedule" },
   { key: "preseason-all-americans", label: "Preseason All-Americans", icon: "fa-solid fa-people-line", description: "Upload the National/Conference All-American screenshots.", to: "/dynasty/updates/all-americans" },
   { key: "team-attributes", label: "Team Attributes", icon: "fa-solid fa-bars-progress", description: "Update overall, offense, defense, and prestige for every team.", to: "/dynasty/updates/team-attributes" },
 ];

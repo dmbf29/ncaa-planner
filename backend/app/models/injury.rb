@@ -11,8 +11,12 @@ class Injury < ApplicationRecord
   # computed on read rather than stored, same convention as
   # CollegeSeason#margin_of_victory/#point_differential, so it can never
   # drift from the underlying game/week data.
+  #
+  # Injuries aren't reported in-game until the week after they happen, so
+  # "weeks out" is counted from that following week: a 1-week injury from a
+  # Week 6 game is still listed in Week 7 and the player is back in Week 8.
   def return_week_number
-    game.week.number + weeks_out
+    game.week.number + 1 + weeks_out
   end
 
   def return_week
