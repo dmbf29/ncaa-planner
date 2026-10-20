@@ -799,12 +799,12 @@ class SeasonWeeksMarkdownPresenter
   def lingering_injury_lines(injuries)
     return [] if injuries.blank?
 
-    injuries.map { |injury| "  - Still working back: #{lingering_injury_line(injury)}" }
+    injuries.map { |injury| "  - OLD INJURY, not new news (already covered in an earlier episode; at most a passing mention that he's still out): #{lingering_injury_line(injury)}" }
   end
 
   def lingering_injury_line(injury)
     status = injury[:status] == "out_for_season" ? "out for the season" : injury[:status].tr("_", " ")
-    "#{injury[:name]} (#{injury[:position]}) — #{injury[:description]} (Week #{injury[:injured_week_number]} injury, #{status})"
+    "#{injury[:name]} (#{injury[:position]}) — #{injury[:description]} (hurt back in Week #{injury[:injured_week_number]}; #{status})"
   end
 
   # Only rendered when this team actually won a National/Conference Player
@@ -845,7 +845,7 @@ class SeasonWeeksMarkdownPresenter
     role = injury[:starter] ? "starter" : "backup"
     ovr = injury[:overall] ? ", #{injury[:overall]} OVR" : ""
     headline = "#{injury[:name]} (#{injury[:position]}#{ovr}, #{role}) — " \
-               "#{injury[:description]} (Week #{injury[:injured_week_number]} injury, #{status})"
+               "#{injury[:description]} (hurt back in Week #{injury[:injured_week_number]}; #{status})"
 
     sub_lines = []
     stat_line = injury_season_stats_line(injury[:season_stats])
