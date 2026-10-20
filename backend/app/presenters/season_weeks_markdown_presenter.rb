@@ -193,8 +193,10 @@ class SeasonWeeksMarkdownPresenter
   def defining_storyline_clause(game)
     return "" if game[:defining_storyline].blank?
 
-    " This game has a Defining Storyline listed in its data — it is the heart of this game, so build the segment " \
-      "around it, in your own words and with your own takes."
+    # Spelled out here, not just in the game's data section further down: the run-of-show is the part the
+    # hosts reliably follow, and the same text sits ~200 lines below, where it was ignored.
+    " DEFINING STORYLINE — this is the heart of the game, so the segment must spend real time on it, in your " \
+      "own words and with your own takes: #{game[:defining_storyline].to_s.squish}"
   end
 
   # Scans every reviewed week, not just the primary one: when Week 13 + Week
@@ -232,9 +234,9 @@ class SeasonWeeksMarkdownPresenter
   def recruitment_trail_segment(next_number)
     return nil unless any_new_recruits?
 
-    "Recruitment Trail — New recruits who signed with our programs heading into Week #{next_number} and what they add: " \
-      "the depth-chart hole they fill (which graduating seniors, who they sit behind), and whether their NIL number is " \
-      "a bargain or a reach next to what that position group already costs."
+    "Recruitment Trail — Keep it brief, about 30 seconds total: name the new signees and the highest-rated one or " \
+      "two, mention a notable NIL figure only if it stands out, then move on. No position-group or depth-chart " \
+      "breakdown."
   end
 
   # Whether the poll released in the given season week is a CFP committee
@@ -898,7 +900,7 @@ class SeasonWeeksMarkdownPresenter
   def recruiting_trail_lines(recruiting_trail)
     return [] if recruiting_trail.blank?
 
-    lines = [ "### 🖊️ Recruitment Trail" ]
+    lines = [ "### 🖊️ Recruitment Trail", "_Brief mention only — don't dwell on this section._" ]
     recruiting_trail.each { |recruit| lines << "- #{recruit_line(recruit)}" }
     lines << ""
     lines
@@ -914,7 +916,7 @@ class SeasonWeeksMarkdownPresenter
       ranks << "#{ordinalize(recruit[:state_rank])} in #{recruit[:state]}"
     end
     parts << "(#{ranks.join(', ')})" if ranks.any?
-    parts << "— NIL #{recruit[:nil_amount]}" if recruit[:nil_amount]
+    parts << "— NIL #{currency(recruit[:nil_amount])}" if recruit[:nil_amount]
     headline = parts.join(" ")
 
     sub_lines = recruit_context_lines(recruit[:roster_context])
@@ -979,9 +981,9 @@ class SeasonWeeksMarkdownPresenter
   def recruit_nil_line(comparison)
     return nil if comparison.blank?
 
-    recruit = comparison[:recruit]
+    recruit = currency(comparison[:recruit])
     if comparison[:standing] == "all_unpaid"
-      return "NIL #{recruit} — the group's veterans aren't on NIL deals#{recruit.zero? ? ' either' : ''}"
+      return "NIL #{recruit} — the group's veterans aren't on NIL deals#{comparison[:recruit].zero? ? ' either' : ''}"
     end
 
     verdict =
@@ -990,8 +992,12 @@ class SeasonWeeksMarkdownPresenter
       when "above" then "a premium"
       else "right in line"
       end
-    "NIL #{recruit} vs. the group's veterans (avg #{comparison[:average]}, " \
-      "range #{comparison[:low]}–#{comparison[:high]}) — #{verdict}"
+    "NIL #{recruit} vs. the group's veterans (avg #{currency(comparison[:average])}, " \
+      "range #{currency(comparison[:low])}–#{currency(comparison[:high])}) — #{verdict}"
+  end
+
+  def currency(amount)
+    ActiveSupport::NumberHelper.number_to_currency(amount, precision: 0)
   end
 
   def ordinalize(number)

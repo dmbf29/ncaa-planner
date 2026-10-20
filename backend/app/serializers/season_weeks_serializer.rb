@@ -495,7 +495,7 @@ class SeasonWeeksSerializer
       transfer: recruit.transfer,
       class_year: recruit.class_year,
       star_rating: recruit.star_rating,
-      nil_amount: recruit.nil_amount,
+      nil_amount: nil_dollars(recruit.nil_amount),
       national_rank: recruit.national_rank,
       position_rank: recruit.position_rank,
       state_rank: recruit.state_rank,
@@ -587,12 +587,18 @@ class SeasonWeeksSerializer
 
     average = (amounts.sum.to_f / amounts.size).round
     {
-      recruit: recruit_amount,
-      average: average,
-      low: amounts.min,
-      high: amounts.max,
+      recruit: nil_dollars(recruit_amount),
+      average: nil_dollars(average),
+      low: nil_dollars(amounts.min),
+      high: nil_dollars(amounts.max),
       standing: nil_standing(recruit_amount, amounts, average)
     }
+  end
+
+  # NIL is stored as abstract game points; the broadcast speaks dollars, using
+  # the same conversion as Roster Breakdown.
+  def nil_dollars(points)
+    points && points * TeamBreakdownSerializer::DOLLARS_PER_NIL_POINT
   end
 
   def nil_standing(amount, amounts, average)

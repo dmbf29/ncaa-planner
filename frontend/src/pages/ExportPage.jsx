@@ -5,7 +5,7 @@ import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import { API_BASE_URL, fetchBigGamePreview, fetchDynasties, fetchSeason } from "../lib/apiClient";
 import BigGamePreviewTable from "../components/BigGamePreviewTable";
-import { bigGameBreakdownPrompt, weeklyReviewPrompt, winTotalsPrompt } from "../lib/podcastPrompts";
+import { bigGameBreakdownPrompt, midseasonReportCardsPrompt, weeklyReviewPrompt, winTotalsPrompt } from "../lib/podcastPrompts";
 
 const weekLabel = (week) => {
   if (week.conferenceChampionship) return "Conf. Champ";
@@ -312,6 +312,15 @@ function ExportPage() {
   const bigGamePrompt = bigGameWeek !== null ? bigGameBreakdownPrompt({ weekNumber: bigGameWeek }) : null;
   const winTotalsPromptText = coachedTeamNames.length > 0 ? winTotalsPrompt({ teamNames: coachedTeamNames }) : null;
 
+  const midseasonReportCardsPromptText =
+    season && coachedTeamNames.length > 0
+      ? midseasonReportCardsPrompt({
+          year: season.year,
+          teamNames: coachedTeamNames,
+          filename: `${season.year}_midseason-report-cards.md`,
+        })
+      : null;
+
   const winTotalsUrl = season
     ? `${API_BASE_URL}/api/v1/dynasties/${season.dynastyId}/seasons/${season.id}/win_totals${
         winTotalsFormat === "markdown" ? "?format=markdown" : ""
@@ -510,6 +519,7 @@ function ExportPage() {
             setMode={setMidseasonReportCardsMode}
             url={midseasonReportCardsUrl}
             filename={`${season.year}_midseason-report-cards.${midseasonReportCardsFormat === "markdown" ? "md" : "json"}`}
+            prompt={midseasonReportCardsPromptText}
           />
           )}
 

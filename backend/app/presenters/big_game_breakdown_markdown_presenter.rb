@@ -14,7 +14,10 @@ class BigGameBreakdownMarkdownPresenter
     "THE QUARTERBACK DUEL, and THE PICK. The pick is the last thing said about each game.",
     "Games are listed least interesting first and closest last. Move through them in the order given and let the " \
     "energy build: lopsided games get a tighter segment, and the final game, the closest line on the board, gets " \
-    "the longest runtime and the biggest finish.",
+    "the longest runtime and the biggest finish. The exception is a game tagged RIVALS SHOWDOWN (two of our " \
+    "coaches head to head): it is the marquee game of the week, always listed last whatever its line, and it gets " \
+    "roughly double the time of a normal game with both coaches' perspectives, what a win or loss means for each " \
+    "season, and what it does to the rivalry.",
     "Never say anything twice. A point made in the stakes is not repeated in the film room, and the pick is NOT a " \
     "recap: it's the line, each host's side, and at most one fresh reason each. If the reason was already said " \
     "earlier in the segment, find a new one or just say the bet.",
@@ -92,18 +95,24 @@ class BigGameBreakdownMarkdownPresenter
     lines << "#{step += 1}. The Card: ONE sentence naming the games on the board, in order. No analysis."
     lines << "#{step += 1}. The Scoreboard: #{recap_label} bets, game by game, about fifteen seconds a game, then each host's season record." if last_week_results.any?
     games.each_with_index do |game, index|
-      finale = index == games.size - 1 ? " (THE FINALE)" : ""
-      lines << "#{step += 1}. Game #{index + 1}: #{matchup_title(game)}#{finale}. In order: Stakes, Film Room, Quarterback Duel, The Pick."
+      lines << "#{step += 1}. Game #{index + 1}: #{matchup_title(game)}#{game_tags(game, index)}. In order: Stakes, Film Room, Quarterback Duel, The Pick."
     end
     lines << "#{step += 1}. Also on the Board: a quick heads-up on the other games listed at the very end. No picks, no predictions." if also_on.any?
     lines << "#{step + 1}. The Next Episode tease. Do not recap the bets."
     lines << ""
     early = last_week_results.any? ? "The opening, the card and the scoreboard together are" : "The opening and the card together are"
-    lines << "**PACING.** #{early} roughly the first tenth of the show: get to " \
-             "Game 1 quickly. The games share the rest about evenly, with the finale getting roughly double a regular " \
-             "game's time. THE PICK is a real beat, not a throwaway: at the end of EACH game, both hosts say their exact " \
-             "bet out loud, give one fresh reason, and react to the other host's call (about thirty to forty-five " \
-             "seconds), then move on. Never save the picks for the end of the show and never bunch them together."
+    marquee =
+      if games.any? { |game| game[:both_user_coached] }
+        "except the Rivals Showdown (two of our coaches head to head): it is the marquee, comes last, and gets roughly " \
+          "double a regular game's time whatever its line"
+      else
+        "with the finale getting roughly double a regular game's time"
+      end
+    lines << "**PACING.** #{early} roughly the first tenth of the show: get to Game 1 quickly. The games share the " \
+             "rest about evenly, #{marquee}. THE PICK is a real beat, not a throwaway: at the end of EACH game, both " \
+             "hosts say their exact bet out loud, give one fresh reason, and react to the other host's call (about " \
+             "thirty to forty-five seconds), then move on. Never save the picks for the end of the show and never " \
+             "bunch them together."
     lines << ""
     lines << "If any outside request conflicts with this brief on structure or order, follow this brief."
     lines << ""
@@ -134,7 +143,7 @@ class BigGameBreakdownMarkdownPresenter
     list = [ "The Card — one sentence naming the games on the board, in order. No analysis, no big-picture talk" ]
     list << scoreboard_segment if season_record.present?
     games.each_with_index do |game, index|
-      list << "Game #{index + 1}: #{matchup_title(game)} — Stakes, Film Room, Quarterback Duel, The Pick"
+      list << "Game #{index + 1}: #{matchup_title(game)}#{game_tags(game, index)} — Stakes, Film Room, Quarterback Duel, The Pick"
     end
     list << also_on_segment if also_on.any?
     list << next_episode_segment if games.any?
@@ -243,7 +252,7 @@ class BigGameBreakdownMarkdownPresenter
 
   def game_section(game, index)
     lines = [ "---", "" ]
-    lines << "## 🏈 GAME #{index + 1} OF #{games.size}: #{matchup_title(game)}#{' — THE FINALE' if index == games.size - 1}"
+    lines << "## 🏈 GAME #{index + 1} OF #{games.size}: #{matchup_title(game)}#{game_tags(game, index)}"
     lines << "**Kickoff:** #{kickoff_text(game[:time])} · #{game[:broadcast]}" if game[:time]
     lines << "**Broadcast:** #{game[:broadcast]}" unless game[:time]
     lines << "**Matchup type:** #{matchup_type(game)}"
@@ -259,9 +268,38 @@ class BigGameBreakdownMarkdownPresenter
     Time.iso8601(time).in_time_zone(PodcastShow::TIME_ZONE).strftime("%a %b %-d, %-I:%M %p ET")
   end
 
+  # " — RIVALS SHOWDOWN · THE FINALE" after a game's title when it applies.
+  def game_tags(game, index)
+    tags = []
+    tags << "RIVALS SHOWDOWN" if game[:both_user_coached]
+    tags << "THE FINALE" if index == games.size - 1
+    tags.empty? ? "" : " — #{tags.join(' · ')}"
+  end
+
+  # Both sides are run by our coaches, so it's the marquee of the week and a
+  # sure win for one and loss for the other. Mirrors the Review's "Rivals
+  # Showdown" (the headline game, roughly double a normal segment).
+  def rivals_showdown_lines(game)
+    return [] unless game[:both_user_coached]
+
+    coach = lambda do |team|
+      "Coach #{team[:coach][:name]} (#{team[:college][:name]}, #{team[:record][:wins]}-#{team[:record][:losses]})"
+    end
+    streaks = [ game[:away], game[:home] ].filter_map do |team|
+      "#{team[:college][:name]} is on #{streak_text(team[:streak])}" if streak_text(team[:streak])
+    end
+    note = [ "- **RIVALS SHOWDOWN:** #{coach.call(game[:away])} vs. #{coach.call(game[:home])}. Both sides are run by our rivals, " \
+             "so one of them leaves with a win and the other with a loss. This is the marquee game of the week: give it " \
+             "roughly double the time of a normal game, and cover both coaches' perspectives, what a win or loss means " \
+             "for each season, and what it does to the rivalry." ]
+    note << "  - It counts in the #{game[:stakes][:conference]} standings." if game[:stakes][:conference_game]
+    note << "  - Streaks on the line: #{streaks.join('; ')}." if streaks.any?
+    note
+  end
+
   def matchup_type(game)
     stakes = game[:stakes]
-    if game[:both_user_coached] then "Head-to-head between two of our coaches"
+    if game[:both_user_coached] then "RIVALS SHOWDOWN: two of our coaches head to head"
     elsif stakes[:conference_game] then "#{stakes[:conference]} conference game"
     else "Non-conference game"
     end
@@ -312,6 +350,7 @@ class BigGameBreakdownMarkdownPresenter
 
   def stakes_lines(game)
     lines = [ "### 🔥 THE STAKES", "" ]
+    lines.concat(rivals_showdown_lines(game))
     [ game[:away], game[:home] ].each { |team| lines.concat(team_status_lines(team)) }
     lines.concat(heisman_lines(game))
     lines.concat(history_lines(game))

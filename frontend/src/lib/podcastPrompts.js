@@ -23,6 +23,7 @@ export const weeklyReviewPrompt = ({ year, weekNumbers, filename }) => {
     numbered([
       "Execute the mandatory show opening word for word.",
       "Follow the run-of-show order in the document, segment by segment.",
+      "When a segment lists a Defining Storyline, make it the centerpiece of that segment: tell how the game unfolded, build up to its biggest turning points, and give your own take on them.",
       `Cover only ${label} results as the main story. Use ${earlier} and preseason sources only for quick historical callouts and team trends.`,
       "Talk about this as a real college football season with national stakes, the way a studio show would on a Monday after the games.",
       "Close with the Next Episode tease from the document as the last thing the hosts say, then sign off.",
@@ -42,6 +43,23 @@ export const bigGameBreakdownPrompt = ({ weekNumber }) =>
       "After the finale, give the quick Also on the Board heads-up if the brief lists one: name each game, say when and where it's on, and mention the line casually. No picks, no predictions and no analysis, about ten seconds a game.",
       "Follow all betting-language rules and forbidden terms in the document.",
       "Close with the Next Episode tease, with no recap of the picks.",
+    ]),
+  ].join("\n");
+
+export const midseasonReportCardsPrompt = ({ year, teamNames, filename }) =>
+  [
+    `Follow the SHOW DIRECTIVE, GRADING FORMAT, TONE rules, and MANDATORY SHOW OPENING at the top of \`${filename}\` exactly. Host a midseason report card episode of "${SHOW_NAME}" as ${HOSTS}, grading ${joinList(teamNames)} at the midway point of the ${year} season.`,
+    "",
+    numbered([
+      "Execute the mandatory show opening word for word.",
+      "Follow the run-of-show order in the document: one full report card segment per team, then How to Improve Your Grade.",
+      "In every team's segment, Arlis and Ty must each state their own letter grade (A+ through F) out loud, with real reasoning. They don't have to agree, and a split grade is good radio.",
+      "Ground each grade in the document's evidence: the record, the pace against the preseason Vegas number, signature wins and bad losses, the team stats, and the conference standing. Arlis grades on the eye test and the storyline, and Ty grades on the scoreboard and the pace.",
+      "Treat a team coming off a bye as having fewer games on the board, and don't penalize it for that.",
+      "Talk about the preseason number in plain studio language, like \"on pace\" or \"ahead of schedule,\" and never say \"probability,\" \"model,\" or \"algorithm.\"",
+      "Talk about this as a real college football season with national stakes, the way a studio show would at the halfway point.",
+      "In How to Improve Your Grade, go team by team through the remaining schedule and say what each team has to do to move its grade up.",
+      "Sign off after the last team's outlook.",
     ]),
   ].join("\n");
 

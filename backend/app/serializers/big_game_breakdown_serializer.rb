@@ -100,7 +100,8 @@ class BigGameBreakdownSerializer
   end
 
   # [[game, lines, picks], ...], most lopsided first (and the closest game
-  # last). Lines and picks come from the locked picks once they exist, so a
+  # last), except that a game between two of our coaches (the Rivals
+  # Showdown) is the marquee and always goes last. Lines and picks come from the locked picks once they exist, so a
   # re-run after a roster update still shows what was actually bet.
   def ordered_games
     our_week_games.map do |game|
@@ -108,7 +109,7 @@ class BigGameBreakdownSerializer
       picks = @lock ? @pick_locker.call(game, lines) : @pick_locker.existing(game)
       lines = locked_lines(lines, picks)
       [ game, lines, picks ]
-    end.sort_by { |game, lines, _picks| [ -lines[:spread].abs, game.id ] }
+    end.sort_by { |game, lines, _picks| [ both_coached?(game) ? 1 : 0, -lines[:spread].abs, game.id ] }
   end
 
   def locked_lines(lines, picks)
