@@ -166,18 +166,25 @@ class BigGameBreakdownSerializer
   end
 
   # Where the game is on, from who's playing: anything not on a Saturday is
-  # ESPN; otherwise ranked vs. ranked is ABC, one ranked team is ESPN, and
-  # two unranked teams stream on the home team's conference network. A game
-  # with no kickoff time on file is treated as a Saturday game.
+  # ESPN; otherwise one ranked team is ESPN, two unranked teams stream on the
+  # home team's conference network, and a ranked-vs-ranked game goes to the
+  # network that has the home team's conference (see RANKED_MATCHUP_NETWORKS).
+  # A game with no kickoff time on file is treated as a Saturday game.
   def broadcast_text(game)
     ranked = [ game.home_college_id, game.away_college_id ].count { |id| ranking_for(id).present? }
     saturday = game.time.nil? || game.time.in_time_zone(PodcastShow::TIME_ZONE).saturday?
+    home_conference = conference_of(game.home_college_id)
 
     if !saturday || ranked == 1 then "showing on ESPN"
-    elsif ranked == 2 then "showing on ABC"
-    else "streaming on #{streaming_network(conference_of(game.home_college_id))}"
+    elsif ranked == 2 then "showing on #{RANKED_MATCHUP_NETWORKS.fetch(home_conference, DEFAULT_RANKED_MATCHUP_NETWORK)}"
+    else "streaming on #{streaming_network(home_conference)}"
     end
   end
+
+  # Ranked-vs-ranked games, by the home team's conference; every other
+  # conference (and independents) is FOX.
+  RANKED_MATCHUP_NETWORKS = { "SEC" => "ABC", "Sun Belt" => "ABC", "Big Ten" => "CBS", "Big 12" => "NBC" }.freeze
+  DEFAULT_RANKED_MATCHUP_NETWORK = "FOX".freeze
 
   # "the Sun Belt Network"; ESPN+ for a home team with no conference network
   # (an FCS or independent program, or no conference on file).
