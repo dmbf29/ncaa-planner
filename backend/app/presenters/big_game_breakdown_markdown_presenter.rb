@@ -41,6 +41,10 @@ class BigGameBreakdownMarkdownPresenter
     "When a Heisman candidate is on the field (the Heisman watch line in a game's stakes), make it a storyline: " \
     "what it means for the opposing defense to face him, or for our team if he's ours, and how his production " \
     "backs it up. Only name players listed there; never invent a candidate.",
+    "Only our coaches' teams have player production on file. For any other team's player (an opponent's " \
+    "quarterback or key players) there are no stats below, only a rating and role: talk about him in plain " \
+    "English (arm talent, experience, how he fits the matchup), never quote production for him, and never guess " \
+    "at it. A stat line is only ever true when it's written next to the player below.",
     "Any thoughts on a team's recent performance belong where they fit (the stakes, the film room, the " \
     "quarterback duel) rather than in a separate section, and there are no separate \"upset alert\" or \"trap " \
     "game\" segments. If a host feels one, a single sentence in the stakes is enough."
@@ -549,10 +553,18 @@ class BigGameBreakdownMarkdownPresenter
     return [] unless away && home
 
     lines = [ "### 🎯 THE QUARTERBACK DUEL", "" ]
-    lines << "- **#{game[:away][:college][:name]}:** #{player_text(away)}#{starter_note(away)}"
-    lines << "- **#{game[:home][:college][:name]}:** #{player_text(home)}#{starter_note(home)}"
+    lines << "- **#{game[:away][:college][:name]}:** #{player_text(away)}#{starter_note(away)}#{no_stats_note(game[:away], away)}"
+    lines << "- **#{game[:home][:college][:name]}:** #{player_text(home)}#{starter_note(home)}#{no_stats_note(game[:home], home)}"
     lines << ""
     lines
+  end
+
+  # An opponent's quarterback has no season stats on file (see the serializer), so say so rather than leave the
+  # hosts to wonder, and point them at what they can talk about.
+  def no_stats_note(team, player)
+    return "" if team[:user_coached] || player[:season_stats]
+
+    " — no production on file for him: describe him by rating, experience and how he matches up, no stat lines"
   end
 
   # Shown when the coach starts a quarterback over a higher-rated teammate:

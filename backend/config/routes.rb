@@ -74,6 +74,20 @@ Rails.application.routes.draw do
             post :commit_portal_preview
             get :portal_statuses
           end
+
+          # The weekly podcast episode (Export page): week_number is the week being recapped.
+          resources :podcast_episodes, only: %i[show], param: :week_number do
+            member do
+              post :prepare
+              post :produce
+              post :publish
+              post :regenerate_art
+              get :art
+              get :audio
+              get :script
+              patch "script", action: :update_script
+            end
+          end
         end
       end
 

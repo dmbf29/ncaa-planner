@@ -540,9 +540,14 @@ class BigGameBreakdownSerializer
   end
 
   # Season-to-date production through the week before this game, held back
-  # for the first few weeks when it's too small a sample to talk about.
+  # for the first few weeks when it's too small a sample to talk about. Only
+  # our coaches' teams have player stats on file (they come from the box
+  # scores we upload); another team's player has just the one or two games
+  # he happened to play against one of our teams, which would be misread as a
+  # season line, so he gets none.
   def season_stats_for(student_season)
     return nil if @week.number < SeasonWeeksSerializer::MIN_WEEK_NUMBER_FOR_SEASON_STATS
+    return nil unless coached_college_ids.include?(student_season.college_season.college_id)
 
     PlayerSeasonStats.call(student_season, through_week_number: @week.number - 1)
   end

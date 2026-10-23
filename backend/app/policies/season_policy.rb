@@ -159,6 +159,15 @@ class SeasonPolicy < ApplicationPolicy
     owner?
   end
 
+  def show_podcast_episode?
+    owner?
+  end
+
+  # Prepare / produce / publish / edit the script: these spend API credits and publish to the feed.
+  def manage_podcast_episode?
+    owner?
+  end
+
   def owner?
     record.dynasty.user == user
   end

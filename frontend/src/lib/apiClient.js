@@ -253,14 +253,33 @@ export const searchPreviousStudents = (dynastyId, seasonId, collegeSeasonId, q) 
 export const fetchWeekGames = (dynastyId, seasonId, weekNumber) =>
   api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/weeks/${weekNumber}/games`).then((r) => r.data);
 
-// A read-only look at a week's Big Game Breakdown (games, lines, any picks already locked). preview=true
-// keeps the endpoint from locking the week's lines and picks, which a normal export does.
-export const fetchBigGamePreview = (dynastyId, seasonId, weekNumber) =>
-  api
-    .get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/big_game_breakdown`, {
-      params: { week_number: weekNumber, preview: true },
-    })
-    .then((r) => r.data);
+// The weekly podcast episode (Export page). weekNumber is the week being recapped; the next week is previewed.
+// Each step runs in the background on the server; poll fetchPodcastEpisode for progress.
+const podcastEpisodeBase = (dynastyId, seasonId, weekNumber) =>
+  `/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/podcast_episodes/${weekNumber}`;
+
+export const fetchPodcastEpisode = (dynastyId, seasonId, weekNumber) =>
+  api.get(podcastEpisodeBase(dynastyId, seasonId, weekNumber)).then((r) => r.data);
+
+// step: "prepare" | "produce" | "publish" | "regenerate_art"
+export const startPodcastStep = (dynastyId, seasonId, weekNumber, step, body = {}) =>
+  api.post(`${podcastEpisodeBase(dynastyId, seasonId, weekNumber)}/${step}`, body).then((r) => r.data);
+
+export const fetchPodcastScript = (dynastyId, seasonId, weekNumber) =>
+  api.get(`${podcastEpisodeBase(dynastyId, seasonId, weekNumber)}/script`).then((r) => r.data.script);
+
+export const savePodcastScript = (dynastyId, seasonId, weekNumber, script) =>
+  api.patch(`${podcastEpisodeBase(dynastyId, seasonId, weekNumber)}/script`, { script }).then((r) => r.data);
+
+// The cover art and audio are binary and need the auth header, so they come down as blobs for <img>/<audio>.
+// file: "art" | "audio". The caller revokes the returned object URL.
+export const fetchPodcastFileUrl = async (dynastyId, seasonId, weekNumber, file) => {
+  const response = await fetch(`${API_BASE_URL}${podcastEpisodeBase(dynastyId, seasonId, weekNumber)}/${file}`, {
+    headers: { Authorization: `Bearer ${localStorage.getItem("jwt")}` },
+  });
+  if (!response.ok) throw new Error(`Couldn't load the ${file} (${response.status})`);
+  return URL.createObjectURL(await response.blob());
+};
 
 export const fetchSeason = (dynastyId, seasonId) =>
   api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}`).then((r) => r.data);

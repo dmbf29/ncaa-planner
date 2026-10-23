@@ -3,9 +3,9 @@ import { Link, useNavigate } from "react-router-dom";
 import { clsx } from "clsx";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
-import { API_BASE_URL, fetchBigGamePreview, fetchDynasties, fetchSeason } from "../lib/apiClient";
-import BigGamePreviewTable from "../components/BigGamePreviewTable";
-import { bigGameBreakdownPrompt, midseasonReportCardsPrompt, weeklyReviewPrompt, winTotalsPrompt } from "../lib/podcastPrompts";
+import { API_BASE_URL, fetchDynasties, fetchSeason } from "../lib/apiClient";
+import PodcastEpisodePanel from "../components/PodcastEpisodePanel";
+import { midseasonReportCardsPrompt, winTotalsPrompt } from "../lib/podcastPrompts";
 
 const weekLabel = (week) => {
   if (week.conferenceChampionship) return "Conf. Champ";
@@ -29,8 +29,7 @@ const downloadFile = async (url, filename) => {
 };
 
 const EXPORT_TABS = [
-  { id: "weekly", label: "Weekly Review" },
-  { id: "big_game_breakdown", label: "Big Game Breakdown" },
+  { id: "weekly", label: "Weekly Episode" },
   { id: "win_totals", label: "Win Totals: Over/Under" },
   { id: "roster_breakdown", label: "Roster Breakdown" },
   { id: "midseason_report_cards", label: "Midseason Report Cards" },
@@ -208,17 +207,6 @@ function ExportPage() {
   const [winTotalsFormat, setWinTotalsFormat] = useState("markdown");
   const [winTotalsMode, setWinTotalsMode] = useState("download");
 
-  const [weeksFormat, setWeeksFormat] = useState("markdown");
-  const [weeksMode, setWeeksMode] = useState("download");
-  const [selectedWeeks, setSelectedWeeks] = useState([]);
-
-  const [bigGameFormat, setBigGameFormat] = useState("markdown");
-  const [bigGameMode, setBigGameMode] = useState("download");
-  const [bigGameWeek, setBigGameWeek] = useState(null);
-  const [bigGamePreview, setBigGamePreview] = useState(null);
-  const [bigGamePreviewLoading, setBigGamePreviewLoading] = useState(false);
-  const [bigGamePreviewError, setBigGamePreviewError] = useState(null);
-
   const [teamBreakdownFormat, setTeamBreakdownFormat] = useState("markdown");
   const [teamBreakdownMode, setTeamBreakdownMode] = useState("download");
 
@@ -264,52 +252,12 @@ function ExportPage() {
     load();
   }, [navigate]);
 
-  // The week's games, lines and any locked picks, shown above the export controls. Read-only: it never locks.
-  useEffect(() => {
-    if (!season || bigGameWeek === null) {
-      setBigGamePreview(null);
-      return undefined;
-    }
-    let cancelled = false;
-    setBigGamePreviewLoading(true);
-    setBigGamePreviewError(null);
-    fetchBigGamePreview(season.dynastyId, season.id, bigGameWeek)
-      .then((data) => {
-        if (!cancelled) setBigGamePreview(data);
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setBigGamePreview(null);
-          setBigGamePreviewError(err.message);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setBigGamePreviewLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [season, bigGameWeek]);
-
   const weeks = useMemo(() => {
     const source = season?.teams?.[0]?.weeks || [];
     return source.filter((w) => w.number !== 0).map((w) => ({ number: w.number, label: weekLabel(w) }));
   }, [season]);
 
-  const toggleWeek = (number) => {
-    setSelectedWeeks((prev) => (prev.includes(number) ? prev.filter((n) => n !== number) : [...prev, number].sort((a, b) => a - b)));
-  };
-
   const coachedTeamNames = (season?.teams || []).map((team) => team.college.name);
-  const weeklyPrompt =
-    season && selectedWeeks.length > 0
-      ? weeklyReviewPrompt({
-          year: season.year,
-          weekNumbers: selectedWeeks,
-          filename: `${season.year}_week-${selectedWeeks.join("-")}-recap.md`,
-        })
-      : null;
-  const bigGamePrompt = bigGameWeek !== null ? bigGameBreakdownPrompt({ weekNumber: bigGameWeek }) : null;
   const winTotalsPromptText = coachedTeamNames.length > 0 ? winTotalsPrompt({ teamNames: coachedTeamNames }) : null;
 
   const midseasonReportCardsPromptText =
@@ -325,22 +273,6 @@ function ExportPage() {
     ? `${API_BASE_URL}/api/v1/dynasties/${season.dynastyId}/seasons/${season.id}/win_totals${
         winTotalsFormat === "markdown" ? "?format=markdown" : ""
       }`
-    : "";
-
-  const weeksUrl = season
-    ? (() => {
-        const params = new URLSearchParams({ week_numbers: selectedWeeks.join(",") });
-        if (weeksFormat === "markdown") params.set("format", "markdown");
-        return `${API_BASE_URL}/api/v1/dynasties/${season.dynastyId}/seasons/${season.id}/weeks?${params.toString()}`;
-      })()
-    : "";
-
-  const bigGameUrl = season
-    ? (() => {
-        const params = new URLSearchParams({ week_number: bigGameWeek ?? "" });
-        if (bigGameFormat === "markdown") params.set("format", "markdown");
-        return `${API_BASE_URL}/api/v1/dynasties/${season.dynastyId}/seasons/${season.id}/big_game_breakdown?${params.toString()}`;
-      })()
     : "";
 
   const teamBreakdownUrl = season
@@ -394,93 +326,7 @@ function ExportPage() {
         <>
           <ExportTabs activeTab={activeTab} onSelect={setActiveTab} />
 
-          {activeTab === "weekly" && (
-          <ExportCard
-            title="Weekly Review"
-            description="Results, ranking movement, and standings for our coached teams, a report card on the hosts' Big Game Breakdown bets, and a teaser for the next Big Game Breakdown."
-            format={weeksFormat}
-            setFormat={setWeeksFormat}
-            mode={weeksMode}
-            setMode={setWeeksMode}
-            url={weeksUrl}
-            filename={`${season.year}_week-${selectedWeeks.join("-")}-recap.${weeksFormat === "markdown" ? "md" : "json"}`}
-            disabled={selectedWeeks.length === 0}
-            prompt={weeklyPrompt}
-            extraControls={
-              <div className="space-y-1.5">
-                <p className="text-xs uppercase tracking-wide text-textSecondary">
-                  Week(s) to review
-                </p>
-                <p className="text-xs text-textSecondary/80">
-                  Pick the week(s) you&rsquo;re recapping. Next week&rsquo;s games aren&rsquo;t previewed here —
-                  they get their own show, Big Game Breakdown.
-                </p>
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {weeks.map((week) => (
-                    <button
-                      key={week.number}
-                      type="button"
-                      onClick={() => toggleWeek(week.number)}
-                      className={clsx(
-                        "rounded-md border px-3 py-1.5 text-sm transition",
-                        selectedWeeks.includes(week.number)
-                          ? "border-burnt bg-burnt text-white"
-                          : "border-border text-charcoal hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10",
-                      )}
-                    >
-                      {week.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            }
-          />
-          )}
-
-          {activeTab === "big_game_breakdown" && (
-          <ExportCard
-            title="Big Game Breakdown"
-            description="Midweek preview of the week's games for our coached teams, most lopsided to closest — stakes and history, film room, quarterback duel, and each host's one bet per game. The first export for a week locks its lines and picks; the next Big Game Breakdown grades them in its opening Scoreboard, and a short Also on the Board heads-up at the end covers the other Sun Belt and ranked-vs-ranked games."
-            format={bigGameFormat}
-            setFormat={setBigGameFormat}
-            mode={bigGameMode}
-            setMode={setBigGameMode}
-            url={bigGameUrl}
-            filename={`${season.year}_week-${bigGameWeek}-preview.${bigGameFormat === "markdown" ? "md" : "json"}`}
-            disabled={bigGameWeek === null}
-            prompt={bigGamePrompt}
-            extraControls={
-              <div className="space-y-1.5">
-                <p className="text-xs uppercase tracking-wide text-textSecondary">Week to preview</p>
-                <p className="text-xs text-textSecondary/80">
-                  Pick the week whose games are coming up. Generate it once the rosters and poll are updated.
-                </p>
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {weeks.map((week) => (
-                    <button
-                      key={week.number}
-                      type="button"
-                      onClick={() => setBigGameWeek(week.number)}
-                      className={clsx(
-                        "rounded-md border px-3 py-1.5 text-sm transition",
-                        bigGameWeek === week.number
-                          ? "border-burnt bg-burnt text-white"
-                          : "border-border text-charcoal hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10",
-                      )}
-                    >
-                      {week.label}
-                    </button>
-                  ))}
-                </div>
-                {bigGameWeek !== null && (
-                  <div className="pt-3">
-                    <BigGamePreviewTable preview={bigGamePreview} loading={bigGamePreviewLoading} error={bigGamePreviewError} />
-                  </div>
-                )}
-              </div>
-            }
-          />
-          )}
+          {activeTab === "weekly" && <PodcastEpisodePanel season={season} weeks={weeks} />}
 
           {activeTab === "win_totals" && (
           <ExportCard

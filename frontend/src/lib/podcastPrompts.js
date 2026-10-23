@@ -1,4 +1,5 @@
-// NotebookLM prompts that pair with each exported Markdown source. Only the
+// NotebookLM prompts that pair with each exported Markdown source (the weekly episode no longer uses one: it is
+// written and voiced in-house, see Podcast::WeeklyRun on the backend). Only the
 // week(s), year, filename and team names vary, so they're built here from the
 // export page's state instead of living in notes. Section names referenced in
 // the prompts (SHOW DIRECTIVE, SHOW BRIEF, MANDATORY SHOW OPENING, ...) must
@@ -13,38 +14,6 @@ const joinList = (items) => {
   if (items.length === 2) return items.join(" and ");
   return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
 };
-
-export const weeklyReviewPrompt = ({ year, weekNumbers, filename }) => {
-  const label = weekNumbers.length === 1 ? `Week ${weekNumbers[0]}` : `Weeks ${joinList(weekNumbers)}`;
-  const earlier = weekNumbers.length === 1 ? "earlier weeks" : "weeks outside this recap";
-  return [
-    `Follow the SHOW DIRECTIVE and MANDATORY SHOW OPENING at the top of \`${filename}\` exactly. Host an episode of "${SHOW_NAME}" as ${HOSTS}, recapping ${label} of the ${year} season.`,
-    "",
-    numbered([
-      "Execute the mandatory show opening word for word.",
-      "Follow the run-of-show order in the document, segment by segment.",
-      "When a segment lists a Defining Storyline, make it the centerpiece of that segment: tell how the game unfolded, build up to its biggest turning points, and give your own take on them.",
-      `Cover only ${label} results as the main story. Use ${earlier} and preseason sources only for quick historical callouts and team trends.`,
-      "Talk about this as a real college football season with national stakes, the way a studio show would on a Monday after the games.",
-      "Close with the Next Episode tease from the document as the last thing the hosts say, then sign off.",
-    ]),
-  ].join("\n");
-};
-
-export const bigGameBreakdownPrompt = ({ weekNumber }) =>
-  [
-    `Follow the SHOW BRIEF at the top of the source document exactly. Host an episode of "Big Game Breakdown" covering Week ${weekNumber}.`,
-    "",
-    numbered([
-      "Execute the mandatory show opening word for word.",
-      "Follow the brief's order exactly: the card, the scoreboard (if the brief lists one), then every game in the listed sequence, using the 4-beat format (Stakes, Film Room, Quarterback Duel, The Pick).",
-      "At the end of each game, both hosts must say their exact bet out loud before moving on to the next game.",
-      "Build the runtime and intensity toward the finale, the last of the games with picks.",
-      "After the finale, give the quick Also on the Board heads-up if the brief lists one: name each game, say when and where it's on, and mention the line casually. No picks, no predictions and no analysis, about ten seconds a game.",
-      "Follow all betting-language rules and forbidden terms in the document.",
-      "Close with the Next Episode tease, with no recap of the picks.",
-    ]),
-  ].join("\n");
 
 export const midseasonReportCardsPrompt = ({ year, teamNames, filename }) =>
   [
