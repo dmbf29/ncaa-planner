@@ -154,7 +154,7 @@ module GameStats
       results = field_groups.map { |fields| run_group(image_blobs, fields) }
       extra_results = extra_blobs.blank? ? [] : EXTRA_FIELD_GROUPS.fetch(@category, []).map { |fields| run_group(extra_blobs, fields, extra: true) }
 
-      rows = merge(results + extra_results)
+      rows = merge(results, extra_results)
       rows.each { |row| verify_extra(row) } if extra_results.any?
       rows.map { |row| build_entry(row) }.reject { |entry| StatFields.empty_line?(entry[:fields]) }
     end
@@ -232,25 +232,85 @@ module GameStats
       "Roster:\n#{lines.join("\n")}"
     end
 
-    # Merges rows from the group sub-calls by display name so a player who
-    # appears in both calls ends up as one row with all fields.
-    def merge(results)
-      merged = {}
+    # Combines the group sub-calls (and the extra, scrolled-right group) into one row per player.
+    #
+    # Rows are matched by display name, but a name isn't unique: a roster can have two "P.Miller"s.
+    # Two screenshots can also show the same player twice (a page re-captured at a slightly
+    # different scroll position overlaps the first). The two are told apart by their values: a
+    # repeat of the same row has identical stats, a second player with the same name doesn't.
+    #   1. Rows with the same name in each sub-call pair up in order (first P.Miller with first
+    #      P.Miller), so two players never overwrite each other.
+    #   2. A row identical to an earlier one is the same row read twice and is collapsed.
+    #   3. The extra columns attach by name. If a name is shared by several players, they only
+    #      attach when both sides found the same number of them; otherwise they're skipped with
+    #      a warning, since there'd be no telling whose they are.
+    def merge(base_results, extra_results = [])
+      players = collapse_repeats(merge_in_order(base_results))
+      extra_results.each { |rows| attach_extras(players, rows) }
+      players
+    end
+
+    def player_key(row)
+      row["player_display_name"].to_s.strip.downcase
+    end
+
+    # One merged row per (name, nth time that name appears in a sub-call).
+    def merge_in_order(results)
+      slots = Hash.new { |hash, key| hash[key] = [] }
       order = []
 
       results.each do |rows|
+        seen = Hash.new(0)
         rows.each do |row|
-          key = row["player_display_name"].to_s.strip.downcase
-          unless merged.key?(key)
-            merged[key] = { "player_display_name" => row["player_display_name"] }
-            order << key
+          key = player_key(row)
+          index = seen[key]
+          seen[key] += 1
+          unless slots[key][index]
+            slots[key][index] = { "player_display_name" => row["player_display_name"] }
+            order << [ key, index ]
           end
-          merged[key]["student_season_id"] ||= row["student_season_id"]
-          merged[key].merge!(row.except("player_display_name", "student_season_id"))
+          slots[key][index]["student_season_id"] ||= row["student_season_id"]
+          slots[key][index].merge!(row.except("player_display_name", "student_season_id"))
         end
       end
 
-      order.map { |key| merged[key] }
+      order.map { |key, index| slots[key][index] }
+    end
+
+    # Drops a row that's identical (name and every value) to one already kept.
+    def collapse_repeats(rows)
+      kept = {}
+      rows.each do |row|
+        signature = [ player_key(row), row.except("player_display_name", "student_season_id").sort.to_h ]
+        if kept.key?(signature)
+          kept[signature]["student_season_id"] ||= row["student_season_id"]
+        else
+          kept[signature] = row
+        end
+      end
+      kept.values
+    end
+
+    def attach_extras(players, extra_rows)
+      raw_by_key = extra_rows.group_by { |row| player_key(row) }
+      players_by_key = players.group_by { |row| player_key(row) }
+      without_ids = ->(row) { row.except("player_display_name", "student_season_id") }
+
+      raw_by_key.each do |key, raw|
+        extras = collapse_repeats(raw.map(&:dup))
+        owners = players_by_key[key]
+        if owners.nil?                                       # only seen on the extra screens: keep it
+          players.concat(extras)
+        elsif owners.size == 1                               # the usual case
+          extras.each { |extra| owners.first.merge!(without_ids.(extra)) }
+        elsif extras.size == owners.size                     # same-named players with different values: pair in order
+          owners.zip(extras) { |owner, extra| owner.merge!(without_ids.(extra)) }
+        elsif extras.size == 1 && raw.size == owners.size    # same-named players whose values are all identical (e.g. all 0s)
+          owners.each { |owner| owner.merge!(without_ids.(extras.first)) }
+        else
+          @warnings << "#{owners.first['player_display_name']}: #{owners.size} players share this name and the right-hand stats found #{extras.size}, so those stats were skipped for them."
+        end
+      end
     end
 
     # The extra columns come from a composite image whose names were grafted
