@@ -228,7 +228,7 @@ module Api
       def existing_player_category_row(stat, category)
         columns = GameStats::StatFields::PLAYER_FIELDS.select { |field| field.to_s.start_with?("#{category}_") }
         fields = columns.index_with { |column| stat.public_send(column) }
-        return nil if fields.values.all?(&:nil?)
+        return nil if GameStats::StatFields.empty_line?(fields)
 
         student_season = stat.student_season
         {

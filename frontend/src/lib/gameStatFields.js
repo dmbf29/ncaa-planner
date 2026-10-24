@@ -34,8 +34,16 @@ export const CATEGORY_FIELDS = {
   passing: ["passingCompletions", "passingAttempts", "passingYards", "passingTds", "passingInterceptions", "passingRating", "passingLongest", "passingSacksTaken", "passingAvg"],
   rushing: ["rushingCarries", "rushingYards", "rushingAvg", "rushingTds", "rushingFumbles", "rushingYac", "rushingLongest"],
   receiving: ["receivingReceptions", "receivingYards", "receivingAvg", "receivingTds", "receivingRac", "receivingLongest", "receivingDrop"],
-  defense: ["defenseSoloTackles", "defenseAssistTackles", "defenseTackles", "defenseTfl", "defenseSacks", "defenseInterceptions", "defenseInterceptionsLongest"],
+  defense: ["defenseSoloTackles", "defenseAssistTackles", "defenseTackles", "defenseTfl", "defenseSacks", "defenseInterceptions", "defenseInterceptionsYards", "defenseInterceptionsAvg", "defenseInterceptionsLongest", "defenseDeflections", "defenseForcedFumbles", "defenseFumbleRecoveries", "defenseFumbleReturnYards", "defenseBlocks", "defenseSafeties", "defenseTouchdowns"],
 };
+
+// Defense columns that are 0 for nearly everyone — left off a player's line
+// in read-only summaries unless they actually did something.
+export const HIDE_WHEN_ZERO_FIELDS = new Set([
+  "defenseInterceptionsYards", "defenseInterceptionsAvg", "defenseInterceptionsLongest", "defenseDeflections",
+  "defenseForcedFumbles", "defenseFumbleRecoveries", "defenseFumbleReturnYards", "defenseBlocks",
+  "defenseSafeties", "defenseTouchdowns",
+]);
 
 export const PLAYER_FIELD_LABELS = {
   passingRating: "Rating", passingCompletions: "Comp", passingAttempts: "Att", passingYards: "Yards",
@@ -45,6 +53,9 @@ export const PLAYER_FIELD_LABELS = {
   receivingYards: "Yards", receivingAvg: "Avg", receivingTds: "TD", receivingRac: "RAC", receivingLongest: "Long",
   receivingDrop: "Drops", defenseSoloTackles: "Solo", defenseAssistTackles: "Assist", defenseTackles: "Tak",
   defenseTfl: "TFL", defenseSacks: "Sack", defenseInterceptions: "INT", defenseInterceptionsLongest: "INT Long",
+  defenseInterceptionsYards: "INT Yds", defenseInterceptionsAvg: "INT Avg", defenseDeflections: "Defl",
+  defenseForcedFumbles: "FF", defenseFumbleRecoveries: "Fum Rec", defenseFumbleReturnYards: "Fum Yds",
+  defenseBlocks: "Blk", defenseSafeties: "Sfty", defenseTouchdowns: "Def TD",
 };
 
 export const normalizeCollegeStats = (rows, awayCollege, homeCollege) => {

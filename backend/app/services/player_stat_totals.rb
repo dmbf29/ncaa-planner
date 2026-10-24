@@ -9,7 +9,9 @@ class PlayerStatTotals
     rushing: %i[rushing_carries rushing_yards rushing_tds rushing_fumbles rushing_yac],
     receiving: %i[receiving_receptions receiving_yards receiving_tds receiving_rac receiving_drop],
     defense: %i[defense_solo_tackles defense_assist_tackles defense_tackles defense_tfl defense_sacks
-                defense_interceptions]
+                defense_interceptions defense_interceptions_yards defense_deflections defense_forced_fumbles
+                defense_fumble_recoveries defense_fumble_return_yards defense_blocks defense_safeties
+                defense_touchdowns]
   }.freeze
 
   MAX_FIELDS = {
@@ -35,6 +37,7 @@ class PlayerStatTotals
     result[:rushing_avg] = rate(result[:rushing_yards], result[:rushing_carries])
     result[:receiving_avg] = rate(result[:receiving_yards], result[:receiving_receptions])
     result[:passing_rating] = average(:passing_rating)
+    result[:defense_interceptions_avg] = rate(result[:defense_interceptions_yards], result[:defense_interceptions])
     result
   end
 

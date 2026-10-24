@@ -1,6 +1,6 @@
 import Card from "./Card";
 import ExistingScreenshotsGallery from "./ExistingScreenshotsGallery";
-import { TEAM_STAT_GROUPS, FIELD_LABELS, CATEGORY_FIELDS, PLAYER_FIELD_LABELS } from "../lib/gameStatFields";
+import { TEAM_STAT_GROUPS, FIELD_LABELS, CATEGORY_FIELDS, PLAYER_FIELD_LABELS, HIDE_WHEN_ZERO_FIELDS } from "../lib/gameStatFields";
 
 function ScoreHeader({ game, collegeStats }) {
   const findEntry = (name) => collegeStats?.find((row) => row.team === name);
@@ -93,7 +93,9 @@ function TeamStatsTable({ collegeStats, awayCollege, homeCollege }) {
 }
 
 function PlayerStatRow({ row }) {
-  const fields = (CATEGORY_FIELDS[row.category] || []).filter((field) => row.fields?.[field] != null);
+  const fields = (CATEGORY_FIELDS[row.category] || []).filter(
+    (field) => row.fields?.[field] != null && !(HIDE_WHEN_ZERO_FIELDS.has(field) && Number(row.fields[field]) === 0),
+  );
 
   return (
     <div className="rounded-md border border-border p-3 dark:border-darkborder">

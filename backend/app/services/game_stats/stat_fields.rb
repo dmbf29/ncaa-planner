@@ -24,9 +24,18 @@ module GameStats
       rushing_carries rushing_yards rushing_avg rushing_tds rushing_fumbles rushing_yac rushing_longest
       receiving_receptions receiving_yards receiving_avg receiving_tds receiving_rac receiving_longest receiving_drop
       defense_solo_tackles defense_assist_tackles defense_tackles defense_tfl defense_sacks
-      defense_interceptions defense_interceptions_longest
+      defense_interceptions defense_interceptions_longest defense_interceptions_yards defense_interceptions_avg
+      defense_deflections defense_forced_fumbles defense_fumble_recoveries defense_fumble_return_yards
+      defense_blocks defense_safeties defense_touchdowns
     ].freeze
 
     CATEGORIES = %w[passing rushing receiving defense].freeze
+
+    # A category line where every value is 0 (or missing) — the player is
+    # listed on the stat screen but did nothing in that category, so there's
+    # nothing worth recording.
+    def self.empty_line?(fields)
+      fields.values.all? { |value| value.nil? || value.to_s.strip.empty? || value.to_f.zero? }
+    end
   end
 end

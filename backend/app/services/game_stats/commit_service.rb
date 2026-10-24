@@ -67,13 +67,23 @@ module GameStats
 
     def upsert_player_stats(rows)
       Array(rows).each do |row|
+        fields = row[:fields].slice(*StatFields::PLAYER_FIELDS)
+        # An all-zero line for someone with no saved stats yet isn't worth recording (or
+        # creating a player for). If they already have a line, still apply it so a wrong
+        # value can be corrected back down to 0.
+        next if StatFields.empty_line?(fields) && !saved_stat?(row)
+
         student_season = resolve_student_season(row)
         next unless student_season
 
         stat = StudentGameStat.find_or_initialize_by(game: @game, student_season: student_season)
-        stat.assign_attributes(row[:fields].slice(*StatFields::PLAYER_FIELDS))
+        stat.assign_attributes(fields)
         stat.save!
       end
+    end
+
+    def saved_stat?(row)
+      row[:student_season_id].present? && StudentGameStat.exists?(game: @game, student_season_id: row[:student_season_id])
     end
 
     def resolve_student_season(row)

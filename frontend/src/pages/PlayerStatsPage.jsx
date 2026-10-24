@@ -16,7 +16,9 @@ const CATEGORY_COLUMNS = {
   receiving: ["receivingReceptions", "receivingYards", "receivingTds", "receivingRac", "receivingDrop", "receivingLongest", "receivingAvg"],
   defense: [
     "defenseSoloTackles", "defenseAssistTackles", "defenseTackles", "defenseTfl", "defenseSacks",
-    "defenseInterceptions", "defenseInterceptionsLongest",
+    "defenseInterceptions", "defenseInterceptionsYards", "defenseInterceptionsLongest", "defenseDeflections",
+    "defenseForcedFumbles", "defenseFumbleRecoveries", "defenseFumbleReturnYards", "defenseBlocks",
+    "defenseSafeties", "defenseTouchdowns",
   ],
 };
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_10_17_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_10_24_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -618,6 +618,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_10_17_120000) do
     t.integer "defense_interceptions_longest"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "defense_interceptions_yards"
+    t.float "defense_interceptions_avg"
+    t.integer "defense_deflections"
+    t.integer "defense_forced_fumbles"
+    t.integer "defense_fumble_recoveries"
+    t.integer "defense_fumble_return_yards"
+    t.integer "defense_blocks"
+    t.integer "defense_safeties"
+    t.integer "defense_touchdowns"
     t.index ["game_id", "student_season_id"], name: "index_student_game_stats_on_game_and_student_season", unique: true
     t.index ["game_id"], name: "index_student_game_stats_on_game_id"
     t.index ["student_season_id"], name: "index_student_game_stats_on_student_season_id"
