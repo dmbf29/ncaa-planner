@@ -120,7 +120,8 @@ def header_slug(img, text, teams=()):
             header = line.strip()
             title = re.sub(r"[^A-Za-z0-9]+", "-", line).strip("-")[:30].lower() or "screen"
             break
-    kind = "box_score" if title.startswith("box-score") else "team_stats" if "team-stats" in title else "other"
+    # "in", not startswith: OCR sometimes reads the school logo beside the title as a stray letter ("y-box-score")
+    kind = "box_score" if "box-score" in title else "team_stats" if "team-stats" in title else "other"
     meta = {"kind": kind, "team": None, "category": None}
     parts = [title]
     if kind == "team_stats":
@@ -361,6 +362,7 @@ def main():
     print("Saving to %s\nNavigate with your controller. Ctrl+C to stop.\n" % out)
 
     last = last_handled = None
+    queued_sigs = []   # pictures already queued this session, so a repeat doesn't beep
     stable_since, handled, moving_since, warned, tick = None, False, None, False, 0
     try:
         while True:
@@ -387,10 +389,13 @@ def main():
                     handled = True
                     if last_handled is not None and delta(sig, last_handled) < args.min_change:
                         print("  same   (settled, but identical to the last screen)")
+                    elif any(delta(sig, earlier) < 1.0 for earlier in queued_sigs):
+                        print("  same   (a screen you already captured -- no beep)")
                     else:
                         last_handled = sig
+                        queued_sigs.append(sig)
                         jobs.put(img)
-                        subprocess.Popen(["afplay", TINK])  # captured -- safe to move on; labeling happens in the background
+                        subprocess.Popen(["afplay", TINK])  # new picture queued -- safe to move on; labeling happens in the background
             time.sleep(args.interval)
     except KeyboardInterrupt:
         print("\nfinishing %d queued screen(s)..." % jobs.unfinished_tasks)

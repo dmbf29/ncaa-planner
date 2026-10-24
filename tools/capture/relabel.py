@@ -33,6 +33,9 @@ def main():
     shutil.copy(folder / "manifest.json", folder / "manifest.before-relabel.json")
     by_file = {e["file"]: e for e in manifest}
 
+    for e in manifest:   # titles misread with a stray letter ("y BOX SCORE") were filed as "other"
+        if e["kind"] == "other" and "box score" in " ".join(e.get("header", "").lower().split()):
+            e["kind"] = "box_score"
     for e in manifest:
         if e["kind"] != "team_stats" or e.get("hscroll") == "grafted":
             continue
