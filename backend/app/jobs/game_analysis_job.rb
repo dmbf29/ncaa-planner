@@ -8,7 +8,10 @@
 class GameAnalysisJob < ApplicationJob
   queue_as :default
 
-  def perform(game_id:, token:, box_score_signed_ids: [], home_signed_ids: [], away_signed_ids: [], home_categories: nil, away_categories: nil)
+  SECTIONS = %w[box_score home away].freeze
+
+  def perform(game_id:, token:, box_score_signed_ids: [], home_signed_ids: [], away_signed_ids: [], home_categories: nil, away_categories: nil,
+               replace_screenshots: false)
     game = Game.find(game_id)
     result, usage = LlmUsage.track_with_result("game #{game_id} analysis") do
       GameStats::ExtractionService.new(game).call(
@@ -19,6 +22,7 @@ class GameAnalysisJob < ApplicationJob
         away_categories: away_categories
       )
     end
+    result[:replace_screenshot_sections] = SECTIONS.select { |section| result[:"#{section}_screenshot_signed_ids"].present? } if replace_screenshots
     AnalysisStatus.complete!(token, result.merge(usage: usage.to_h))
   rescue RubyLLM::Error => e
     AnalysisStatus.failed!(token, "AI extraction failed: #{e.message}")

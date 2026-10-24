@@ -84,7 +84,8 @@ module GameCapture
         home_signed_ids: signed_ids(state[:dir], buckets[:home]),
         away_signed_ids: signed_ids(state[:dir], buckets[:away]),
         home_categories: buckets[:home].pluck(:category),
-        away_categories: buckets[:away].pluck(:category)
+        away_categories: buckets[:away].pluck(:category),
+        replace_screenshots: true
       )
       clear_state
       { token: token, unassigned: buckets[:unassigned].map { |s| s[:file] }, unpaired: unpaired_views(all).size, partial_rows: partial_rows(all) }

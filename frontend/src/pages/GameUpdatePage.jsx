@@ -826,6 +826,9 @@ function GameUpdatePage() {
   // From the Remote Play capture panel (local dev only) — same path as an upload.
   const handleCaptureFinished = async (result) => {
     applyFreshAnalysis(result);
+    // A capture re-photographs whole sections, so on save its screenshots replace what was
+    // attached before in those sections (see CommitService). Cleared again once saved.
+    updateAnalysis((prev) => (prev ? { ...prev, replaceScreenshotSections: result.replaceScreenshotSections || [] } : prev));
     setPendingAutoSave(true);
   };
 
@@ -917,6 +920,7 @@ function GameUpdatePage() {
               boxScoreScreenshotSignedIds: drop(prev.boxScoreScreenshotSignedIds, sent.boxScore),
               homeScreenshotSignedIds: drop(prev.homeScreenshotSignedIds, sent.home),
               awayScreenshotSignedIds: drop(prev.awayScreenshotSignedIds, sent.away),
+              replaceScreenshotSections: [],
             }
           : prev,
       );

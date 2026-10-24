@@ -20,25 +20,36 @@ module GameStats
       @created_student_seasons = {}
     end
 
-    def call(box_score_screenshot_signed_ids:, home_screenshot_signed_ids:, away_screenshot_signed_ids:, narrative:, college_stats:, player_stats:)
+    # replace_screenshot_sections ("box_score" / "home" / "away"): for those sections the newly
+    # attached screenshots replace whatever was attached before (a fresh capture of the whole
+    # section, so keeping the old ones would only clutter the gallery and inflate any
+    # "re-analyze existing"). The old ones are removed only after the whole commit succeeds.
+    def call(box_score_screenshot_signed_ids:, home_screenshot_signed_ids:, away_screenshot_signed_ids:, narrative:, college_stats:, player_stats:,
+             replace_screenshot_sections: [])
+      replace = Array(replace_screenshot_sections).map(&:to_s)
+      @stale_attachments = []
       ActiveRecord::Base.transaction do
-        attach_screenshots(@game.box_score_screenshots, box_score_screenshot_signed_ids)
-        attach_screenshots(@game.home_stat_screenshots, home_screenshot_signed_ids)
-        attach_screenshots(@game.away_stat_screenshots, away_screenshot_signed_ids)
+        attach_screenshots(@game.box_score_screenshots, box_score_screenshot_signed_ids, replace: replace.include?("box_score"))
+        attach_screenshots(@game.home_stat_screenshots, home_screenshot_signed_ids, replace: replace.include?("home"))
+        attach_screenshots(@game.away_stat_screenshots, away_screenshot_signed_ids, replace: replace.include?("away"))
         update_narrative(narrative)
         upsert_college_stats(college_stats)
         upsert_player_stats(player_stats)
       end
+      @stale_attachments.each(&:purge_later)
       @game
     end
 
     private
 
-    def attach_screenshots(attachment, signed_ids)
+    def attach_screenshots(attachment, signed_ids, replace: false)
       return if signed_ids.blank?
 
       blobs = Array(signed_ids).filter_map { |signed_id| ActiveStorage::Blob.find_signed(signed_id) }
-      attachment.attach(blobs) if blobs.any?
+      return if blobs.empty?
+
+      @stale_attachments.concat(attachment.attachments.to_a.reject { |existing| blobs.include?(existing.blob) }) if replace
+      attachment.attach(blobs)
     end
 
     def update_narrative(narrative)

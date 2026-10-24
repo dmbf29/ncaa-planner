@@ -125,7 +125,8 @@ module Api
           away_screenshot_signed_ids: payload[:away_screenshot_signed_ids] || [],
           narrative: payload[:narrative] || {},
           college_stats: payload[:college_stats] || [],
-          player_stats: payload[:player_stats] || []
+          player_stats: payload[:player_stats] || [],
+          replace_screenshot_sections: payload[:replace_screenshot_sections] || []
         )
         render json: game_json(reload: true)
       rescue ActiveRecord::RecordInvalid => e
@@ -285,7 +286,8 @@ module Api
           home_roster: result[:home_roster],
           away_roster: result[:away_roster],
           warnings: result[:warnings] || [],
-          usage: result[:usage]
+          usage: result[:usage],
+          replace_screenshot_sections: result[:replace_screenshot_sections] || []
         }
       end
     end
