@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import GameSummary from "../components/GameSummary";
+import GameCapturePanel from "../components/GameCapturePanel";
 import ScreenshotLightbox from "../components/ScreenshotLightbox";
 import {
   analyzeGameNarrative,
@@ -746,7 +747,10 @@ function GameUpdatePage() {
   // True while any of the three screenshot sections is mid-analyze — the
   // save button stays disabled during this window so a save can't race
   // ahead of stats that are still being extracted.
-  const anyAnalyzing = Boolean(sectionStatus.boxScore.analyzing || sectionStatus.home.analyzing || sectionStatus.away.analyzing);
+  const [captureBusy, setCaptureBusy] = useState(false);
+  const anyAnalyzing = Boolean(
+    sectionStatus.boxScore.analyzing || sectionStatus.home.analyzing || sectionStatus.away.analyzing || captureBusy,
+  );
 
   // Flips on for a moment right as analysis finishes (rather than staying
   // on for the whole "analyzing" window) so the save button's re-enable
@@ -805,6 +809,26 @@ function GameUpdatePage() {
     load();
   }, [gameId, authed]);
 
+  // Folds a fresh extraction into the review form: merged over whatever's
+  // already there, or used as-is for a never-analyzed game.
+  const applyFreshAnalysis = (result) =>
+    updateAnalysis((prev) =>
+      prev
+        ? mergeAnalysis(prev, result, game.awayCollege, game.homeCollege)
+        : {
+            ...result,
+            narrative: EMPTY_NARRATIVE,
+            collegeStats: normalizeCollegeStats(result.collegeStats, game.awayCollege, game.homeCollege),
+            playerStats: withUnmatchedDefaults(result.playerStats),
+          },
+    );
+
+  // From the Remote Play capture panel (local dev only) — same path as an upload.
+  const handleCaptureFinished = async (result) => {
+    applyFreshAnalysis(result);
+    setPendingAutoSave(true);
+  };
+
   const handleAnalyzeSection = async (sectionKey) => {
     const files = pendingFiles[sectionKey];
     if (files.length === 0) return;
@@ -813,16 +837,7 @@ function GameUpdatePage() {
     try {
       const buckets = { boxScore: [], home: [], away: [], [sectionKey]: files };
       const result = await analyzeGameStats(gameId, buckets);
-      updateAnalysis((prev) =>
-        prev
-          ? mergeAnalysis(prev, result, game.awayCollege, game.homeCollege)
-          : {
-              ...result,
-              narrative: EMPTY_NARRATIVE,
-              collegeStats: normalizeCollegeStats(result.collegeStats, game.awayCollege, game.homeCollege),
-              playerStats: withUnmatchedDefaults(result.playerStats),
-            },
-      );
+      applyFreshAnalysis(result);
       setPendingFiles((prev) => ({ ...prev, [sectionKey]: [] }));
       setSectionStatus((prev) => ({ ...prev, [sectionKey]: { analyzing: false, error: null } }));
       setPendingAutoSave(true);
@@ -980,6 +995,17 @@ function GameUpdatePage() {
             <p className="text-sm text-textSecondary">
               This game already has recorded stats — edit the fields below and save to update them.
             </p>
+          )}
+
+          {import.meta.env.DEV && (
+            <GameCapturePanel
+              gameId={gameId}
+              homeName={game.homeCollege.name}
+              awayName={game.awayCollege.name}
+              disabled={anyAnalyzing}
+              onFinished={handleCaptureFinished}
+              onBusyChange={setCaptureBusy}
+            />
           )}
 
           <AccordionSection title="Game Recap" expanded={openSections.recap} onToggle={() => toggleSection("recap")}>

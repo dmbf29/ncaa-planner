@@ -27,6 +27,22 @@ class GamePolicy < ApplicationPolicy
     owner?
   end
 
+  def capture_start?
+    owner?
+  end
+
+  def capture_status?
+    owner?
+  end
+
+  def capture_finish?
+    owner?
+  end
+
+  def capture_cancel?
+    owner?
+  end
+
   def owner?
     record.week.season.dynasty.user == user
   end

@@ -8,12 +8,14 @@
 class GameAnalysisJob < ApplicationJob
   queue_as :default
 
-  def perform(game_id:, token:, box_score_signed_ids: [], home_signed_ids: [], away_signed_ids: [])
+  def perform(game_id:, token:, box_score_signed_ids: [], home_signed_ids: [], away_signed_ids: [], home_categories: nil, away_categories: nil)
     game = Game.find(game_id)
     result = GameStats::ExtractionService.new(game).call(
       box_score_files: resolve_blobs(box_score_signed_ids),
       home_files: resolve_blobs(home_signed_ids),
-      away_files: resolve_blobs(away_signed_ids)
+      away_files: resolve_blobs(away_signed_ids),
+      home_categories: home_categories,
+      away_categories: away_categories
     )
     AnalysisStatus.complete!(token, result)
   rescue RubyLLM::Error => e

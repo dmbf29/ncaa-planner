@@ -519,6 +519,23 @@ export const reanalyzeGameStats = (id, section) =>
 export const analyzeGameNarrative = (id, { collegeStats, playerStats, additionalContext }) =>
   api.post(`/api/v1/games/${id}/analyze_narrative`, { analysis: { collegeStats, playerStats, additionalContext } }).then((r) => r.data);
 
+// Local-only capture from PS Remote Play (backend GameCapture::Session): the
+// backend runs tools/capture/watch.py while you navigate the game with a controller.
+export const startGameCapture = (id) => api.post(`/api/v1/games/${id}/capture_start`).then((r) => r.data);
+
+// => { running, screens: [{ file, kind, team, category, hscroll }], unpaired: [{ file, team, hscroll }] }
+export const fetchGameCaptureStatus = (id) => api.get(`/api/v1/games/${id}/capture_status`).then((r) => r.data);
+
+export const cancelGameCapture = (id) => api.post(`/api/v1/games/${id}/capture_cancel`);
+
+// Stops the watcher, then resolves with the analysis like analyzeGameStats
+// does, plus `unassigned` (captured screens that couldn't be tied to a team).
+export const finishGameCapture = (id, { onProgress } = {}) =>
+  api.post(`/api/v1/games/${id}/capture_finish`).then(async (r) => {
+    const analysis = await pollAnalysis(`/api/v1/games/${id}/analyze_status`, r.data.token, { onProgress });
+    return { analysis, unassigned: r.data.unassigned, unpaired: r.data.unpaired, partialRows: r.data.partialRows };
+  });
+
 export const commitGameStats = (id, analysis) =>
   api.post(`/api/v1/games/${id}/commit`, { analysis }).then((r) => r.data);
 

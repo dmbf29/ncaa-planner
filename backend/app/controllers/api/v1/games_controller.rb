@@ -5,6 +5,7 @@ module Api
       skip_after_action :verify_authorized
       skip_before_action :authenticate_user!, only: :show
       before_action :set_game
+      before_action :require_local_capture, only: %i[capture_start capture_status capture_finish capture_cancel]
 
       SECTION_ATTACHMENTS = {
         "box_score" => :box_score_screenshots,
@@ -131,7 +132,41 @@ module Api
         render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
       end
 
+      # Local-only capture from PS Remote Play (see GameCapture::Session).
+      # #capture_start launches the screenshot watcher, #capture_status is
+      # polled for the live checklist, and #capture_finish stops it and
+      # enqueues the usual GameAnalysisJob (poll #analyze_status with the
+      # returned token, exactly like #analyze).
+      def capture_start
+        authorize @game
+        render json: GameCapture::Session.new(@game).start!
+      end
+
+      def capture_status
+        authorize @game
+        render json: GameCapture::Session.new(@game).status
+      end
+
+      def capture_finish
+        authorize @game
+        render json: GameCapture::Session.new(@game).finish!, status: :accepted
+      rescue GameCapture::Session::Error => e
+        render json: { error: e.message, code: "capture_failed" }, status: :unprocessable_entity
+      end
+
+      def capture_cancel
+        authorize @game
+        GameCapture::Session.new(@game).cancel!
+        head :no_content
+      end
+
       private
+
+      # The watcher drives the developer's own Mac (screen capture + a
+      # process spawn), so it must never be reachable outside local dev.
+      def require_local_capture
+        render json: { error: "Capture is only available in local development.", code: "not_available" }, status: :not_found unless Rails.env.development?
+      end
 
       def set_game
         @game = Game.find(params[:id])
@@ -248,7 +283,8 @@ module Api
           college_stats: result[:college_stats],
           player_stats: result[:player_stats],
           home_roster: result[:home_roster],
-          away_roster: result[:away_roster]
+          away_roster: result[:away_roster],
+          warnings: result[:warnings] || []
         }
       end
     end

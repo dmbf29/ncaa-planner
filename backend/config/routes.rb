@@ -98,6 +98,11 @@ Rails.application.routes.draw do
           post :reanalyze
           post :analyze_narrative
           post :commit
+          # Local-only: drives tools/capture/watch.py. See GameCapture::Session.
+          post :capture_start
+          get :capture_status
+          post :capture_finish
+          post :capture_cancel
         end
       end
 
