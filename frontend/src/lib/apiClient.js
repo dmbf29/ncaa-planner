@@ -253,28 +253,29 @@ export const searchPreviousStudents = (dynastyId, seasonId, collegeSeasonId, q) 
 export const fetchWeekGames = (dynastyId, seasonId, weekNumber) =>
   api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/weeks/${weekNumber}/games`).then((r) => r.data);
 
-// The weekly podcast episode (Export page). weekNumber is the week being recapped; the next week is previewed.
+// A podcast episode (Export page), addressed by slug: "week-11" (recap Week 11, preview Week 12) or a season-long
+// show such as "win_totals".
 // Each step runs in the background on the server; poll fetchPodcastEpisode for progress.
-const podcastEpisodeBase = (dynastyId, seasonId, weekNumber) =>
-  `/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/podcast_episodes/${weekNumber}`;
+const podcastEpisodeBase = (dynastyId, seasonId, slug) =>
+  `/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/podcast_episodes/${slug}`;
 
-export const fetchPodcastEpisode = (dynastyId, seasonId, weekNumber) =>
-  api.get(podcastEpisodeBase(dynastyId, seasonId, weekNumber)).then((r) => r.data);
+export const fetchPodcastEpisode = (dynastyId, seasonId, slug) =>
+  api.get(podcastEpisodeBase(dynastyId, seasonId, slug)).then((r) => r.data);
 
 // step: "prepare" | "produce" | "publish" | "regenerate_art"
-export const startPodcastStep = (dynastyId, seasonId, weekNumber, step, body = {}) =>
-  api.post(`${podcastEpisodeBase(dynastyId, seasonId, weekNumber)}/${step}`, body).then((r) => r.data);
+export const startPodcastStep = (dynastyId, seasonId, slug, step, body = {}) =>
+  api.post(`${podcastEpisodeBase(dynastyId, seasonId, slug)}/${step}`, body).then((r) => r.data);
 
-export const fetchPodcastScript = (dynastyId, seasonId, weekNumber) =>
-  api.get(`${podcastEpisodeBase(dynastyId, seasonId, weekNumber)}/script`).then((r) => r.data.script);
+export const fetchPodcastScript = (dynastyId, seasonId, slug) =>
+  api.get(`${podcastEpisodeBase(dynastyId, seasonId, slug)}/script`).then((r) => r.data.script);
 
-export const savePodcastScript = (dynastyId, seasonId, weekNumber, script) =>
-  api.patch(`${podcastEpisodeBase(dynastyId, seasonId, weekNumber)}/script`, { script }).then((r) => r.data);
+export const savePodcastScript = (dynastyId, seasonId, slug, script) =>
+  api.patch(`${podcastEpisodeBase(dynastyId, seasonId, slug)}/script`, { script }).then((r) => r.data);
 
 // The cover art and audio are binary and need the auth header, so they come down as blobs for <img>/<audio>.
 // file: "art" | "audio". The caller revokes the returned object URL.
-export const fetchPodcastFileUrl = async (dynastyId, seasonId, weekNumber, file) => {
-  const response = await fetch(`${API_BASE_URL}${podcastEpisodeBase(dynastyId, seasonId, weekNumber)}/${file}`, {
+export const fetchPodcastFileUrl = async (dynastyId, seasonId, slug, file) => {
+  const response = await fetch(`${API_BASE_URL}${podcastEpisodeBase(dynastyId, seasonId, slug)}/${file}`, {
     headers: { Authorization: `Bearer ${localStorage.getItem("jwt")}` },
   });
   if (!response.ok) throw new Error(`Couldn't load the ${file} (${response.status})`);

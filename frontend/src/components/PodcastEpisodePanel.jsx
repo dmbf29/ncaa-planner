@@ -16,6 +16,47 @@ const buttonPrimary =
 const buttonSecondary =
   "rounded-md border border-border px-4 py-2 text-sm text-charcoal transition hover:bg-border/30 disabled:cursor-not-allowed disabled:opacity-60 dark:border-darkborder dark:text-white dark:hover:bg-white/10";
 
+const SHOWS = {
+  weekly: {
+    title: "Weekly Episode",
+    blurb:
+      "One episode of Rising in the Sun Belt: a recap of the week you pick, then a preview of the next week's games with the hosts' bets.",
+  },
+  win_totals: {
+    title: "Win Totals: Over/Under",
+    blurb:
+      "Projected Vegas-style win totals for our coached teams, with each full schedule read game by game, the coin-flip games debated, a Hot Seat Check on every head coach, and a conference champion prediction.",
+  },
+  roster_breakdown: {
+    title: "Roster Breakdown",
+    blurb:
+      "Where each team stands, then a position-by-position comparison of our starting rooms against each other, the conference and last year, closing with the hosts' roster verdicts.",
+  },
+  midseason_report_cards: {
+    title: "Midseason Report Cards",
+    blurb:
+      "Letter-grade debate for our coached teams: record, pace against the preseason Vegas number, signature wins and bad losses, team stats and conference standing, ending with what it'll take to improve.",
+  },
+  end_of_season_report_cards: {
+    title: "End of Season Report Cards",
+    blurb:
+      "Final letter-grade debate for our coached teams, ending with season awards and each conference's actual champion against our preseason prediction. Run after the bowl games, before the transfer portal.",
+  },
+  portal_preview: {
+    title: "Portal Preview",
+    blurb:
+      "Roster-planning preview ahead of the transfer portal: graduating seniors, early draft declarations, the most important losses, and which position groups need a new starter or more depth.",
+  },
+  nsd_breakdown: {
+    title: "Signing Day Breakdown",
+    blurb:
+      "How our coached teams recruited: each class's size, stars and national rank, a position-by-position scorecard of starters lost versus players signed, the splash signing and the biggest hole left open.",
+  },
+};
+
+const PIPELINE_BLURB =
+  "One button writes the script from your data, fact-checks it, makes the cover, then voices and mixes the episode. You can read the fact-check report and listen before you publish it to the podcast feed.";
+
 function StepRow({ state, label, detail }) {
   const icon = { done: "✓", running: "…", failed: "✕", pending: "○" }[state];
   return (
@@ -54,7 +95,7 @@ function Collapsible({ title, children, onOpen }) {
   );
 }
 
-function ScriptEditor({ dynastyId, seasonId, weekNumber, locked, onSaved }) {
+function ScriptEditor({ dynastyId, seasonId, slug, locked, onSaved }) {
   const [text, setText] = useState(null);
   const [saved, setSaved] = useState("");
   const [busy, setBusy] = useState(false);
@@ -63,19 +104,19 @@ function ScriptEditor({ dynastyId, seasonId, weekNumber, locked, onSaved }) {
   const load = useCallback(async () => {
     if (text !== null) return;
     try {
-      const script = await fetchPodcastScript(dynastyId, seasonId, weekNumber);
+      const script = await fetchPodcastScript(dynastyId, seasonId, slug);
       setText(script || "");
       setSaved(script || "");
     } catch (err) {
       setError(err.message);
     }
-  }, [dynastyId, seasonId, weekNumber, text]);
+  }, [dynastyId, seasonId, slug, text]);
 
   const save = async () => {
     setBusy(true);
     setError(null);
     try {
-      await savePodcastScript(dynastyId, seasonId, weekNumber, text);
+      await savePodcastScript(dynastyId, seasonId, slug, text);
       setSaved(text);
       onSaved();
     } catch (err) {
@@ -86,7 +127,7 @@ function ScriptEditor({ dynastyId, seasonId, weekNumber, locked, onSaved }) {
   };
 
   return (
-    <Collapsible title="Script (edit before approving)" onOpen={load}>
+    <Collapsible title="Script (editable)" onOpen={load}>
       {text === null ? (
         <p className="text-sm text-textSecondary">{error || "Loading the script..."}</p>
       ) : (
@@ -115,7 +156,7 @@ function ScriptEditor({ dynastyId, seasonId, weekNumber, locked, onSaved }) {
   );
 }
 
-function AudioPlayer({ dynastyId, seasonId, weekNumber, version }) {
+function AudioPlayer({ dynastyId, seasonId, slug, version }) {
   const [url, setUrl] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -127,7 +168,7 @@ function AudioPlayer({ dynastyId, seasonId, weekNumber, version }) {
     setBusy(true);
     setError(null);
     try {
-      setUrl(await fetchPodcastFileUrl(dynastyId, seasonId, weekNumber, "audio"));
+      setUrl(await fetchPodcastFileUrl(dynastyId, seasonId, slug, "audio"));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -146,7 +187,8 @@ function AudioPlayer({ dynastyId, seasonId, weekNumber, version }) {
   );
 }
 
-function PodcastEpisodePanel({ season, weeks }) {
+function PodcastEpisodePanel({ season, weeks, kind = "weekly" }) {
+  const weekly = kind === "weekly";
   const [weekNumber, setWeekNumber] = useState(null);
   const [episode, setEpisode] = useState(null);
   const [loadError, setLoadError] = useState(null);
@@ -159,11 +201,14 @@ function PodcastEpisodePanel({ season, weeks }) {
 
   const dynastyId = season.dynastyId;
   const seasonId = season.id;
+  // The weekly episode is picked by week; the season-long shows have one episode a season.
+  const slug = weekly ? (weekNumber === null ? null : `week-${weekNumber}`) : kind;
+  const copy = SHOWS[kind];
 
   const load = useCallback(async () => {
-    if (weekNumber === null) return null;
+    if (slug === null) return null;
     try {
-      const data = await fetchPodcastEpisode(dynastyId, seasonId, weekNumber);
+      const data = await fetchPodcastEpisode(dynastyId, seasonId, slug);
       setEpisode(data);
       setLoadError(null);
       return data;
@@ -171,7 +216,7 @@ function PodcastEpisodePanel({ season, weeks }) {
       setLoadError(err.message);
       return null;
     }
-  }, [dynastyId, seasonId, weekNumber]);
+  }, [dynastyId, seasonId, slug]);
 
   // Picking a week resets everything, then loads that week's state.
   useEffect(() => {
@@ -198,13 +243,13 @@ function PodcastEpisodePanel({ season, weeks }) {
 
   const hasArt = episode?.steps?.art;
   useEffect(() => {
-    if (!hasArt || weekNumber === null) {
+    if (!hasArt || slug === null) {
       setArtUrl(null);
       return undefined;
     }
     let cancelled = false;
     let created = null;
-    fetchPodcastFileUrl(dynastyId, seasonId, weekNumber, "art")
+    fetchPodcastFileUrl(dynastyId, seasonId, slug, "art")
       .then((url) => {
         created = url;
         if (cancelled) URL.revokeObjectURL(url);
@@ -215,13 +260,13 @@ function PodcastEpisodePanel({ season, weeks }) {
       cancelled = true;
       if (created) URL.revokeObjectURL(created);
     };
-  }, [hasArt, weekNumber, dynastyId, seasonId, mediaVersion]);
+  }, [hasArt, slug, dynastyId, seasonId, mediaVersion]);
 
   const start = async (step, body = {}) => {
     setStarting(true);
     setActionError(null);
     try {
-      setEpisode(await startPodcastStep(dynastyId, seasonId, weekNumber, step, body));
+      setEpisode(await startPodcastStep(dynastyId, seasonId, slug, step, body));
     } catch (err) {
       setActionError(err.message);
     } finally {
@@ -236,6 +281,13 @@ function PodcastEpisodePanel({ season, weeks }) {
   const prepared = steps.factCheck;
   const needsAudio = prepared && !steps.published && (!steps.audio || episode.audioStale);
   const episodeToPublish = episodeNumber === "" ? episode?.suggestedEpisode : Number(episodeNumber);
+
+  const startOver = async () => {
+    const ok = window.confirm(
+      `Throw away this episode's script, audio and cover and start again?\n\nMaking it again uses API and voice credits.`,
+    );
+    if (ok) await start("reset");
+  };
 
   const publish = () => {
     const replacing = steps.published ? "\n\nThis episode is already in the feed; publishing replaces its audio and details." : "";
@@ -264,63 +316,72 @@ function PodcastEpisodePanel({ season, weeks }) {
     <Card>
       <div className="space-y-5 p-5">
         <div>
-          <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">Weekly Episode</h3>
+          <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">{copy.title}</h3>
           <p className="mt-1 text-sm text-textSecondary">
-            One episode of Rising in the Sun Belt: a recap of the week you pick, then a preview of the next week&rsquo;s
-            games with the hosts&rsquo; bets. The script is written and fact-checked from your data, voiced, mixed and
-            published to the podcast feed, with a pause for you to review it before anything is voiced.
+            {copy.blurb} {PIPELINE_BLURB}
           </p>
         </div>
 
-        <div className="space-y-1.5">
-          <p className="text-xs uppercase tracking-wide text-textSecondary">Week to recap</p>
-          <p className="text-xs text-textSecondary/80">
-            The week after it is previewed. Run this once the game is advanced, the rosters, poll and lines are updated.
-          </p>
-          <div className="flex flex-wrap gap-2 pt-1">
-            {weeks.map((week) => (
-              <button
-                key={week.number}
-                type="button"
-                disabled={running}
-                onClick={() => setWeekNumber(week.number)}
-                className={clsx(
-                  "rounded-md border px-3 py-1.5 text-sm transition disabled:cursor-not-allowed disabled:opacity-60",
-                  weekNumber === week.number
-                    ? "border-burnt bg-burnt text-white"
-                    : "border-border text-charcoal hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10",
-                )}
-              >
-                {week.label}
-              </button>
-            ))}
+        {weekly && (
+          <div className="space-y-1.5">
+            <p className="text-xs uppercase tracking-wide text-textSecondary">Week to recap</p>
+            <p className="text-xs text-textSecondary/80">
+              The week after it is previewed. Run this once the game is advanced, the rosters, poll and lines are updated.
+            </p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              {weeks.map((week) => (
+                <button
+                  key={week.number}
+                  type="button"
+                  disabled={running}
+                  onClick={() => setWeekNumber(week.number)}
+                  className={clsx(
+                    "rounded-md border px-3 py-1.5 text-sm transition disabled:cursor-not-allowed disabled:opacity-60",
+                    weekNumber === week.number
+                      ? "border-burnt bg-burnt text-white"
+                      : "border-border text-charcoal hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10",
+                  )}
+                >
+                  {week.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
+
+        {!weekly && !episode && !loadError && <p className="text-sm text-textSecondary">Loading...</p>}
 
         {loadError && <p className="text-sm text-danger">{loadError}</p>}
 
-        {weekNumber !== null && episode && (
+        {slug !== null && episode && (
           <div className="grid gap-6 border-t border-border pt-5 dark:border-darkborder md:grid-cols-[minmax(0,22rem)_1fr]">
             <div className="space-y-3">
               <div className="aspect-square overflow-hidden rounded-lg border border-border bg-charcoal/5 dark:border-darkborder dark:bg-white/5">
                 {artUrl ? (
-                  <img src={artUrl} alt={`Cover art for Week ${weekNumber}`} className="h-full w-full object-cover" />
+                  <img src={artUrl} alt={`Cover art for ${episode.title}`} className="h-full w-full object-cover" />
                 ) : (
                   <div className="flex h-full items-center justify-center p-6 text-center text-sm text-textSecondary">
-                    {running && ["prepare", "regenerate_art"].includes(job.name)
+                    {running && ["prepare", "make", "regenerate_art"].includes(job.name)
                       ? "Artwork is generated early in the run..."
                       : "The cover art shows up here once the episode is prepared."}
                   </div>
                 )}
               </div>
               {steps.art && !steps.published && (
-                <button type="button" disabled={busy} onClick={() => start("regenerate_art")} className={buttonSecondary}>
-                  Regenerate art
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" disabled={busy} onClick={() => start("regenerate_art")} className={buttonSecondary}>
+                    Regenerate art
+                  </button>
+                  <button type="button" disabled={busy} onClick={startOver} className={buttonSecondary}>
+                    Start over
+                  </button>
+                </div>
               )}
-              {episode.recapOnly && (
+              {weekly && episode.recapOnly && (
                 <p className="text-xs text-textSecondary">
-                  No coached team plays Week {episode.previewWeek}, so this is a recap-only episode with the show cover.
+                  {episode.scoreboardOnly
+                    ? "The games still to play were already previewed in an earlier episode, so this one recaps the week and grades the hosts' bets, with the show cover."
+                    : "None of our coached teams plays again, so this is a recap-only episode with the show cover."}
                 </p>
               )}
             </div>
@@ -328,7 +389,7 @@ function PodcastEpisodePanel({ season, weeks }) {
             <div className="space-y-4">
               <div>
                 <p className="font-semibold text-charcoal dark:text-white">
-                  {episode.title || `${season.year} Week ${weekNumber} Reactions | Week ${episode.previewWeek} Preview`}
+                  {episode.title}
                 </p>
                 <p className="text-xs text-textSecondary">
                   Season {episode.seasonNumber} · Episode {steps.published ? episode.published.episode : episodeToPublish}
@@ -337,21 +398,21 @@ function PodcastEpisodePanel({ season, weeks }) {
 
               <ul className="space-y-3">
                 <StepRow
-                  state={stepState(steps.markdown, ["prepare"])}
-                  label={`Recap and Week ${episode.previewWeek} preview from your data`}
-                  detail={activeDetail(["prepare"])}
+                  state={stepState(steps.markdown, ["prepare", "make"])}
+                  label={weekly ? `Recap and ${episode.previewLabel || `Week ${episode.previewWeek}`} preview from your data` : "Source document from your data"}
+                  detail={activeDetail(["prepare", "make"])}
                 />
-                <StepRow state={steps.art ? "done" : stepState(false, ["prepare", "regenerate_art"])} label="Cover art" />
+                <StepRow state={steps.art ? "done" : stepState(false, ["prepare", "make", "regenerate_art"])} label="Cover art" />
                 <StepRow
-                  state={steps.script ? "done" : stepState(false, ["prepare"])}
+                  state={steps.script ? "done" : stepState(false, ["prepare", "make"])}
                   label="Script"
                   detail={episode.scriptWords ? `${episode.scriptWords.toLocaleString()} words, about ${Math.round(episode.scriptWords / 189)} min` : undefined}
                 />
-                <StepRow state={stepState(steps.factCheck, ["prepare"])} label="Fact-check" detail={factCheckSummary} />
+                <StepRow state={stepState(steps.factCheck, ["prepare", "make"])} label="Fact-check" detail={factCheckSummary} />
                 <StepRow
-                  state={stepState((steps.audio && !episode.audioStale) || steps.published, ["produce"])}
+                  state={stepState((steps.audio && !episode.audioStale) || steps.published, ["produce", "make"])}
                   label="Voices and music mix"
-                  detail={activeDetail(["produce"]) || (episode.audioStale ? "The script changed since the voices were made" : undefined)}
+                  detail={activeDetail(["produce", "make"]) || (episode.audioStale ? "The script changed since the voices were made" : undefined)}
                 />
                 <StepRow
                   state={stepState(steps.published, ["publish"])}
@@ -373,13 +434,18 @@ function PodcastEpisodePanel({ season, weeks }) {
 
               {!prepared && (
                 <div className="space-y-2">
-                  <button type="button" disabled={busy} onClick={() => start("prepare")} className={buttonPrimary}>
-                    {running && job.name === "prepare" ? "Preparing..." : failed && job.name === "prepare" ? "Retry preparing" : "Prepare episode"}
+                  <button type="button" disabled={busy} onClick={() => start("make")} className={buttonPrimary}>
+                    {running && ["make", "prepare"].includes(job.name)
+                      ? "Making the episode..."
+                      : failed && ["make", "prepare"].includes(job.name)
+                        ? "Retry"
+                        : "Make episode"}
                   </button>
                   <p className="text-xs text-textSecondary">
-                    Builds the recap and preview, generates the cover, writes the script and fact-checks it (about 12 minutes).
-                    Previewing locks Week {episode.previewWeek}&rsquo;s lines and picks, the same as the old export did. Nothing is
-                    voiced or published yet.
+                    {weekly
+                      ? `Builds the recap and the ${episode.previewLabel || `Week ${episode.previewWeek}`} preview, generates the cover, writes and fact-checks the script, then voices and mixes the episode, all in one go (about 25 minutes, and it uses paid voice credits). Previewing locks that game's lines and picks, the same as the old export did, even if it has already been played.`
+                      : "Builds the source from your data, generates the cover, writes and fact-checks the script, then voices and mixes the episode, all in one go (about 20 minutes, and it uses paid voice credits)."}{" "}
+                    Nothing is published until you say so.
                   </p>
                 </div>
               )}
@@ -392,10 +458,10 @@ function PodcastEpisodePanel({ season, weeks }) {
                     </Collapsible>
                   )}
                   <ScriptEditor
-                    key={`${weekNumber}-${mediaVersion}`}
+                    key={`${slug}-${mediaVersion}`}
                     dynastyId={dynastyId}
                     seasonId={seasonId}
-                    weekNumber={weekNumber}
+                    slug={slug}
                     locked={busy}
                     onSaved={load}
                   />
@@ -410,10 +476,16 @@ function PodcastEpisodePanel({ season, weeks }) {
                     onClick={() => start("produce", { redo: Boolean(episode.audioStale) })}
                     className={buttonPrimary}
                   >
-                    {running && job.name === "produce" ? "Producing..." : episode.audioStale ? "Produce the audio again" : "Approve and produce audio"}
+                    {running && ["produce", "make"].includes(job.name)
+                      ? "Producing..."
+                      : failed && ["produce", "make"].includes(job.name)
+                        ? "Retry"
+                        : episode.audioStale
+                          ? "Produce the audio again"
+                          : "Produce audio"}
                   </button>
                   <p className="text-xs text-textSecondary">
-                    Voices and mixes the reviewed script (about 10 minutes, and it uses paid voice credits), then writes the
+                    Voices and mixes the script (about 10 minutes, and it uses paid voice credits), then writes the
                     description. You can listen before anything is published.
                   </p>
                 </div>
@@ -421,7 +493,7 @@ function PodcastEpisodePanel({ season, weeks }) {
 
               {steps.audio && !episode.audioStale && (
                 <div className="space-y-3 border-t border-border pt-4 dark:border-darkborder">
-                  <AudioPlayer dynastyId={dynastyId} seasonId={seasonId} weekNumber={weekNumber} version={mediaVersion} />
+                  <AudioPlayer dynastyId={dynastyId} seasonId={seasonId} slug={slug} version={mediaVersion} />
                   {episode.description && (
                     <Collapsible title="Episode description">
                       <p className="whitespace-pre-wrap text-sm text-textSecondary">{episode.description}</p>
