@@ -14,6 +14,8 @@ module GameCapture
     CAPTURES_DIR = REPO_ROOT.join("pod/captures")
     # Stopping waits for the watcher to finish OCR'ing screens still queued.
     STOP_TIMEOUT = 60
+    # Same limit as tools/capture/watch.py: two views further apart than this share too few rows to graft.
+    MAX_SHIFT_ROWS = 8
 
     Error = Class.new(StandardError)
 
@@ -111,11 +113,29 @@ module GameCapture
       }
     end
 
-    # Defense views (left or right of the scrolling table) with no grafted composite:
-    # the list scrolled between the two captures, so they don't show the same rows.
+    # Defense views (left or right of the scrolling table) that never got a partner: the list
+    # scrolled between the two captures, so they don't show the same rows. A view isn't flagged
+    # if you've since re-captured the same page (a composite exists from a view of the same
+    # team and side within 8 rows of it, the most the watcher will graft across), which is the "redo" fix working as intended.
     def unpaired_views(all)
-      paired = all.flat_map { |s| Array(s[:grafted_from]) }
-      all.select { |s| s[:category] == "defense" && %w[left right].include?(s[:hscroll]) && paired.exclude?(s[:file]) }
+      composites = all.select { |s| s[:category] == "defense_extra" }
+      paired = composites.flat_map { |s| Array(s[:grafted_from]) }
+      views = all.select { |s| s[:category] == "defense" && %w[left right].include?(s[:hscroll]) }
+      views.select do |view|
+        next false if paired.include?(view[:file])
+
+        covered = composites.any? do |composite|
+          source = views.find { |v| composite[:grafted_from].include?(v[:file]) && v[:hscroll] == view[:hscroll] }
+          source && source[:team] == view[:team] && row_distance(source, view) <= MAX_SHIFT_ROWS
+        end
+        !covered
+      end
+    end
+
+    def row_distance(a, b)
+      return 99 unless a[:vtop] && b[:vtop] && a[:vlen]
+
+      ((a[:vtop] - b[:vtop]).abs / (a[:vlen] / 11.0)).round
     end
 
     # Rows whose names or right-hand stats were left out because the list scrolled between
@@ -137,7 +157,7 @@ module GameCapture
       return [] unless File.exist?(manifest)
 
       JSON.parse(File.read(manifest)).reject { |entry| entry["ignore"] }.map do |entry|
-        entry.slice("file", "kind", "team", "category", "hscroll", "grafted_from", "overlap_rows", "at").symbolize_keys
+        entry.slice("file", "kind", "team", "category", "hscroll", "grafted_from", "overlap_rows", "vtop", "vlen", "at").symbolize_keys
       end
     rescue JSON::ParserError
       [] # caught mid-write; the next poll will see the full file
