@@ -121,6 +121,19 @@ module GameStats
       unset if it is not visible.
     PROMPT
 
+    # One call per category (all of its fields at once) instead of two. Possible because the
+    # stat fields are required in the schema; verified identical to the split calls on real
+    # screens for all four categories (see git history). Set merge_groups = false to go back
+    # to two calls per category, and model to run extraction on a different model.
+    class << self
+      attr_writer :merge_groups
+      attr_accessor :model
+
+      def merge_groups
+        @merge_groups.nil? || @merge_groups
+      end
+    end
+
     # Human-readable notes about rows that couldn't be trusted (see
     # EXTRA_FIELD_GROUPS); read after #call.
     attr_reader :warnings
@@ -138,7 +151,7 @@ module GameStats
     def call(image_blobs, extra_blobs: [])
       return [] if image_blobs.blank?
 
-      results = FIELD_GROUPS.fetch(@category).map { |fields| run_group(image_blobs, fields) }
+      results = field_groups.map { |fields| run_group(image_blobs, fields) }
       extra_results = extra_blobs.blank? ? [] : EXTRA_FIELD_GROUPS.fetch(@category, []).map { |fields| run_group(extra_blobs, fields, extra: true) }
 
       rows = merge(results + extra_results)
@@ -147,6 +160,11 @@ module GameStats
     end
 
     private
+
+    def field_groups
+      groups = FIELD_GROUPS.fetch(@category)
+      self.class.merge_groups ? [ groups.flatten ] : groups
+    end
 
     # Empirically, a sub-call occasionally comes back with an empty players
     # array even when the screenshot clearly has players on it. A single
@@ -158,7 +176,7 @@ module GameStats
     end
 
     def fetch_group(image_blobs, fields, extra: false)
-      chat = RubyLLM.chat.with_instructions(SYSTEM_PROMPT).with_schema(group_schema(fields))
+      chat = (self.class.model ? RubyLLM.chat(model: self.class.model) : RubyLLM.chat).with_instructions(SYSTEM_PROMPT).with_schema(group_schema(fields))
       raw = chat.ask(prompt(extra: extra), with: image_blobs).content
       # Defensive: an occasional malformed response includes a bare string
       # instead of a proper row object, so filter those out rather than crash.
