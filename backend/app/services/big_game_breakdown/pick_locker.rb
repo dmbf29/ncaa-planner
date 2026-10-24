@@ -6,8 +6,10 @@ module BigGameBreakdown
   #
   # The first request for a game locks its lines and picks (picks are
   # idempotent after that, so re-generating the script never changes a bet).
-  # A game that has already been played is never given picks. Everything is
-  # seeded off the game's id, so the assignment is stable and reproducible.
+  # A game that has already been played is never given picks, unless the caller says to write the episode as if
+  # it hadn't happened yet (allow_played: the Export page does, to preview a game that's already in the books).
+  # That's safe: the bets are seeded off the game's id and the lines only use earlier weeks, so nothing about the
+  # result can leak into them. Everything is seeded off the game's id, so the assignment is stable and reproducible.
   class PickLocker
     # How far (in points) the projected total has to sit from the league
     # average before a game is bet as a total instead of against the spread:
@@ -29,9 +31,9 @@ module BigGameBreakdown
 
     # `lines` is the LineMaker result for the game. Returns the game's picks
     # (existing ones if already locked), or [] for a game already played.
-    def call(game, lines)
+    def call(game, lines, allow_played: false)
       existing = GamePick.where(game_id: game.id).order(:id).to_a
-      return existing if existing.any? || game.played?
+      return existing if existing.any? || (game.played? && !allow_played)
 
       create_picks(game, lines)
     rescue ActiveRecord::RecordNotUnique

@@ -850,11 +850,13 @@ class SeasonWeeksSerializer
     return [] unless week.number > MIN_WEEK_NUMBER_FOR_CHAMPIONSHIP_PROJECTION
 
     coached_conferences.compact.filter_map do |conference|
-      confirmed_conference_championship_json(conference) || projected_conference_championship_json(conference)
+      confirmed_conference_championship_json(conference, week) || projected_conference_championship_json(conference)
     end
   end
 
-  def confirmed_conference_championship_json(conference)
+  # The result is only included when the recapped week is the championship or later: a recap of an earlier week
+  # (including one written as if the title game hadn't happened yet) must not know who won.
+  def confirmed_conference_championship_json(conference, week)
     game = scheduled_conference_championship_game(conference)
     return nil unless game
 
@@ -863,7 +865,7 @@ class SeasonWeeksSerializer
       conference: conference,
       status: "confirmed",
       teams: finalists.map { |cs| projected_finalist_json(cs, conference_team_record(cs.college_id, conference)) },
-      result: championship_result_json(game)
+      result: (championship_result_json(game) if week.number >= game.week.number)
     }
   end
 

@@ -54,6 +54,13 @@ class BigGameBreakdownMarkdownPresenter
     @data = data
   end
 
+  # Just THE SCOREBOARD (last week's bets graded, then each host's season record), for an episode with nothing new to
+  # preview because the games coming up were already previewed in an earlier one (see Podcast::EpisodeRun).
+  # Blank when there are no bets on record to grade.
+  def scoreboard_markdown
+    scoreboard_lines.join("\n").strip
+  end
+
   def to_markdown
     lines = []
     lines.concat(PodcastShow.directive_lines(show_name: SHOW_NAME))

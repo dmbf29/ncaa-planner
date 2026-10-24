@@ -19,12 +19,15 @@ class BigGameBreakdownSerializer
   POLL_NEIGHBOR_RANGE = 3
   RECENT_RESULT_COUNT = 3
 
+  # `allow_played_picks: true` still gives a game that has already been played its bets, for episodes written as if
+  # it hadn't happened (everything else here already stops at the week before this one).
   # `lock: false` is a read-only preview: games, lines and any picks already
   # locked, but nothing gets locked by asking (see ExportPage's preview table).
-  def initialize(season, week_number, lock: true)
+  def initialize(season, week_number, lock: true, allow_played_picks: false)
     @season = season
     @week_number = week_number
     @lock = lock
+    @allow_played_picks = allow_played_picks
     @line_maker = BigGameBreakdown::LineMaker.new(season)
     @pick_locker = BigGameBreakdown::PickLocker.new
     @scorecard = BigGameBreakdown::Scorecard.new(season)
@@ -106,7 +109,7 @@ class BigGameBreakdownSerializer
   def ordered_games
     our_week_games.map do |game|
       lines = @line_maker.call(game, @week.number)
-      picks = @lock ? @pick_locker.call(game, lines) : @pick_locker.existing(game)
+      picks = @lock ? @pick_locker.call(game, lines, allow_played: @allow_played_picks) : @pick_locker.existing(game)
       lines = locked_lines(lines, picks)
       [ game, lines, picks ]
     end.sort_by { |game, lines, _picks| [ both_coached?(game) ? 1 : 0, -lines[:spread].abs, game.id ] }
