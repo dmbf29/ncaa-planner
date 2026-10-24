@@ -284,7 +284,8 @@ module Api
           player_stats: result[:player_stats],
           home_roster: result[:home_roster],
           away_roster: result[:away_roster],
-          warnings: result[:warnings] || []
+          warnings: result[:warnings] || [],
+          usage: result[:usage]
         }
       end
     end
