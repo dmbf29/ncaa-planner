@@ -70,8 +70,18 @@ module Podcast
       experience and matchup instead, and never compare quarterbacks' numbers unless both sides have a stat line.
     TEXT
 
-    def initialize(markdown_path:, year:, week_number:, preview_markdown_path: nil, model: nil)
+    SCOREBOARD_RULES = <<~TEXT.freeze
+      THIS PART OF THE SHOW IS THE HOSTS' BET SCOREBOARD: a look back at the bets Arlis and Ty made on the games just
+      recapped, graded against the real results. It is betting talk (the bets, whether they hit or missed, each host's
+      season record) and nothing else. There are NO games to preview: whatever is still to be played was already
+      previewed in an earlier episode, so do not preview it again or make any new picks.
+    TEXT
+
+    def initialize(markdown_path:, year:, week_number:, preview_markdown_path: nil, scoreboard_only: false, recap_label: nil, preview_label: nil, model: nil)
       @markdown = File.read(markdown_path)
+      @scoreboard_only = scoreboard_only
+      @recap_label = recap_label
+      @preview_label = preview_label
       @preview = File.read(preview_markdown_path) if preview_markdown_path
       @year = year
       @week_number = week_number
@@ -110,7 +120,15 @@ module Podcast
 
     def chat(segment)
       chat = model ? RubyLLM.chat(model: model) : RubyLLM.chat
-      chat.with_instructions([ SYSTEM_PROMPT, segment.kind == :preview ? preview_rules : REVIEW_RULES ].join("\n"))
+      chat.with_instructions([ SYSTEM_PROMPT, rules_for(segment) ].join("\n"))
+    end
+
+    def rules_for(segment)
+      case segment.kind
+      when :preview then preview_rules
+      when :scoreboard then SCOREBOARD_RULES
+      else REVIEW_RULES
+      end
     end
 
     def preview_rules
@@ -122,12 +140,14 @@ module Podcast
       preview[/^## 🎙️ SHOW FORMAT.*?(?=^## 🎬)/m].to_s
     end
 
+    # What the recapped week is called on air ("Week 13", "the Conference Championship").
     def label
-      "Week #{week_number}"
+      @recap_label.presence || "Week #{week_number}"
     end
 
+    # What the previewed week is called on air: "Week 14", or "the Conference Championship" and the like.
     def preview_week
-      preview[/^# .*BIG GAME BREAKDOWN — Week (\d+)/, 1] || (week_number.to_i + 1).to_s
+      @preview_label.presence || "Week #{preview[/^# .*BIG GAME BREAKDOWN — Week (\d+)/, 1] || (week_number.to_i + 1)}"
     end
 
     def team_headings
@@ -142,7 +162,7 @@ module Podcast
       @segments ||= begin
         list = [ opening_segment ] + team_headings.map { |team| team_segment(team) }
         list << (combined? ? review_wrap_segment : closing_segment)
-        list.concat(preview_segments) if combined?
+        list.concat(@scoreboard_only ? scoreboard_segments : preview_segments) if combined?
         list
       end
     end
@@ -152,7 +172,7 @@ module Podcast
       Segment.new(
         label: "Opening", kind: :review, words: 350,
         instruction: <<~TEXT
-          Write the cold open and the top of the show for "#{SHOW_NAME}", recapping #{label} of the #{year} season#{combined? ? ", then looking ahead to next week's games later in the show" : ''}.
+          Write the cold open and the top of the show for "#{SHOW_NAME}", recapping #{label} of the #{year} season#{combined? ? (@scoreboard_only ? ", then the hosts' bet scoreboard later in the show" : ", then looking ahead to next week's games later in the show") : ''}.
           Follow this structure exactly:
           1. #{narrator[:name].split.first} opens with a brief, cinematic line setting the stakes for the week, then says:
              "Welcome back to #{SHOW_NAME}, I'm #{narrator[:name]}..."
@@ -164,7 +184,15 @@ module Podcast
     end
 
     def team_segment(team)
-      next_up = combined? ? "Mention next week's opponent in one short line only; the preview later in the show covers it." : ""
+      return bye_segment(team) if bye?(team)
+
+      next_up = if @scoreboard_only
+        "Mention their next opponent in one short line only, no analysis or prediction."
+      elsif combined?
+        "Mention next week's opponent in one short line only; the preview later in the show covers it."
+      else
+        ""
+      end
       Segment.new(
         label: team, kind: :review, words: 750,
         instruction: <<~TEXT
@@ -176,6 +204,25 @@ module Podcast
           End the segment with a natural handoff, not a goodbye.
         TEXT
       )
+    end
+
+    # A team that had no game this week (a bye, common in the postseason) gets a short beat, not a game recap.
+    def bye_segment(team)
+      Segment.new(
+        label: "#{team} (bye)", kind: :review, words: 130,
+        instruction: <<~TEXT
+          #{team} had a bye in #{label}: there was NO game, so do not describe or invent one. Give a short beat of a few
+          lines: that they were off this week, where they stand (record, ranking, anything the section lists), and what
+          is next for them according to the "Next Up" part of their section, in one line, with no analysis or prediction.
+          End with a natural handoff, not a goodbye.
+        TEXT
+      )
+    end
+
+    # True when the document's section for this team says it had no game.
+    def bye?(team)
+      section = markdown.split(/^(?=## )/).find { |part| part.start_with?("## #{team} (Coach:") }
+      section.to_s.include?("Bye week")
     end
 
     def closing_segment
@@ -198,7 +245,7 @@ module Podcast
           Write the end of the recap half: a quick "Around the Sun Belt" run through the other conference scores, a look
           at where the Sun Belt standings stand, the matchups between our coaches this week and the projected Sun Belt
           championship if the document has those sections. Ignore the document's "Next Episode" section completely.
-          Finish with a line that turns the show toward next week's games, e.g. that it's time to look ahead. Do NOT
+          #{@scoreboard_only ? "Finish with a line that turns to the hosts' own scorecard, e.g. time to see how their bets did. Do NOT preview any games." : "Finish with a line that turns the show toward next week's games, e.g. that it's time to look ahead."} Do NOT
           sign off, and do not name or tease any upcoming episode.
         TEXT
       )
@@ -208,11 +255,34 @@ module Podcast
       [ preview_intro_segment ] + game_headings.map { |number, total, title| game_segment(number, total, title) } + [ preview_closing_segment ]
     end
 
+    # No preview (it was all previewed already): just the scoreboard of the hosts' bets, then the sign-off.
+    def scoreboard_segments
+      [
+        Segment.new(
+          label: "Bet scoreboard", kind: :scoreboard, words: 400,
+          instruction: <<~TEXT
+            The recap half just ended. Write the hosts' bet scoreboard with NO new welcome: use THE SCOREBOARD section of the
+            document to review last week's bets game by game, in that order: the game and its final score, each host's bet
+            and whether it hit or missed, and one short reaction each (about fifteen seconds a game). Then each host's season
+            record. Do not preview any game.
+          TEXT
+        ),
+        Segment.new(
+          label: "Sign-off", kind: :scoreboard, words: 200,
+          instruction: <<~TEXT
+            Write the end of the whole episode: a short, warm sign-off in the hosts' voices ending on "see you next week" or
+            similar, naming the show, "#{SHOW_NAME}". Do NOT name or tease any specific upcoming episode, preview any game
+            or recap the bets.
+          TEXT
+        )
+      ]
+    end
+
     def preview_intro_segment
       Segment.new(
         label: "Preview: card and scoreboard", kind: :preview, words: 350,
         instruction: <<~TEXT
-          The recap half just ended. Write the transition into the Week #{preview_week} Big Game Breakdown preview, with
+          The recap half just ended. Write the transition into the preview of #{preview_week} (call it that on air, never by a week number if it has a name), with
           NO new introductions or welcome, then these two beats:
           1. THE CARD: one sentence naming the #{game_headings.size} games on the board, in the document's order. No analysis.
           2. THE SCOREBOARD: use the document's "THE SCOREBOARD" section to review last week's bets game by game, in
@@ -255,7 +325,7 @@ module Podcast
     end
 
     def segment_prompt(segment, summary)
-      source = segment.kind == :preview ? preview : markdown
+      source = %i[preview scoreboard].include?(segment.kind) ? preview : markdown
       <<~PROMPT
         Here is the source document for this part of the show. It is the only source of facts.
 

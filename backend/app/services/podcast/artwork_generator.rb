@@ -12,7 +12,9 @@ module Podcast
 
     FACTS_PROMPT = <<~PROMPT.freeze
       From the preview source below, write the exact on-image text for each game panel, one panel per game in the
-      document's order, in this format and nothing else:
+      document's order, in this format and nothing else. A game is a section headed "## 🏈 GAME n OF m" and no
+      other. NEVER make a panel for the games listed under "ALSO ON THE BOARD": they are heads-ups with no bets, so
+      they have no picks and must not appear on the cover.
 
       PANEL 1: <Away team> @ <Home team> (include a ranking like "No. 7" only if the source gives one)
       KICKOFF: <short day, date, time and network, e.g. "SAT, NOV 20 • 8:00 PM ET • ESPN">
@@ -24,16 +26,18 @@ module Podcast
       Convert the spoken picks ("minus twenty-five and a half") into numerals. Use only what the source states.
     PROMPT
 
-    def initialize(preview_path:, recap_week:, preview_week:, out_path:, model: nil)
+    def initialize(preview_path:, recap_week:, preview_week:, out_path:, preview_label: nil, recap_label: nil, model: nil)
       @preview = File.read(preview_path)
       @recap_week = recap_week
       @preview_week = preview_week
+      @recap_label = recap_label.presence || "Week #{recap_week}"
+      @preview_label = preview_label.presence || "Week #{preview_week}"
       @out_path = out_path
       @model = model
     end
 
     def call
-      facts = (@model ? RubyLLM.chat(model: @model) : RubyLLM.chat).with_instructions(FACTS_PROMPT).ask(facts_request).content
+      facts = (@model ? RubyLLM.chat(model: @model) : RubyLLM.chat).with_instructions(facts_prompt).ask(facts_request).content
       prompt = image_prompt(facts)
       File.write(out_path.sub(/\.png\z/, "_prompt.txt"), prompt)
       File.binwrite(out_path, Base64.decode64(request_image(prompt)))
@@ -43,6 +47,8 @@ module Podcast
     private
 
     attr_reader :out_path
+
+    def facts_prompt = FACTS_PROMPT
 
     # The source is a show script brief; wrap it so it is read as data to extract from, not as a job to perform.
     def facts_request
@@ -62,7 +68,7 @@ module Podcast
         headline, its four colored game panels, the football-helmet matchups in each team's real colors, and the two
         host headshots (Arlis Boardingham and Ty Simpson) in "THE PICKS" strip of every panel.
 
-        Headline (large brush lettering, same placement as before): "WEEK #{@recap_week} REACTIONS + WEEK #{@preview_week} PREVIEW".
+        Headline (large brush lettering, same placement as before): "#{@recap_label.upcase} REACTIONS + #{@preview_label.upcase} PREVIEW".
         Small tag next to it: "RECAP. PREVIEW. ALL SUN BELT."
 
         Each panel's text must read exactly as follows, with each panel's spread and total shown in boxes and the two
@@ -79,7 +85,7 @@ module Podcast
         body << "--#{boundary}\r\nContent-Disposition: form-data; name=\"#{key}\"\r\n\r\n#{value}\r\n".b
       end
       references.each do |path|
-        body << "--#{boundary}\r\nContent-Disposition: form-data; name=\"image[]\"; filename=\"#{File.basename(path)}\"\r\n" \
+        body << "--#{boundary}\r\nContent-Disposition: form-data; name=\"image[]\"; filename=\"#{File.basename(path).gsub(/[^A-Za-z0-9._-]/, "_")}\"\r\n" \
                 "Content-Type: image/png\r\n\r\n".b << File.binread(path) << "\r\n".b
       end
       body << "--#{boundary}--\r\n".b

@@ -1,8 +1,9 @@
 module Api
   module V1
-    # The weekly podcast episode, driven from the Export page. Owner-only: unlike the public broadcast endpoints,
-    # these spend API credits and publish to the podcast feed. Each step runs as a background job (PodcastEpisodeJob);
-    # the page polls #show. The week in the URL is the week being recapped, and the next week is previewed.
+    # A podcast episode, driven from the Export page: the weekly recap + preview ("week-11" recaps Week 11 and
+    # previews Week 12) or one of the season-long shows ("win_totals", ...; see Podcast::EpisodeSpec). Owner-only:
+    # unlike the public broadcast endpoints, these spend API credits and publish to the podcast feed. Each step runs
+    # as a background job (PodcastEpisodeJob); the page polls #show.
     class PodcastEpisodesController < BaseController
       skip_after_action :verify_policy_scoped
       skip_after_action :verify_authorized
@@ -12,6 +13,12 @@ module Api
       def show
         authorize @season, :show_podcast_episode?
         render json: @status.to_h
+      end
+
+      # Prepare and produce in one background job: the Export page's main button. Publishing is separate.
+      def make
+        authorize @season, :manage_podcast_episode?
+        start("make", "Starting")
       end
 
       def prepare
@@ -42,6 +49,18 @@ module Api
       def regenerate_art
         authorize @season, :manage_podcast_episode?
         start("regenerate_art", "Starting")
+      end
+
+      # Throws away an unpublished episode's working files and cover so it can be made again from scratch (for example
+      # after the source data was fixed). Published episodes are left alone.
+      def reset
+        authorize @season, :manage_podcast_episode?
+        return render_error("A step is running; wait for it to finish.", :conflict) if @status.running?
+        return render_error("This episode is already published, so it can't be reset here.") if @status.to_h[:steps][:published]
+
+        FileUtils.rm_rf(@status.dir)
+        FileUtils.rm_f(@status.art_file)
+        render json: @status.to_h
       end
 
       def art
@@ -81,19 +100,22 @@ module Api
       def set_season
         dynasty = policy_scope(Dynasty).find(params[:dynasty_id])
         @season = dynasty.seasons.find(params[:season_id])
-        @week_number = Integer(params[:week_number], exception: false)
+        @spec = Podcast::EpisodeSpec.for(year: @season.year, slug: params[:slug], season: @season)
+        return render_error("Unknown episode \"#{params[:slug]}\".", :not_found) unless @spec
+
         # Every step spends API credits, so a week that isn't on this season's calendar is refused up front.
-        render_error("Week #{params[:week_number]} isn't in the #{@season.year} season.", :not_found) unless @week_number&.positive? && @season.weeks.exists?(number: @week_number)
+        return unless @spec.weekly? && !@season.weeks.exists?(number: @spec.week)
+
+        render_error("Week #{@spec.week} isn't in the #{@season.year} season.", :not_found)
       end
 
       def set_status
-        @status = Podcast::EpisodeStatus.new(year: @season.year, week_number: @week_number)
+        @status = Podcast::EpisodeStatus.new(spec: @spec)
       end
 
       def start(step, message, **options)
         @status.start_job!(step, message)
-        PodcastEpisodeJob.perform_later(season_id: @season.id, year: @season.year, week_number: @week_number,
-                                        step: step, **options)
+        PodcastEpisodeJob.perform_later(season_id: @season.id, year: @season.year, slug: @spec.slug, step: step, **options)
         render json: @status.to_h, status: :accepted
       rescue Podcast::EpisodeStatus::AlreadyRunning => e
         render_error(e.message, :conflict)

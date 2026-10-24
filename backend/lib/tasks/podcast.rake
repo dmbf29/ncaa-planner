@@ -89,13 +89,6 @@ namespace :podcast do
     end
   end
 
-  desc "Write the episode title and description (Claude) for a script: rake podcast:describe[../pod/scripts/2027_week-11-episode.checked.txt,2027,11,12]"
-  task :describe, %i[script_path year week_number preview_week] => :environment do |_task, args|
-    info = Podcast::EpisodeInfo.new(script_path: File.expand_path(args.fetch(:script_path), Dir.pwd),
-                                    year: args.fetch(:year), week_number: args.fetch(:week_number), preview_week: args[:preview_week].presence)
-    puts info.title, "", info.description
-  end
-
   desc "Generate episode cover art with the OpenAI image API into pod/art/<name>.png: " \
        "rake podcast:artwork[../pod/markdown/2027_week-12-preview.md,11,12,2027_11_episode]"
   task :artwork, %i[preview_path recap_week preview_week name] => :environment do |_task, args|
@@ -104,23 +97,6 @@ namespace :podcast do
                                   recap_week: args.fetch(:recap_week), preview_week: args.fetch(:preview_week),
                                   out_path: out, model: ENV["MODEL"]).call
     puts "Wrote #{out} (prompt saved next to it)"
-  end
-
-  desc "Add an episode to the podcast feed. DRY RUN unless CONFIRM=1: dry runs write pod/feed/feed.preview.xml with " \
-       "placeholder URLs and upload nothing. rake podcast:publish[2027,11,12,EPISODE_NUMBER,../pod/voice_tests/x.mp3," \
-       "../pod/art/2027_11_episode.png,../pod/scripts/2027_week-11-episode.checked.txt]"
-  task :publish, %i[year week_number preview_week episode audio_path art_path script_path] => :environment do |_task, args|
-    info = Podcast::EpisodeInfo.new(script_path: File.expand_path(args.fetch(:script_path), Dir.pwd),
-                                    year: args.fetch(:year), week_number: args.fetch(:week_number),
-                                    preview_week: args[:preview_week].presence)
-    live = ENV["CONFIRM"] == "1"
-    result = Podcast::Publisher.new(live: live).publish(
-      key: "rising-in-the-sun-belt-#{args.fetch(:year)}-week-#{args.fetch(:week_number)}",
-      title: info.title, description: info.description,
-      season: Podcast::Show.season_for(args.fetch(:year)), episode: args.fetch(:episode).to_i,
-      audio_path: File.expand_path(args.fetch(:audio_path), Dir.pwd), art_path: File.expand_path(args.fetch(:art_path), Dir.pwd)
-    )
-    puts live ? "LIVE. Feed address: #{result}" : "Dry run, nothing uploaded. Feed preview: #{result}"
   end
 
   desc "Download every episode's audio and art from the show's existing Spotify RSS feed (already saved at " \
@@ -146,15 +122,18 @@ namespace :podcast do
     puts live ? "LIVE. Feed address: #{result}" : "Dry run, nothing uploaded. Feed preview: #{result}"
   end
 
-  desc "ONE COMMAND for the weekly episode: rake podcast:weekly[2027,12]. Builds the recap (week N) and preview (week N+1) " \
-       "markdown from the app, writes and fact-checks the script, then PAUSES for your review. Re-run with APPROVE=1 to " \
-       "voice, mix, write the description, make the cover and add the episode to the feed (dry run unless CONFIRM=1). " \
-       "Steps already done are skipped. Optional: SEASON_ID, EPISODE (default: next in the season), FORCE=1 (start " \
-       "over), MODEL."
-  task :weekly, %i[year week_number] => :environment do |_task, args|
-    Podcast::WeeklyRun.new(
-      year: args.fetch(:year), week_number: args.fetch(:week_number), season_id: ENV["SEASON_ID"],
-      episode: ENV["EPISODE"], live: ENV["CONFIRM"] == "1", force: ENV["FORCE"] == "1", model: ENV["MODEL"]
+  desc "Run an episode from the terminal (the Export page does the same): rake podcast:episode_run[2027,week-12] or " \
+       "[2027,win_totals] (also roster_breakdown, midseason_report_cards, end_of_season_report_cards, portal_preview, " \
+       "nsd_breakdown). Builds the source markdown from the app, writes and fact-checks the script, then PAUSES for " \
+       "your review. Re-run with APPROVE=1 to voice, mix, write the description, make the cover and add the episode " \
+       "to the feed (dry run unless CONFIRM=1). Steps already done are skipped. Optional: SEASON_ID, EPISODE (default: " \
+       "next in the season), FORCE=1 (start over), MODEL."
+  task :episode_run, %i[year slug] => :environment do |_task, args|
+    season = ENV["SEASON_ID"].present? ? Season.find(ENV["SEASON_ID"]) : Season.where(year: args.fetch(:year)).order(:id).last
+    spec = Podcast::EpisodeSpec.for(year: args.fetch(:year), slug: args.fetch(:slug), season: season) or abort("Unknown episode #{args[:slug].inspect}")
+    Podcast::EpisodeRun.new(
+      spec: spec, season_id: ENV["SEASON_ID"], episode: ENV["EPISODE"], live: ENV["CONFIRM"] == "1",
+      force: ENV["FORCE"] == "1", model: ENV["MODEL"]
     ).call(approve: ENV["APPROVE"] == "1")
   end
 end

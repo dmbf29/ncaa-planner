@@ -75,13 +75,15 @@ Rails.application.routes.draw do
             get :portal_statuses
           end
 
-          # The weekly podcast episode (Export page): week_number is the week being recapped.
-          resources :podcast_episodes, only: %i[show], param: :week_number do
+          # Podcast episodes (Export page): slug is "week-11" (recap Week 11, preview Week 12) or a show like "win_totals".
+          resources :podcast_episodes, only: %i[show], param: :slug do
             member do
+              post :make
               post :prepare
               post :produce
               post :publish
               post :regenerate_art
+              post :reset
               get :art
               get :audio
               get :script

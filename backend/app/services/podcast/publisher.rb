@@ -16,11 +16,12 @@ module Podcast
       FileUtils.mkdir_p(Show::FEED_DIR)
     end
 
-    def publish(key:, title:, description:, season:, episode:, audio_path:, art_path:, published_at: Time.current)
+    def publish(key:, title:, description:, season:, episode:, audio_path:, art_path:, preview_weeks: nil, published_at: Time.current)
       entry = {
         "key" => key, "title" => title, "description" => description, "season" => season, "episode" => episode,
         "published_at" => published_at.iso8601, "duration" => duration(audio_path), "audio_bytes" => File.size(audio_path)
       }
+      entry["preview_weeks"] = preview_weeks unless preview_weeks.nil? # so later episodes don't preview these games again
       entry["audio_url"] = upload(audio_path, :video, "#{Show::CLOUD_FOLDER}/episodes/#{key}")
       entry["art_url"] = upload(art_path, :image, "#{Show::CLOUD_FOLDER}/art/#{key}")
       commit(manifest.reject { |existing| existing["key"] == key } + [ entry ])

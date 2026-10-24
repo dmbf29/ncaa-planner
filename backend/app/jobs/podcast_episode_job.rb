@@ -1,15 +1,16 @@
-# Runs one step of the weekly podcast episode (see Podcast::WeeklyRun) in the background: prepare (markdown, art,
-# script, fact-check), produce (voices, mix, description), publish or regenerate_art. These take minutes, so the
+# Runs one step of a podcast episode (see Podcast::EpisodeRun) in the background: make (prepare + produce in one go),
+# prepare (source markdown, art, script, fact-check), produce (voices, mix, description), publish or regenerate_art. These take minutes, so the
 # Export page polls Podcast::EpisodeStatus for progress. The controller marks the job as started before enqueueing it;
 # the job marks it finished or failed. Steps skip work that's already on disk, so a failure can simply be retried.
 class PodcastEpisodeJob < ApplicationJob
   queue_as :default
 
-  def perform(season_id:, year:, week_number:, step:, episode: nil, redo_audio: false)
-    status = Podcast::EpisodeStatus.new(year: year, week_number: week_number)
-    run = Podcast::WeeklyRun.new(year: year, week_number: week_number, season_id: season_id, episode: episode,
-                                 live: step == "publish", status: status)
+  def perform(season_id:, year:, slug:, step:, episode: nil, redo_audio: false)
+    spec = Podcast::EpisodeSpec.for(year: year, slug: slug, season: Season.find(season_id)) or raise ArgumentError, "unknown episode #{slug.inspect}"
+    status = Podcast::EpisodeStatus.new(spec: spec)
+    run = Podcast::EpisodeRun.new(spec: spec, season_id: season_id, episode: episode, live: step == "publish", status: status)
     case step
+    when "make" then run.make
     when "prepare" then run.prepare
     when "produce" then run.produce(redo_audio: redo_audio)
     when "publish" then run.publish

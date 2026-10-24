@@ -10,32 +10,19 @@ module Podcast
       markdown: "recap.md", script: "script.txt", fact_check: "script.checked.txt", audio: "episode.mp3"
     }.freeze
 
-    def self.dir_for(year, week_number)
-      File.join(Show::ROOT, "episodes", "#{year}_week-#{week_number}")
+    def initialize(spec:)
+      @spec = spec
+      @dir = spec.dir
     end
 
-    def self.art_path(year, week_number)
-      File.join(Show::ART_DIR, format("%<y>d_%<w>02d_episode.png", y: year, w: week_number))
-    end
-
-    def self.key_for(year, week_number)
-      "rising-in-the-sun-belt-#{year}-week-#{week_number}"
-    end
-
-    def initialize(year:, week_number:)
-      @year = year.to_i
-      @week = week_number.to_i
-      @dir = self.class.dir_for(@year, @week)
-    end
-
-    attr_reader :dir
+    attr_reader :dir, :spec
 
     def path(name) = File.join(@dir, name)
 
     # ---- the running job ---------------------------------------------------------
 
     def start_job!(name, message)
-      raise AlreadyRunning, "#{current_job[:name]} is already running for week #{@week}" if running?
+      raise AlreadyRunning, "#{current_job[:name]} is already running for this episode" if running?
 
       FileUtils.mkdir_p(@dir)
       write(name: name, state: "running", message: message, error: nil, started_at: Time.current.iso8601, pid: Process.pid)
@@ -73,23 +60,23 @@ module Podcast
     def to_h
       published = published_entry
       {
-        year: @year, week_number: @week, preview_week: @week + 1,
+        kind: @spec.kind, slug: @spec.slug, year: @spec.year, week_number: @spec.week, preview_week: @spec.preview_week, preview_label: @spec.preview_label, recap_label: (@spec.recap_label if @spec.weekly?),
         job: current_job.slice(:name, :state, :message, :error, :started_at),
         steps: {
           markdown: File.exist?(path(FILES[:markdown])),
-          art: File.exist?(self.class.art_path(@year, @week)),
+          art: File.exist?(@spec.art_path),
           script: File.exist?(path(FILES[:script])),
           fact_check: File.exist?(path(FILES[:fact_check])),
           audio: File.exist?(path(FILES[:audio])),
           published: published.present?
         },
         audio_stale: audio_stale?,
-        recap_only: File.exist?(path("no_preview")),
+        recap_only: recap_only?, scoreboard_only: @spec.scoreboard_only?,
         script_words: script_words,
         fact_check: fact_check_json,
-        title: published&.fetch("title") || cached_title,
+        title: published&.fetch("title") || @spec.title(recap_only: recap_only?),
         description: published&.fetch("description", nil) || read_text("script.checked.description.txt"),
-        season_number: Show.season_for(@year),
+        season_number: Show.season_for(@spec.year),
         suggested_episode: suggested_episode,
         published: published && published.slice("episode", "season", "title", "published_at"),
         feed_url: Show::FEED_URL
@@ -102,19 +89,19 @@ module Podcast
 
     def audio_path = path(FILES[:audio])
 
-    def art_file = self.class.art_path(@year, @week)
-
-    private
-
-    def read_text(name)
-      File.exist?(path(name)) ? File.read(path(name)) : nil
-    end
+    def art_file = @spec.art_path
 
     # The script was edited after the voices were made.
     def audio_stale?
       return false unless File.exist?(path(FILES[:audio])) && File.exist?(path(FILES[:fact_check]))
 
       File.mtime(path(FILES[:audio])) < File.mtime(path(FILES[:fact_check]))
+    end
+
+    private
+
+    def read_text(name)
+      File.exist?(path(name)) ? File.read(path(name)) : nil
     end
 
     def script_words
@@ -129,12 +116,8 @@ module Podcast
       (summary || {}).merge(report: fact_check_report)
     end
 
-    def cached_title
-      return nil unless File.exist?(path(FILES[:script]))
-
-      EpisodeInfo.new(script_path: path(FILES[:script]), year: @year, week_number: @week,
-                      preview_week: (@week + 1 unless File.exist?(path("no_preview")))).title
-    end
+    # A weekly episode with nothing to preview (none of our teams plays again): recap-only.
+    def recap_only? = @spec.weekly? && (@spec.preview_week.nil? || File.exist?(path("no_preview")))
 
     def manifest
       file = Publisher::MANIFEST
@@ -142,12 +125,12 @@ module Podcast
     end
 
     def published_entry
-      manifest.find { |entry| entry["key"] == self.class.key_for(@year, @week) }
+      manifest.find { |entry| entry["key"] == @spec.key }
     end
 
     # The next episode number in this season's feed.
     def suggested_episode
-      season = Show.season_for(@year)
+      season = Show.season_for(@spec.year)
       manifest.select { |entry| entry["season"] == season }.map { |entry| entry["episode"] }.max.to_i + 1
     end
 

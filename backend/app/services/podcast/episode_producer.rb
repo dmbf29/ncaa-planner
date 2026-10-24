@@ -79,8 +79,12 @@ module Podcast
         "afade=t=out:st=#{OUTRO_LENGTH - OUTRO_FADE_OUT}:d=#{OUTRO_FADE_OUT},adelay=#{(outro_start * 1000).to_i}:all=1[outro]",
         "[voice][intro][outro]amix=inputs=3:normalize=0:duration=longest[out]"
       ].join(";")
+      # Written under a temporary name and renamed when ffmpeg is done: the Export page treats the existence of
+      # episode.mp3 as "the audio is finished", so it must never appear half-written.
+      partial = "#{output}.part"
       ffmpeg("-i", speech, "-i", MUSIC_PATH, "-filter_complex", graph, "-map", "[out]",
-             "-codec:a", "libmp3lame", "-b:a", "128k", "-y", output)
+             "-codec:a", "libmp3lame", "-b:a", "128k", "-f", "mp3", "-y", partial)
+      File.rename(partial, output)
       output
     end
 

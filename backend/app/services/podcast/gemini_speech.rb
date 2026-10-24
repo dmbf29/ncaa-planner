@@ -49,8 +49,9 @@ module Podcast
         input: [ { type: "user_input", content: turns.map { |turn| content_for(turn) } } ],
         response_format: { type: "audio" },
         generation_config: {
-          speech_config: { mode: "conversational",
-                           speakers: SPEAKERS.values.map { |speaker| { speaker: speaker[:name], voice: speaker[:voice] } } }
+          # No "mode" key: Google's API started rejecting it (it was optional, and conversational is the default for
+          # two speakers).
+          speech_config: { speakers: SPEAKERS.values.map { |speaker| { speaker: speaker[:name], voice: speaker[:voice] } } }
         }
       }
     end
