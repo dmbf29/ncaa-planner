@@ -28,6 +28,7 @@ import AllAmericansUpdatePage from "./pages/AllAmericansUpdatePage";
 import HeismanUpdatePage from "./pages/HeismanUpdatePage";
 import PlayersOfTheWeekUpdatePage from "./pages/PlayersOfTheWeekUpdatePage";
 import CoachInfoUpdatePage from "./pages/CoachInfoUpdatePage";
+import CoachOutcomesUpdatePage from "./pages/CoachOutcomesUpdatePage";
 import NilSpendUpdatePage from "./pages/NilSpendUpdatePage";
 import ConferenceStandingsUpdatePage from "./pages/ConferenceStandingsUpdatePage";
 import TeamStatsUpdatePage from "./pages/TeamStatsUpdatePage";
@@ -89,6 +90,7 @@ function App() {
         <Route path="/dynasty/updates/portal-preview" element={<PortalPreviewUpdatePage />} />
         <Route path="/dynasty/updates/season/coaches" element={<SeasonCoachesPage />} />
         <Route path="/dynasty/updates/coach-info" element={<CoachInfoUpdatePage />} />
+        <Route path="/dynasty/updates/coach-outcomes" element={<CoachOutcomesUpdatePage />} />
         <Route path="/dynasty/updates/team-attributes" element={<TeamAttributesPage />} />
         <Route path="/dynasty/updates/bowl-projections" element={<BowlProjectionsUpdatePage />} />
         <Route path="/dynasty/updates/award-winners" element={<AwardWinnersPage />} />

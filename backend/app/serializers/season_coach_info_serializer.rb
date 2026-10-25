@@ -28,7 +28,9 @@ class SeasonCoachInfoSerializer
         job_security: coach.job_security,
         job_security_label: coach.job_security_label
       },
-      college: { id: college_season.college.id, name: college_season.college.name }
+      college: { id: college_season.college.id, name: college_season.college.name },
+      college_season_id: college_season.id,
+      coach_outcome: college_season.coach_outcome
     }
   end
 end

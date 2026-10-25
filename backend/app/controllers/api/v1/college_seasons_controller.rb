@@ -14,7 +14,8 @@ module Api
             offense: @college_season.offense,
             defense: @college_season.defense,
             prestige: @college_season.prestige,
-            conference: @college_season.conference
+            conference: @college_season.conference,
+            coach_outcome: @college_season.coach_outcome
           }
         else
           render json: { error: @college_season.errors.full_messages.to_sentence, code: "unprocessable_entity" },
@@ -29,7 +30,7 @@ module Api
       end
 
       def college_season_params
-        params.require(:college_season).permit(:overall, :offense, :defense, :prestige, :conference)
+        params.require(:college_season).permit(:overall, :offense, :defense, :prestige, :conference, :coach_outcome)
       end
     end
   end

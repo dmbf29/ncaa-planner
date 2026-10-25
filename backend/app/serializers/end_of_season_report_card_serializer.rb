@@ -37,8 +37,15 @@ class EndOfSeasonReportCardSerializer < MidseasonReportCardSerializer
   def team_json(college_season)
     super.merge(
       all_americans: all_americans_for(college_season.college_id).map { |aa| all_american_json(aa) },
-      bowl_games: bowl_games_for(college_season)
+      bowl_games: bowl_games_for(college_season),
+      coach_outcome: coach_outcome_json(college_season)
     )
+  end
+
+  def coach_outcome_json(college_season)
+    return nil unless college_season.coach_outcome
+
+    { coach_name: college_season.coach&.name, outcome: college_season.coach_outcome }
   end
 
   def bowl_games_for(college_season)

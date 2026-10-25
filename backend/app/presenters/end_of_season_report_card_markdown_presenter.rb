@@ -100,7 +100,7 @@ class EndOfSeasonReportCardMarkdownPresenter < MidseasonReportCardMarkdownPresen
   end
 
   def team_section(team)
-    super + bowl_games_section(team[:bowl_games]) + all_americans_section(team[:all_americans])
+    super + bowl_games_section(team[:bowl_games]) + coach_outcome_section(team[:coach_outcome]) + all_americans_section(team[:all_americans])
   end
 
   # Headers trimmed of the "(beat/lost to a team they had no business...)"
@@ -197,6 +197,18 @@ class EndOfSeasonReportCardMarkdownPresenter < MidseasonReportCardMarkdownPresen
     return " (eliminated from the College Football Playoff)" if game[:cfp_round] && !game[:result][:won]
 
     ""
+  end
+
+  COACH_OUTCOME_LINES = {
+    "fired" => "was FIRED after the season — a major storyline, and the hosts should react to it and let it color the grade",
+    "left" => "is leaving the program after the season",
+    "continued" => "is staying on as head coach"
+  }.freeze
+
+  def coach_outcome_section(outcome)
+    return [] if outcome.blank?
+
+    [ "### 👔 Coach's Future", "", "- Coach #{outcome[:coach_name]} #{COACH_OUTCOME_LINES[outcome[:outcome]]}.", "" ]
   end
 
   def all_americans_section(all_americans)

@@ -23,6 +23,7 @@ const MIDSEASON_UPDATES = [
 const BOWL_WEEK_UPDATES = [
   { key: "award-winners", label: "Award Winners", icon: "fa-solid fa-medal", description: "Record this season's national award winners.", to: "/dynasty/updates/award-winners" },
   { key: "final-all-americans", label: "Final All-Americans", icon: "fa-solid fa-people-line", description: "Upload the National/Conference All-American screenshots.", to: "/dynasty/updates/all-americans" },
+  { key: "coach-outcomes", label: "Coach Outcomes", icon: "fa-solid fa-user-slash", description: "Mark which user coaches were fired, are leaving, or are staying.", to: "/dynasty/updates/coach-outcomes" },
 ];
 
 const AFTER_CHAMPIONSHIP_UPDATES = [
