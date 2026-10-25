@@ -83,6 +83,16 @@ CATEGORIES = [  # column-header words that identify a Player Stats table
 ]
 
 
+# One Rushing row: "J.Smith 12 58 4.8 1 0 2 15 17 1". The first number is CAR (carries), then YARDS and AVG.
+RUSHING_ROW = re.compile(r"^\s*[A-Za-z]\.\s?[A-Za-z'\u2019.\- ]{1,24}?\s+(\d+)\s+-?\d+\s+-?\d+\.\d\b", re.M)
+
+
+def rushing_rows(text):
+    """(rows read, rows with at least one carry) from a Rushing screen's OCR text."""
+    carries = [int(n) for n in RUSHING_ROW.findall(text)]
+    return len(carries), sum(1 for n in carries if n > 0)
+
+
 def team_scores(raw, teams):
     """Similarity (0-1) of one OCR reading to each team name."""
     flat = lambda t: re.sub(r"[^a-z]", "", t.lower())
@@ -346,6 +356,19 @@ def main():
                 seen.append((fp, key, sig))
                 entry = save(img, slug, header, meta, text)
                 print("  saved  %s   (%.2f similar to nearest)" % (entry["file"], best))
+                if meta["category"] == "rushing":
+                    read, with_carries = rushing_rows(text)
+                    if read >= 3 and with_carries == 0:
+                        # The table is sorted with the zero-carry players on top (or hasn't been sorted by CAR yet), so
+                        # everyone who actually ran is off screen. Keep the file for reference but don't count it, and
+                        # forget it so the re-sorted screen isn't mistaken for a repeat of this one.
+                        entry["ignore"] = True
+                        entry["note"] = "Rushing table showed only players with 0 carries"
+                        (out / "manifest.json").write_text(json.dumps(manifest, indent=2))
+                        seen.pop()
+                        print("  WARN   %s rushing shows only 0-carry players -- sort by CAR (most carries first), then pause again. Not counted." % (meta.get("team") or "?"))
+                        subprocess.Popen(["afplay", "/System/Library/Sounds/Basso.aiff"])
+                        continue
                 if key is not None:
                     pair_and_graft(entry)
             except Exception as e:  # keep watching no matter what

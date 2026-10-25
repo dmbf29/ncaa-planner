@@ -58,7 +58,8 @@ module GameCapture
       return { running: false, screens: [] } unless state
 
       all = screens(state[:dir])
-      { running: alive?(state[:pid]), screens: all.map { |s| s.except(:grafted_from) }, unpaired: unpaired_views(all).map { |s| s.slice(:file, :team, :hscroll) } }
+      { running: alive?(state[:pid]), screens: all.map { |s| s.except(:grafted_from) }, unpaired: unpaired_views(all).map { |s| s.slice(:file, :team, :hscroll) },
+        skipped: skipped_screens(state[:dir]) }
     end
 
     def running?
@@ -130,6 +131,20 @@ module GameCapture
         end
         !covered
       end
+    end
+
+    # Screens the watcher kept but didn't count (a Rushing table showing only 0-carry players: sorted the wrong way, so
+    # everyone who ran is off screen), minus any whose team and category were captured properly afterwards.
+    def skipped_screens(dir)
+      manifest = File.join(dir.to_s, "manifest.json")
+      return [] unless File.exist?(manifest)
+
+      entries = JSON.parse(File.read(manifest))
+      entries.select { |entry| entry["ignore"] && entry["note"] }.reject do |skipped|
+        entries.any? { |entry| !entry["ignore"] && entry["team"] == skipped["team"] && entry["category"] == skipped["category"] }
+      end.map { |entry| { team: entry["team"], category: entry["category"], note: entry["note"] } }
+    rescue JSON::ParserError
+      []
     end
 
     def row_distance(a, b)

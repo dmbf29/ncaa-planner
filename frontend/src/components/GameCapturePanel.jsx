@@ -41,6 +41,7 @@ function GameCapturePanel({ gameId, homeName, awayName, disabled, onFinished, on
   const [phase, setPhase] = useState("idle"); // idle | running | saved | analyzing
   const [screens, setScreens] = useState([]);
   const [unpaired, setUnpaired] = useState([]);
+  const [skipped, setSkipped] = useState([]);
   const [error, setError] = useState(null);
   const [note, setNote] = useState(null);
   const onBusyRef = useRef(onBusyChange);
@@ -54,6 +55,7 @@ function GameCapturePanel({ gameId, homeName, awayName, disabled, onFinished, on
         if (cancelled || (!s.running && s.screens.length === 0)) return;
         setScreens(s.screens);
         setUnpaired(s.unpaired || []);
+        setSkipped(s.skipped || []);
         // Not running but screens on disk: a finished-but-unanalyzed capture (e.g. the server restarted).
         setPhase(s.running ? "running" : "saved");
       })
@@ -70,6 +72,7 @@ function GameCapturePanel({ gameId, homeName, awayName, disabled, onFinished, on
         .then((s) => {
           setScreens(s.screens);
           setUnpaired(s.unpaired || []);
+          setSkipped(s.skipped || []);
         })
         .catch(() => {});
     }, POLL_MS);
@@ -186,6 +189,13 @@ function GameCapturePanel({ gameId, homeName, awayName, disabled, onFinished, on
 
         {error && <p className="text-sm text-danger">{error}</p>}
         {note && <p className="text-sm text-warning">{note}</p>}
+
+        {(phase === "running" || phase === "saved") && skipped.length > 0 && (
+          <p className="text-xs text-warning">
+            Not counted: {skipped.map((s) => `${s.team || "a team"} ${s.category}`).join(", ")} showed only players with 0 carries. Sort the
+            table by CAR so the most carries are on top, then pause on it again.
+          </p>
+        )}
 
         {phase === "running" && unpaired.length > 0 && (
           <p className="text-xs text-warning">
