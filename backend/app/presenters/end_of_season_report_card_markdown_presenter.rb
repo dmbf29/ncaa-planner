@@ -37,7 +37,9 @@ class EndOfSeasonReportCardMarkdownPresenter < MidseasonReportCardMarkdownPresen
       "against their preseason Vegas number, any signature win or bad loss, the final team stats (a " \
       "bowl-eligible team played one extra game — their bowl — that a team that missed the postseason didn't, " \
       "so lean on the per-game numbers over raw totals), how the bowl game (if any) went, any All-American " \
-      "honorees, and the final conference standing.",
+      "honorees, and the final conference standing. A team that played in the College Football Playoff " \
+      "(rounds are labeled in its Bowl Games section) had a special season, and a national championship " \
+      "must be celebrated and weigh heavily in that team's grade.",
       "A Signature Win/Bad Loss is judged by the opponent's own final record, not a preseason expectation: a " \
       "signature win means beating a team with 8+ wins; a bad loss means losing to a team at or below .500 if " \
       "our own team finished above .500, or losing to a team with an even worse winning percentage than ours " \
@@ -174,7 +176,27 @@ class EndOfSeasonReportCardMarkdownPresenter < MidseasonReportCardMarkdownPresen
     score = "#{game[:result][:team_score]}-#{game[:result][:opponent_score]}"
     opp_ratings = game[:opponent_ratings]
     opp_summary = opp_ratings ? " (#{opp_ratings[:overall]} OVR)" : ""
-    "- #{game[:week_label]}: #{outcome} #{score} #{where} #{game[:opponent][:name]}#{opp_summary}"
+    "- #{bowl_game_label(game)}: #{outcome} #{score} #{where} #{game[:opponent][:name]}#{opp_summary}#{bowl_game_note(game)}"
+  end
+
+  CFP_ROUND_LABELS = {
+    "first_round" => "CFP First Round", "quarterfinal" => "CFP Quarterfinal",
+    "semifinal" => "CFP Semifinal", "championship" => "CFP National Championship"
+  }.freeze
+
+  def bowl_game_label(game)
+    round = CFP_ROUND_LABELS[game[:cfp_round]]
+    name = game[:bowl_name].presence
+    return game[:week_label] unless round || name
+
+    [ round, (name unless name == round || game[:cfp_round] == "championship") ].compact.join(" — ")
+  end
+
+  def bowl_game_note(game)
+    return " 🏆 NATIONAL CHAMPIONS — won the College Football Playoff" if game[:national_champion]
+    return " (eliminated from the College Football Playoff)" if game[:cfp_round] && !game[:result][:won]
+
+    ""
   end
 
   def all_americans_section(all_americans)

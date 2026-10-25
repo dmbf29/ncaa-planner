@@ -169,6 +169,7 @@ class MidseasonReportCardSerializer
 
     {
       college_season: college_season,
+      game: game,
       week: week,
       home: home,
       opponent_college: opponent_college,

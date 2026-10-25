@@ -50,6 +50,9 @@ class EndOfSeasonReportCardSerializer < MidseasonReportCardSerializer
   def bowl_game_json(game)
     {
       week_label: week_label_for(game[:week]),
+      bowl_name: game[:game].bowl_name,
+      cfp_round: game[:game].cfp_round,
+      national_champion: game[:game].championship? && game[:result][:won],
       home: game[:home],
       opponent: college_json(game[:opponent_college], game[:opponent]&.conference),
       opponent_ratings: ratings_json(game[:opponent]),
