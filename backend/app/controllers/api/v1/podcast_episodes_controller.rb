@@ -51,12 +51,11 @@ module Api
         start("regenerate_art", "Starting")
       end
 
-      # Throws away an unpublished episode's working files and cover so it can be made again from scratch (for example
-      # after the source data was fixed). Published episodes are left alone.
+      # Throws away an episode's working files and cover so it can be made again from scratch (for example after the
+      # source data was fixed). A published episode stays live in the feed until publishing again replaces it.
       def reset
         authorize @season, :manage_podcast_episode?
         return render_error("A step is running; wait for it to finish.", :conflict) if @status.running?
-        return render_error("This episode is already published, so it can't be reset here.") if @status.to_h[:steps][:published]
 
         FileUtils.rm_rf(@status.dir)
         FileUtils.rm_f(@status.art_file)

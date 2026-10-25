@@ -280,11 +280,13 @@ function PodcastEpisodePanel({ season, weeks, kind = "weekly" }) {
   const busy = starting || running;
   const prepared = steps.factCheck;
   const needsAudio = prepared && !steps.published && (!steps.audio || episode.audioStale);
-  const episodeToPublish = episodeNumber === "" ? episode?.suggestedEpisode : Number(episodeNumber);
+  // A published episode keeps its number when it is published again.
+  const episodeToPublish = steps.published ? episode.published.episode : episodeNumber === "" ? episode?.suggestedEpisode : Number(episodeNumber);
 
   const startOver = async () => {
+    const live = steps.published ? "\n\nThe published episode stays in the feed until you publish the new one over it." : "";
     const ok = window.confirm(
-      `Throw away this episode's script, audio and cover and start again?\n\nMaking it again uses API and voice credits.`,
+      `Throw away this episode's script, audio and cover and start again?\n\nMaking it again uses API and voice credits.${live}`,
     );
     if (ok) await start("reset");
   };
@@ -367,11 +369,13 @@ function PodcastEpisodePanel({ season, weeks, kind = "weekly" }) {
                   </div>
                 )}
               </div>
-              {steps.art && !steps.published && (
+              {steps.art && (
                 <div className="flex flex-wrap gap-2">
-                  <button type="button" disabled={busy} onClick={() => start("regenerate_art")} className={buttonSecondary}>
-                    Regenerate art
-                  </button>
+                  {!steps.published && (
+                    <button type="button" disabled={busy} onClick={() => start("regenerate_art")} className={buttonSecondary}>
+                      Regenerate art
+                    </button>
+                  )}
                   <button type="button" disabled={busy} onClick={startOver} className={buttonSecondary}>
                     Start over
                   </button>
@@ -505,7 +509,7 @@ function PodcastEpisodePanel({ season, weeks, kind = "weekly" }) {
                       <input
                         type="number"
                         min="1"
-                        value={episodeNumber === "" ? episode.suggestedEpisode ?? "" : episodeNumber}
+                        value={steps.published ? episode.published.episode : episodeNumber === "" ? episode.suggestedEpisode ?? "" : episodeNumber}
                         onChange={(event) => setEpisodeNumber(event.target.value)}
                         disabled={steps.published}
                         className="w-24 rounded-md border border-border bg-transparent px-2 py-1.5 text-sm text-charcoal dark:border-darkborder dark:text-white"
