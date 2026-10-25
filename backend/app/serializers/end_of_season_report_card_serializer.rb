@@ -38,8 +38,24 @@ class EndOfSeasonReportCardSerializer < MidseasonReportCardSerializer
     super.merge(
       all_americans: all_americans_for(college_season.college_id).map { |aa| all_american_json(aa) },
       bowl_games: bowl_games_for(college_season),
+      player_of_the_season: player_of_the_season_json(college_season),
       coach_outcome: coach_outcome_json(college_season)
     )
+  end
+
+  def player_of_the_season_json(college_season)
+    winner = college_season.player_of_the_season
+    return nil unless winner
+
+    student_season = winner[:student_season]
+    {
+      name: student_season.student.name,
+      position: student_season.position,
+      class_year: student_season.class_year,
+      overall: student_season.overall,
+      offensive_awards: winner[:offensive_awards],
+      defensive_awards: winner[:defensive_awards]
+    }
   end
 
   def coach_outcome_json(college_season)

@@ -100,7 +100,7 @@ class EndOfSeasonReportCardMarkdownPresenter < MidseasonReportCardMarkdownPresen
   end
 
   def team_section(team)
-    super + bowl_games_section(team[:bowl_games]) + coach_outcome_section(team[:coach_outcome]) + all_americans_section(team[:all_americans])
+    super + bowl_games_section(team[:bowl_games]) + player_of_the_season_section(team[:player_of_the_season]) + coach_outcome_section(team[:coach_outcome]) + all_americans_section(team[:all_americans])
   end
 
   # Headers trimmed of the "(beat/lost to a team they had no business...)"
@@ -197,6 +197,19 @@ class EndOfSeasonReportCardMarkdownPresenter < MidseasonReportCardMarkdownPresen
     return " (eliminated from the College Football Playoff)" if game[:cfp_round] && !game[:result][:won]
 
     ""
+  end
+
+  # The player who won the most player-of-the-game awards for this team
+  # (see CollegeSeason#player_of_the_season).
+  def player_of_the_season_section(player)
+    return [] if player.blank?
+
+    awards = [ ("#{player[:offensive_awards]} offensive" if player[:offensive_awards].positive?),
+               ("#{player[:defensive_awards]} defensive" if player[:defensive_awards].positive?) ].compact.join(" and ")
+    total = player[:offensive_awards] + player[:defensive_awards]
+    detail = [ player[:position], player[:class_year], ("#{player[:overall]} OVR" if player[:overall]) ].compact.join(", ")
+    [ "### 🌟 Player of the Season", "",
+      "- #{player[:name]} (#{detail}) — #{total} player-of-the-game award#{'s' unless total == 1} (#{awards}), the most on the team", "" ]
   end
 
   COACH_OUTCOME_LINES = {

@@ -62,6 +62,30 @@ class CollegeSeason < ApplicationRecord
     season.college_seasons.where(college_id: opponent_college_ids)
   end
 
+  # The player who won the most player-of-the-game awards across this team's
+  # games (a game has one offensive and one defensive award, and either can go
+  # to either team's player, so only this team's own players are counted).
+  # Ties go to the offensive player, then to the higher overall. Returns nil
+  # when none of this team's players won one.
+  def player_of_the_season
+    awards = games.where.not(offensive_player_of_game_id: nil).pluck(:offensive_player_of_game_id).map { |id| [ id, :offense ] } +
+             games.where.not(defensive_player_of_game_id: nil).pluck(:defensive_player_of_game_id).map { |id| [ id, :defense ] }
+    return nil if awards.empty?
+
+    players = student_seasons.includes(:student).where(id: awards.map(&:first).uniq).index_by(&:id)
+    tallies = awards.group_by(&:first).filter_map do |id, rows|
+      next unless players[id]
+
+      { student_season: players[id], offensive_awards: rows.count { |_, side| side == :offense },
+        defensive_awards: rows.count { |_, side| side == :defense } }
+    end
+
+    tallies.min_by do |t|
+      [ -(t[:offensive_awards] + t[:defensive_awards]), t[:offensive_awards].positive? ? 0 : 1,
+        -(t[:student_season].overall || 0), t[:student_season].student.name ]
+    end
+  end
+
   def best_offensive_players(limit: 3)
     student_seasons.where(position: OFFENSE_POSITIONS).includes(:student).order(overall: :desc).limit(limit)
   end
