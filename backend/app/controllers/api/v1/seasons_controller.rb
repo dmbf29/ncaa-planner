@@ -389,6 +389,14 @@ module Api
         render json: { players: current_statuses.call(college_season), roster: current_statuses.roster(college_season) }
       end
 
+      # The programs our coaches run for the offseason (portal, signing day): a coach who moved schools is listed at
+      # their new program, not the one they coached during the season.
+      def offseason_teams
+        authorize @season
+        college_seasons = @season.college_seasons.offseason_coached.includes(:college).references(:colleges).order("colleges.name")
+        render json: { teams: college_seasons.map { |cs| { college: { id: cs.college.id, name: cs.college.name } } } }
+      end
+
       def coach_assignments
         authorize @season
         render json: SeasonCoachAssignmentsSerializer.new(@season).as_json

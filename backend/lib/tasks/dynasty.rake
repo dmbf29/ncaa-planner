@@ -264,4 +264,12 @@ namespace :dynasty do
     puts "#{dry_run ? '[DRY RUN] ' : ''}Done. #{totals[:colleges]} college season(s), #{totals[:updated]} student_seasons updated, " \
          "#{totals[:ambiguous]} ambiguous, #{totals[:speed_mismatch]} SPD mismatch, #{totals[:fetch_failed]} fetch failures, #{totals[:empty]} empty."
   end
+
+  desc "Write (or with FORCE=1 rewrite) a season's chronicle, the storyline summary the podcast hosts read as league history: " \
+       "rake dynasty:chronicle[2027]. Prints it; edit by hand afterwards with Season#update(chronicle: ...). MODEL=<id> overrides the model."
+  task :chronicle, [ :year ] => :environment do |_task, args|
+    season = Season.find_by!(year: args.fetch(:year))
+    text = SeasonChronicle::Writer.new(season, model: ENV["MODEL"]).call(force: ENV["FORCE"].present?)
+    puts "#{season.year} chronicle:\n\n#{text}"
+  end
 end

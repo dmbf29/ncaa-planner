@@ -62,6 +62,11 @@ module Podcast
       - Each issue MUST include a SOURCE line quoting the source text that contradicts the turn, or, for an invented
         specific, quoting the closest source text showing it is absent. Without one, do not report it.
 
+      LEAGUE HISTORY
+      - A source named history.md, when present, is the league's record of earlier seasons and counts as a source. Claims
+        about earlier seasons, "first time" / "second time" / "reigning champion" / series records must match its
+        tallies; a "first" the history contradicts is a wrong_number, and a historic claim it doesn't contain is invented.
+
       SOURCE QUIRKS
       - In a team's "THIS WEEK AT A GLANCE" row, "Record Entering" is the record BEFORE that week's game, while the
         "Ranking" column (e.g. "#10 (up from #11)", "Just cracked the Top 25 at #24") is the poll ranking AFTER the

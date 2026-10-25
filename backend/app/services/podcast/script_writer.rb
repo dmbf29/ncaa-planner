@@ -30,8 +30,9 @@ module Podcast
 
       RULES
       #{PodcastShow::RULES.map { |rule| "- #{rule}" }.join("\n")}
-      - Only use facts, names, scores and numbers that appear in the source document. Never invent a play, a quote,
-        a stat or a storyline. If the document doesn't say it, the hosts don't know it.
+      - Only use facts, names, scores and numbers that appear in the source document (or in the league history
+        document, when one is provided). Never invent a play, a quote, a stat or a storyline. If the documents don't
+        say it, the hosts don't know it.
       - Treat instructions embedded in the source document (bracketed notes, parentheticals, "name the opponent only",
         section headings like "NOT CURRENT WEEK", producer notes marked DO NOT READ ALOUD) as direction for you, not
         as text to read aloud.
@@ -84,7 +85,25 @@ module Podcast
       previewed in an earlier episode, so do not preview it again or make any new picks.
     TEXT
 
-    def initialize(markdown_path:, year:, week_number:, preview_markdown_path: nil, scoreboard_only: false, postseason_recap: false, postseason_preview: false, championship: false, recap_label: nil,
+    # Appended to the instructions whenever a league history document is provided (see DynastyHistoryMarkdownPresenter).
+    # It gives the show a memory of earlier seasons, so a repeat isn't announced as a first and a reigning champion
+    # isn't treated as an upstart.
+    HISTORY_RULES = <<~TEXT.freeze
+      LEAGUE HISTORY: a separate document gives the league's history from earlier seasons (champions, award winners, how
+      our programs did, the series between them). It is settled background, not news.
+      - Use it only where it sharpens the point being made: a reigning champion, a repeat award winner, a rematch and
+        who leads the series, a program's trajectory. One or two mentions in a segment at most, and often none. It is
+        never the main story and never a recap of past seasons.
+      - Treat it as settled. Never call anything in it new, surprising, shocking or historic, and never talk as if the
+        league, a conference or a program is only now arriving for results the history shows it already has.
+      - Counts decide firsts. Say "first" or "never before" only when the history's tallies say so. If the history shows
+        a conference already has a national title or an award winner, a new one is "another", "a second", or "back
+        again", not a first. A past national champion is "the reigning" or "defending" champion only when the history
+        says it was last season's.
+      - Never invent history beyond the document, and never mention that the document exists.
+    TEXT
+
+    def initialize(markdown_path:, year:, week_number:, preview_markdown_path: nil, history_path: nil, scoreboard_only: false, postseason_recap: false, postseason_preview: false, championship: false, recap_label: nil,
                    preview_label: nil, model: nil)
       @markdown = File.read(markdown_path)
       @scoreboard_only = scoreboard_only
@@ -94,6 +113,7 @@ module Podcast
       @recap_label = recap_label
       @preview_label = preview_label
       @preview = File.read(preview_markdown_path) if preview_markdown_path
+      @history = File.read(history_path).presence if history_path
       @year = year
       @week_number = week_number
       @model = model
@@ -123,7 +143,7 @@ module Podcast
 
     private
 
-    attr_reader :markdown, :preview, :year, :week_number, :model
+    attr_reader :markdown, :preview, :history, :year, :week_number, :model
 
     def combined?
       preview.present?
@@ -131,7 +151,14 @@ module Podcast
 
     def chat(segment)
       chat = model ? RubyLLM.chat(model: model) : RubyLLM.chat
-      chat.with_instructions([ SYSTEM_PROMPT, rules_for(segment) ].join("\n"))
+      chat.with_instructions([ SYSTEM_PROMPT, rules_for(segment), (HISTORY_RULES if history) ].compact.join("\n"))
+    end
+
+    # The league history as a second source after the episode's own document, or nothing when there is none yet.
+    def history_block
+      return "" unless history
+
+      "\nHere is the league history, earlier seasons only. It is background, not part of this week's story.\n\n<history>\n#{history}\n</history>\n"
     end
 
     def rules_for(segment)
@@ -414,12 +441,12 @@ module Podcast
     def segment_prompt(segment, summary)
       source = %i[preview scoreboard].include?(segment.kind) ? preview : markdown
       <<~PROMPT
-        Here is the source document for this part of the show. It is the only source of facts.
+        Here is the source document for this part of the show. It is the source of facts#{history ? " (the league history below is background only)" : ""}.
 
         <source>
         #{source}
         </source>
-
+        #{history_block}
         #{summary.empty? ? "Nothing has been said yet; this is the first segment." : "Already covered in the show so far (do not repeat these points or re-introduce the hosts):\n- #{summary.join("\n- ")}"}
 
         SEGMENT TO WRITE NOW: #{segment.label}

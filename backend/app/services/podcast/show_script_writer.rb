@@ -10,8 +10,9 @@ module Podcast
     # Round-up style segments are shorter than a per-team segment.
     LIGHT_SEGMENT = /around the|champion|wrap|ranking|improve|hardware|hit hardest|predicted/i
 
-    def initialize(markdown_path:, spec:, model: nil)
+    def initialize(markdown_path:, spec:, history_path: nil, model: nil)
       @markdown = File.read(markdown_path)
+      @history = File.read(history_path).presence if history_path
       @spec = spec
       @model = model
     end
@@ -64,7 +65,7 @@ module Podcast
 
     def chat(_segment)
       chat = model ? RubyLLM.chat(model: model) : RubyLLM.chat
-      chat.with_instructions([ SYSTEM_PROMPT, show_rules, producer_notes ].reject(&:blank?).join("\n\n"))
+      chat.with_instructions([ SYSTEM_PROMPT, show_rules, producer_notes, (HISTORY_RULES if history) ].reject(&:blank?).join("\n\n"))
     end
 
     def show_rules
@@ -81,12 +82,12 @@ module Podcast
 
     def segment_prompt(segment, summary)
       <<~PROMPT
-        Here is the source document for this episode. It is the only source of facts.
+        Here is the source document for this episode. It is the source of facts#{history ? " (the league history below is background only)" : ""}.
 
         <source>
         #{markdown}
         </source>
-
+        #{history_block}
         #{summary.empty? ? "Nothing has been said yet; this is the first segment." : "Already covered in the show so far (do not repeat these points or re-introduce the hosts):\n- #{summary.join("\n- ")}"}
 
         SEGMENT TO WRITE NOW: #{segment.label}

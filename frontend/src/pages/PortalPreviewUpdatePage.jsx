@@ -6,7 +6,7 @@ import Card from "../components/Card";
 import FileDropZone from "../components/FileDropZone";
 import {
   fetchDynasties,
-  fetchSeason,
+  fetchOffseasonTeams,
   analyzePortalPreview,
   commitPortalPreview,
   fetchPortalStatuses,
@@ -289,7 +289,7 @@ function PortalPreviewUpdatePage() {
         }
         setDynastyId(dynasty.id);
         setSeasonId(latestSeason.id);
-        const season = await fetchSeason(dynasty.id, latestSeason.id);
+        const season = await fetchOffseasonTeams(dynasty.id, latestSeason.id);
         setTeams((season.teams || []).map((t) => ({ collegeId: t.college.id, name: t.college.name })));
       } catch (err) {
         setLoadError(err.message);

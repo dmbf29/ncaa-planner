@@ -114,6 +114,7 @@ module Podcast
     # ---- prepare ---------------------------------------------------------------------
 
     def write_markdown
+      write_history
       return write_show_markdown unless @spec.weekly?
 
       unless File.exist?(path("recap.md"))
@@ -138,6 +139,32 @@ module Podcast
         FileUtils.touch(path("no_preview"))
       end
     end
+
+    # The league's earlier seasons as background for the hosts (see DynastyHistorySerializer). A weekly episode only gets
+    # seasons before this one; an offseason show also gets this season once its national title game has been played.
+    def write_history
+      return if File.exist?(path("history.md"))
+
+      include_current = !@spec.weekly? && EpisodeSpec.champion_of(@season.weeks.find_by(number: 19)).present?
+      write_chronicles(include_current)
+      markdown = DynastyHistoryMarkdownPresenter.new(DynastyHistorySerializer.new(@season, include_current: include_current).as_json).to_markdown
+      log "Building the league history (#{markdown.empty? ? 'no earlier seasons yet' : "through #{include_current ? @year : @year - 1}"})"
+      File.write(path("history.md"), markdown)
+    end
+
+    # Each finished season in the history gets its chronicle written the first time an episode needs it. A failure only
+    # costs that season its storylines (the facts still go in), so it never blocks the episode.
+    def write_chronicles(include_current)
+      seasons = DynastyHistorySerializer.new(@season, include_current: include_current).seasons
+      seasons.select { |season| season.chronicle.blank? && EpisodeSpec.champion_of(season.weeks.find_by(number: 19)).present? }.each do |season|
+        log "Writing the #{season.year} season chronicle"
+        SeasonChronicle::Writer.new(season, model: @model).call
+      rescue StandardError => e
+        log "Couldn't write the #{season.year} chronicle (#{e.message}); continuing without it"
+      end
+    end
+
+    def history_path = (path("history.md") if File.size?(path("history.md")))
 
     # Everything still to be played was already previewed in an earlier episode, so this one has no preview. It keeps
     # the scoreboard of the hosts' bets on the week just recapped, read (never locked) from the next week's preview data.
@@ -207,12 +234,13 @@ module Podcast
       writer = if @spec.weekly?
         ScriptWriter.new(markdown_path: path("recap.md"),
                          preview_markdown_path: (path("preview.md") if preview?) || (path("scoreboard.md") if scoreboard?),
+                         history_path: history_path,
                          scoreboard_only: scoreboard?, postseason_recap: @spec.recap_postseason, postseason_preview: @spec.preview_postseason,
                          championship: @spec.championship?,
                          year: @year, week_number: @week, recap_label: @spec.recap_label,
                          preview_label: @spec.preview_label, model: @model)
       else
-        ShowScriptWriter.new(markdown_path: path("recap.md"), spec: @spec, model: @model)
+        ShowScriptWriter.new(markdown_path: path("recap.md"), spec: @spec, history_path: history_path, model: @model)
       end
       turns = writer.call
       File.write(path("script.txt"), ScriptWriter.to_text(turns))
@@ -226,7 +254,7 @@ module Podcast
         match = /\A(ARLIS|TY):\s*(.+)\z/.match(line)
         { speaker: match[1], text: match[2] } if match
       end
-      sources = [ path("recap.md"), (path("preview.md") if preview?), (path("scoreboard.md") if scoreboard?) ].compact
+      sources = [ path("recap.md"), (path("preview.md") if preview?), (path("scoreboard.md") if scoreboard?), history_path ].compact
       checker = FactChecker.new(turns: turns, source_paths: sources, model: @model)
       fixed, corrected = checker.call
       File.write(path("factcheck.md"), FactChecker.report(fixed, turns, checker.needs_review, checker.rejected))

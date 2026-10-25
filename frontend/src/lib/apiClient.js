@@ -498,6 +498,9 @@ export const fetchPortalStatuses = (dynastyId, seasonId, collegeId) =>
     .get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/portal_statuses`, { params: { college_id: collegeId } })
     .then((r) => r.data);
 
+export const fetchOffseasonTeams = (dynastyId, seasonId) =>
+  api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/offseason_teams`).then((r) => r.data);
+
 export const fetchGame = (id) => api.get(`/api/v1/games/${id}`).then((r) => r.data);
 
 // attributes: { homeCollegeId, awayCollegeId, bowlName, cfpRound } — any subset.

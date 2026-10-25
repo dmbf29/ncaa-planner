@@ -155,6 +155,10 @@ class SeasonPolicy < ApplicationPolicy
     owner?
   end
 
+  def offseason_teams?
+    owner?
+  end
+
   def coach_assignments?
     owner?
   end

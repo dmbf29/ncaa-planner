@@ -77,6 +77,7 @@ Rails.application.routes.draw do
             post :analyze_portal_preview
             post :commit_portal_preview
             get :portal_statuses
+            get :offseason_teams
           end
 
           # Podcast episodes (Export page): slug is "week-11" (recap Week 11, preview Week 12) or a show like "win_totals".
