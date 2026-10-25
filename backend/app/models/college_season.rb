@@ -19,7 +19,7 @@ class CollegeSeason < ApplicationRecord
   # What happened to this season's coach once the season ended. nil means not
   # recorded yet. Where a fired/departed coach lands is not stored: it shows up
   # as coach_id on another college's CollegeSeason the following season.
-  enum :coach_outcome, { continued: 0, fired: 1, left: 2 }, prefix: :coach, validate: true
+  enum :coach_outcome, { continued: 0, fired: 1, left: 2 }, prefix: :coach, validate: { allow_nil: true }
 
   belongs_to :college
   belongs_to :coach, optional: true
