@@ -190,8 +190,24 @@ class SeasonWeeksSerializer
       conference_top_25: conference_top_25_for_week(week),
       conference_heisman_watch: conference_heisman_watch_for_week(week),
       conference_standings: primary && week.number >= MIN_WEEK_NUMBER_FOR_SEASON_STATS ? conference_standings_json : nil,
-      conference_championships: primary ? conference_championships_json(week) : []
+      conference_championships: primary ? conference_championships_json(week) : [],
+      cfp_games: week.post_season ? cfp_games_json(week) : []
     }
+  end
+
+  # Every College Football Playoff game in a postseason week (ours included, flagged), with the score once it has been
+  # played. The postseason recap is about the games and the bracket, not standings or the poll.
+  def cfp_games_json(week)
+    all_games.select { |game| game.week_id == week.id && game.cfp_round.present? }.sort_by(&:id).map do |game|
+      result = game_result(game, game.home_college_id)
+      {
+        round: game.cfp_round, bowl: game.bowl_name,
+        home: game.home_college.name, away: game.away_college.name,
+        home_score: result && result[:team_score], away_score: result && result[:opponent_score],
+        winner: result && (result[:won] ? game.home_college.name : game.away_college.name),
+        ours: [ game.home_college_id, game.away_college_id ].any? { |id| coached_college_ids.include?(id) }
+      }
+    end
   end
 
   # The full national Top 25 poll released AFTER this week's games — every
@@ -301,7 +317,7 @@ class SeasonWeeksSerializer
       # Season-to-date numbers only move when the team plays — re-showing an
       # identical block for a week the team was idle (e.g. everyone but
       # Army/Navy in Week 14) is just noise, so gate on an actual result.
-      season_stats: played_this_week && week.number >= MIN_WEEK_NUMBER_FOR_SEASON_STATS ? season_stats_json(college_season) : nil
+      season_stats: played_this_week && week.number >= MIN_WEEK_NUMBER_FOR_SEASON_STATS ? season_stats_json(college_season, week.number) : nil
     }
   end
 
@@ -350,8 +366,9 @@ class SeasonWeeksSerializer
   # and "Team Stats per Game"), plus a broadcast-only expanded view: multiple
   # leaders per category and season totals (not just per-game averages) —
   # see TeamSeasonStats.
-  def season_stats_json(college_season)
-    stats = TeamSeasonStats.new(college_season)
+  # Capped at the recapped week, so a back-dated recap doesn't count games played after it.
+  def season_stats_json(college_season, through_week_number)
+    stats = TeamSeasonStats.new(college_season, through_week_number: through_week_number)
 
     {
       stat_leaders: stat_leaders_json(stats.top_stat_leaders),

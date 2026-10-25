@@ -68,7 +68,8 @@ module Podcast
       Publisher.new(live: @live).publish(
         key: @spec.key, title: info.title, description: info.description,
         season: Show.season_for(@year), episode: @episode || @status.to_h[:suggested_episode],
-        audio_path: final, art_path: art_path, preview_weeks: (@spec.preview_weeks || [] if @spec.weekly?)
+        audio_path: final, art_path: art_path, preview_weeks: (@spec.preview_weeks || [] if @spec.weekly?),
+        previewed_game_ids: (previewed_game_ids if @spec.weekly?)
       )
     end
 
@@ -99,6 +100,12 @@ module Podcast
     def scoreboard? = @spec.weekly? && File.exist?(path("scoreboard.md"))
 
     def art_path = @spec.art_path
+
+    # The ids of the games this episode's preview covered (none for a recap-only or scoreboard-only episode).
+    def previewed_game_ids
+      file = path("previewed_game_ids.json")
+      File.exist?(file) ? JSON.parse(File.read(file)) : []
+    end
 
     def description_info
       EpisodeInfo.new(script_path: path("script.checked.txt"), spec: @spec, recap_only: @spec.weekly? && !preview?, model: @model)
@@ -149,8 +156,11 @@ module Podcast
     # hadn't happened yet, even if they already have.
     def merged_preview_data
       datas = @spec.preview_weeks.map do |number|
-        BigGameBreakdownSerializer.new(@season, number, lock: true, allow_played_picks: true).as_json
+        BigGameBreakdownSerializer.new(@season, number, lock: true, allow_played_picks: true,
+                                                        exclude_game_ids: @spec.previewed_game_ids).as_json
       end
+      # What this episode previews, remembered with the episode when it is published so later ones skip these games.
+      File.write(path("previewed_game_ids.json"), JSON.generate(datas.flat_map { |data| data[:games].pluck(:id) }))
       return datas.first if datas.size == 1
 
       also_on = datas.flat_map { |data| data[:also_on] }.uniq.first(BigGameBreakdownSerializer::ALSO_ON_LIMIT)
@@ -192,7 +202,8 @@ module Podcast
       writer = if @spec.weekly?
         ScriptWriter.new(markdown_path: path("recap.md"),
                          preview_markdown_path: (path("preview.md") if preview?) || (path("scoreboard.md") if scoreboard?),
-                         scoreboard_only: scoreboard?, year: @year, week_number: @week, recap_label: @spec.recap_label,
+                         scoreboard_only: scoreboard?, postseason_recap: @spec.recap_postseason, postseason_preview: @spec.preview_postseason,
+                         year: @year, week_number: @week, recap_label: @spec.recap_label,
                          preview_label: @spec.preview_label, model: @model)
       else
         ShowScriptWriter.new(markdown_path: path("recap.md"), spec: @spec, model: @model)

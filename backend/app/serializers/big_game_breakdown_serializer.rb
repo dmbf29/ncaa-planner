@@ -19,15 +19,17 @@ class BigGameBreakdownSerializer
   POLL_NEIGHBOR_RANGE = 3
   RECENT_RESULT_COUNT = 3
 
+  # `exclude_game_ids:` drops games an earlier episode already previewed.
   # `allow_played_picks: true` still gives a game that has already been played its bets, for episodes written as if
   # it hadn't happened (everything else here already stops at the week before this one).
   # `lock: false` is a read-only preview: games, lines and any picks already
   # locked, but nothing gets locked by asking (see ExportPage's preview table).
-  def initialize(season, week_number, lock: true, allow_played_picks: false)
+  def initialize(season, week_number, lock: true, allow_played_picks: false, exclude_game_ids: [])
     @season = season
     @week_number = week_number
     @lock = lock
     @allow_played_picks = allow_played_picks
+    @exclude_game_ids = exclude_game_ids
     @line_maker = BigGameBreakdown::LineMaker.new(season)
     @pick_locker = BigGameBreakdown::PickLocker.new
     @scorecard = BigGameBreakdown::Scorecard.new(season)
@@ -47,6 +49,7 @@ class BigGameBreakdownSerializer
       season: { id: @season.id, year: @season.year, dynasty: @season.dynasty.name },
       hosts: PodcastShow.host_first_names,
       week: { id: week.id, number: week.number, name: week.name },
+      postseason: postseason?,
       poll_week_number: poll_week&.number,
       games: games,
       also_on: also_on_json,
@@ -59,8 +62,9 @@ class BigGameBreakdownSerializer
   def focus_json(games)
     return { instructions: "None of our coached teams has a game scheduled in Week #{@week_number}." } if games.empty?
 
+    scope = postseason? ? "College Football Playoff game and bowl game involving our coached teams" : "game involving our coached teams"
     {
-      instructions: "Preview this week's #{games.size} game#{'s' if games.size != 1} involving our coached teams. " \
+      instructions: "Preview this week's #{games.size} #{scope}#{'s' if games.size != 1}. " \
                     "Games are listed from the most lopsided to the closest; the show builds to the last one. " \
                     "Every game closes with each host's single bet."
     }
@@ -102,12 +106,29 @@ class BigGameBreakdownSerializer
     week_games.select { |game| coached_college_ids.include?(game.home_college_id) || coached_college_ids.include?(game.away_college_id) }
   end
 
+  # A bowl / College Football Playoff week: the hosts bet on every CFP game, not just our teams'. Their other
+  # (non-CFP, not ours) bowl games get no bets, no segment and no heads-up. Anywhere else: our games only.
+  def postseason?
+    @week.post_season
+  end
+
+  # `exclude_game_ids`: games an earlier episode already previewed, which are not previewed again.
+  def previewed_games
+    candidates = if postseason?
+      ours = our_week_games.map(&:id)
+      week_games.select { |game| ours.include?(game.id) || game.cfp_round.present? }
+    else
+      our_week_games
+    end
+    candidates.reject { |game| @exclude_game_ids.include?(game.id) }
+  end
+
   # [[game, lines, picks], ...], most lopsided first (and the closest game
   # last), except that a game between two of our coaches (the Rivals
   # Showdown) is the marquee and always goes last. Lines and picks come from the locked picks once they exist, so a
   # re-run after a roster update still shows what was actually bet.
   def ordered_games
-    our_week_games.map do |game|
+    previewed_games.map do |game|
       lines = @line_maker.call(game, @week.number)
       picks = @lock ? @pick_locker.call(game, lines, allow_played: @allow_played_picks) : @pick_locker.existing(game)
       lines = locked_lines(lines, picks)
@@ -127,6 +148,8 @@ class BigGameBreakdownSerializer
   def game_json(game, lines, picks)
     {
       id: game.id,
+      bowl_name: game.bowl_name,
+      cfp_round: game.cfp_round,
       time: game.time&.iso8601,
       conference_game: conference_game?(game),
       both_user_coached: both_coached?(game),
@@ -255,8 +278,8 @@ class BigGameBreakdownSerializer
       coach: college_season.coach && { name: college_season.coach.name },
       previous_season: previous_season_json(college_id),
       record: record_json(results),
-      conference_record: record_json(results.select { |result| result[:conference_game] }),
-      ranking: ranking_for(college_id),
+      conference_record: postseason? ? nil : record_json(results.select { |result| result[:conference_game] }),
+      ranking: postseason? ? nil : ranking_for(college_id),
       ratings: { overall: college_season.overall, offense: college_season.offense, defense: college_season.defense },
       streak: streak_json(results),
       recent_results: results.last(RECENT_RESULT_COUNT),
@@ -364,7 +387,7 @@ class BigGameBreakdownSerializer
     {
       conference_game: conference_game?(game),
       conference: conference_game?(game) ? conference_of(game.home_college_id) : nil,
-      ranked_matchup: ranking_for(game.home_college_id).present? && ranking_for(game.away_college_id).present?,
+      ranked_matchup: !postseason? && ranking_for(game.home_college_id).present? && ranking_for(game.away_college_id).present?,
       previous_meetings: meetings,
       series: series_json(game, meetings),
       conference_race: standings_stakes? && conference_game?(game) ? conference_race_json(game) : nil,
@@ -373,7 +396,7 @@ class BigGameBreakdownSerializer
   end
 
   def standings_stakes?
-    @week.number >= MIN_WEEK_FOR_STANDINGS_STAKES
+    !postseason? && @week.number >= MIN_WEEK_FOR_STANDINGS_STAKES
   end
 
   # Every earlier meeting between the two programs, in this dynasty's
@@ -653,6 +676,8 @@ class BigGameBreakdownSerializer
   # then the rest by kickoff. No bets are made on these, so nothing is locked
   # for them; they just carry a line when both teams can be rated.
   def also_on_json
+    return [] if postseason?
+
     our_ids = our_week_games.map(&:id)
     entries = week_games.reject { |game| our_ids.include?(game.id) }.filter_map { |game| also_on_entry(game) }
 

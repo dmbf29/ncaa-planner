@@ -70,6 +70,13 @@ module Podcast
       experience and matchup instead, and never compare quarterbacks' numbers unless both sides have a stat line.
     TEXT
 
+    POSTSEASON_RULES = <<~TEXT.freeze
+      IT IS THE POSTSEASON (bowl games and the College Football Playoff). The regular season and its conference races
+      are over: NEVER talk about conference standings, the conference championship race, the poll, rankings, "the
+      top 25" or a team's ranking. Talk only about the games themselves, how they were won or lost, the bracket, and what
+      a result means for what comes next. A team's record and its recent scores are fine.
+    TEXT
+
     SCOREBOARD_RULES = <<~TEXT.freeze
       THIS PART OF THE SHOW IS THE HOSTS' BET SCOREBOARD: a look back at the bets Arlis and Ty made on the games just
       recapped, graded against the real results. It is betting talk (the bets, whether they hit or missed, each host's
@@ -77,9 +84,12 @@ module Podcast
       previewed in an earlier episode, so do not preview it again or make any new picks.
     TEXT
 
-    def initialize(markdown_path:, year:, week_number:, preview_markdown_path: nil, scoreboard_only: false, recap_label: nil, preview_label: nil, model: nil)
+    def initialize(markdown_path:, year:, week_number:, preview_markdown_path: nil, scoreboard_only: false, postseason_recap: false, postseason_preview: false, recap_label: nil,
+                   preview_label: nil, model: nil)
       @markdown = File.read(markdown_path)
       @scoreboard_only = scoreboard_only
+      @postseason_recap = postseason_recap
+      @postseason_preview = postseason_preview
       @recap_label = recap_label
       @preview_label = preview_label
       @preview = File.read(preview_markdown_path) if preview_markdown_path
@@ -125,9 +135,9 @@ module Podcast
 
     def rules_for(segment)
       case segment.kind
-      when :preview then preview_rules
+      when :preview then @postseason_preview ? "#{preview_rules}\n#{POSTSEASON_RULES}" : preview_rules
       when :scoreboard then SCOREBOARD_RULES
-      else REVIEW_RULES
+      else @postseason_recap ? "#{REVIEW_RULES}\n#{POSTSEASON_RULES}" : REVIEW_RULES
       end
     end
 
@@ -239,6 +249,8 @@ module Podcast
 
     # Combined episode: the recap ends here, with no tease and no sign-off, and pivots into the preview.
     def review_wrap_segment
+      return postseason_wrap_segment if @postseason_recap
+
       Segment.new(
         label: "Review wrap-up", kind: :review, words: 450,
         instruction: <<~TEXT
@@ -246,6 +258,22 @@ module Podcast
           at where the Sun Belt standings stand, the matchups between our coaches this week and the projected Sun Belt
           championship if the document has those sections. Ignore the document's "Next Episode" section completely.
           #{@scoreboard_only ? "Finish with a line that turns to the hosts' own scorecard, e.g. time to see how their bets did. Do NOT preview any games." : "Finish with a line that turns the show toward next week's games, e.g. that it's time to look ahead."} Do NOT
+          sign off, and do not name or tease any upcoming episode.
+        TEXT
+      )
+    end
+
+    # Postseason recap ending: the CFP roundup and the bracket, with none of the regular-season round-up.
+    def postseason_wrap_segment
+      Segment.new(
+        label: "Around the CFP", kind: :review, words: 400,
+        instruction: <<~TEXT
+          Write the end of the recap half: use the AROUND THE CFP section of the document to run through every College
+          Football Playoff game of the week (the round, the teams, the winner and the score; one line is enough for our own
+          team's game, which already had its segment) and what the results mean for the bracket. If that section isn't in the
+          document, instead take a short look back at the week's biggest storyline. NO standings, NO poll or rankings, and
+          ignore the document's "Next Episode" section completely.
+          #{@scoreboard_only ? "Finish with a line that turns to the hosts' own scorecard, e.g. time to see how their bets did. Do NOT preview any games." : "Finish with a line that turns the show toward the next games, e.g. that it's time to look ahead."} Do NOT
           sign off, and do not name or tease any upcoming episode.
         TEXT
       )
@@ -312,14 +340,21 @@ module Podcast
     end
 
     def preview_closing_segment
+      heads_up = if preview.include?("ALSO ON THE BOARD (HEADS-UP ONLY)")
+        <<~TEXT
+          First the ALSO ON THE BOARD heads-up: for each game in that section name it with rankings, say when and where
+          it's on (day only if it is Saturday, otherwise "this week"), and mention the line casually if one is listed.
+          About ten seconds a game: no picks, no predictions, no analysis. Then
+        TEXT
+      else
+        "There is no \"Also on the Board\" heads-up this time, so do not make one up or mention other games. Just "
+      end
       Segment.new(
         label: "Preview closing", kind: :preview, words: 300,
         instruction: <<~TEXT
-          Write the end of the whole episode. First the ALSO ON THE BOARD heads-up: for each game in that section name it
-          with rankings, say when and where it's on (day only if it is Saturday, otherwise "this week"), and mention the
-          line casually if one is listed. About ten seconds a game: no picks, no predictions, no analysis. Then a short,
-          warm sign-off in the hosts' voices ending on "see you next week" or similar, and naming the show,
-          "#{SHOW_NAME}". Do NOT name or tease any specific upcoming episode and do not recap the bets.
+          Write the end of the whole episode. #{heads_up.squish} a short, warm sign-off in the hosts' voices ending on
+          "see you next week" or similar, and naming the show, "#{SHOW_NAME}". Do NOT name or tease any specific upcoming
+          episode and do not recap the bets.
         TEXT
       )
     end

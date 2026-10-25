@@ -69,6 +69,12 @@ class SeasonWeeksMarkdownPresenter
     note = "PRODUCER NOTE: Welcome back to the studio, team. Below are your pre-show game notes for today's " \
            "taping — results and standings movement for our guys. Next week's games are NOT previewed here; " \
            "they belong to the Big Game Breakdown (see the sign-off at the bottom)."
+    if postseason?
+      note = "PRODUCER NOTE: Welcome back to the studio, team. It's the postseason, so below are your pre-show game " \
+             "notes for today's taping: the games our teams played and the College Football Playoff results. There " \
+             "is NO conference standings or poll talk this week (the conference race is over): talk only about the " \
+             "games, the bracket and what each result means from here. Next week's games are NOT previewed here."
+    end
 
     older_weeks = @data[:weeks][1..]
     if older_weeks.present?
@@ -115,7 +121,14 @@ class SeasonWeeksMarkdownPresenter
   # signing from a prior episode. A lingering injury still gets a brief
   # mention (see #next_up_lines), and a past signing was already covered in
   # its own week — neither needs a whole segment revisited.
+  # The reviewed week is a bowl / College Football Playoff week.
+  def postseason?
+    primary_week.present? && primary_week[:week][:post_season]
+  end
+
   def segments
+    return postseason_segments if postseason?
+
     next_number = primary_week ? primary_week[:week][:number] + 1 : 1
     current_label = primary_week ? reviewed_weeks_label : "This Week"
     poll_watch_label = cfp_poll?(next_number) ? "CFP Rankings Watch" : "Top 25 Poll Watch"
@@ -127,6 +140,20 @@ class SeasonWeeksMarkdownPresenter
       injury_report_segment,
       recruitment_trail_segment(next_number),
       "#{poll_watch_label} — Discuss rankings and national standing shifts (if focused teams are included)",
+      sign_off_segment
+    ].compact
+  end
+
+  # Bowl / CFP weeks: the games our teams played, the CFP roundup, and the sign-off. No conference round-up, no
+  # poll watch.
+  def postseason_segments
+    around_cfp = "Around the CFP — Every College Football Playoff result of the week and what it means for the " \
+                 "bracket. No standings, no poll."
+    [
+      "#{primary_week ? reviewed_weeks_label : 'This Week'} Kickoff & Headlines",
+      *game_segments,
+      (around_cfp if primary_week[:cfp_games].present?),
+      injury_report_segment,
       sign_off_segment
     ].compact
   end
@@ -252,6 +279,8 @@ class SeasonWeeksMarkdownPresenter
 
   def week_section(week_data, primary:)
     week = week_data[:week]
+    return postseason_week_section(week_data, primary: primary) if week[:post_season]
+
     lines = [ "---", "", "# 🏈 #{week_label(week).upcase}#{primary ? ' (CURRENT)' : ''}", "" ]
     lines.concat(at_a_glance_table(week_data[:teams]))
     lines.concat(top_25_poll_lines(week_data[:top_25], week[:number] + 1))
@@ -276,6 +305,47 @@ class SeasonWeeksMarkdownPresenter
     lines.concat(conference_top_25_lines(week_data[:conference_top_25], week[:number]))
     lines.concat(conference_heisman_lines(week_data[:conference_heisman_watch]))
 
+    lines
+  end
+
+  # A bowl / College Football Playoff week: just the games. Our teams that played get their usual game sections
+  # (a team on a bye gets none at all), the CFP games get a roundup, and nothing about conference standings, the
+  # poll or rankings, the championship picture, or the rest of the conference, which no longer matter.
+  def postseason_week_section(week_data, primary:)
+    week = week_data[:week]
+    teams = played_teams(week_data[:teams])
+    lines = [ "---", "", "# 🏈 #{week_label(week).upcase}#{primary ? ' (CURRENT)' : ''}", "" ]
+    lines.concat(at_a_glance_table(teams, postseason: true))
+    teams.each { |team| lines.concat(team_week_section(team, postseason: true)) }
+
+    if week_data[:coached_matchups].any?
+      lines << "## 🆚 MATCHUPS BETWEEN OUR COACHES THIS WEEK"
+      lines << ""
+      lines.concat(matchups_table(week_data[:coached_matchups]))
+    end
+
+    lines.concat(cfp_games_lines(week_data[:cfp_games]))
+    lines.concat(conference_heisman_lines(week_data[:conference_heisman_watch]))
+    lines
+  end
+
+  def played_teams(teams)
+    teams.reject { |team| team[:game][:status] == "bye" }
+  end
+
+  # "## 🏆 AROUND THE CFP": every playoff game of the week with its score and winner, so the hosts can talk about the
+  # bracket without standings or poll talk.
+  def cfp_games_lines(games)
+    return [] if games.blank?
+
+    lines = [ "## 🏆 AROUND THE CFP", "",
+              "Every College Football Playoff game this week, the winner and the score. Our teams' own games also have a "               "full section above: for those, one line is enough here.", "" ]
+    games.each do |game|
+      label = game[:bowl].presence || game[:round].to_s.tr("_", " ").titleize
+      score = game[:winner] ? " — #{game[:winner]} won, #{[ game[:home_score], game[:away_score] ].max}-#{[ game[:home_score], game[:away_score] ].min}" : " — not yet played"
+      lines << "- [#{label}] #{game[:away]} @ #{game[:home]}#{score}#{' (our team)' if game[:ours]}"
+    end
+    lines << ""
     lines
   end
 
@@ -413,14 +483,14 @@ class SeasonWeeksMarkdownPresenter
     "Week #{week[:number]}"
   end
 
-  def at_a_glance_table(teams)
+  def at_a_glance_table(teams, postseason: false)
     lines = [ "## 📊 THIS WEEK AT A GLANCE", "" ]
-    lines << "| Team | Record Entering | Ranking | Result |"
-    lines << "| --- | --- | --- | --- |"
+    lines << (postseason ? "| Team | Record Entering | Result |" : "| Team | Record Entering | Ranking | Result |")
+    lines << (postseason ? "| --- | --- | --- |" : "| --- | --- | --- | --- |")
     teams.each do |team|
       record = team[:record_entering_week]
-      lines << "| #{team[:college][:name]} | #{record[:wins]}-#{record[:losses]} | " \
-               "#{ranking_line(team[:ranking])} | #{glance_result(team[:game])} |"
+      ranking = postseason ? "" : "#{ranking_line(team[:ranking])} | "
+      lines << "| #{team[:college][:name]} | #{record[:wins]}-#{record[:losses]} | #{ranking}#{glance_result(team[:game])} |"
     end
     lines << ""
     lines
@@ -493,13 +563,13 @@ class SeasonWeeksMarkdownPresenter
     end
   end
 
-  def team_week_section(team)
+  def team_week_section(team, postseason: false)
     record = team[:record_entering_week]
     lines = [ "## #{team[:college][:name]} (Coach: #{team[:coach][:name]})" ]
     scheme_line = coach_scheme_line(team[:coach])
     lines << "*#{scheme_line}*" if scheme_line
     lines << "**Record entering week:** #{record[:wins]}-#{record[:losses]}"
-    lines << "**Ranking:** #{ranking_line(team[:ranking])}"
+    lines << "**Ranking:** #{ranking_line(team[:ranking])}" unless postseason
     lines << ""
 
     lines << "### 🏆 Result"

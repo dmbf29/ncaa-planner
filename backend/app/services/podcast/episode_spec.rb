@@ -77,23 +77,27 @@ module Podcast
       if (match = slug.match(/\Aweek-(\d+)\z/))
         week = match[1].to_i
         key = "rising-in-the-sun-belt-#{year}-week-#{week}"
+        previewed = season ? PreviewWeek.previewed_game_ids(season, exclude_key: key) : []
         preview = if season
-          PreviewWeek.for(season, week, skip_weeks: PreviewWeek.previewed_weeks(season, exclude_key: key))
+          PreviewWeek.for(season, week, skip_game_ids: previewed)
         else
           PreviewWeek::Result.new(number: week + 1, numbers: [ week + 1 ], label: "Week #{week + 1}")
         end
         record = season&.weeks&.find_by(number: week)
         new(year: year, kind: "weekly", week: week, recap_label: (PreviewWeek.label(record) if record),
-            preview_week: preview&.number, preview_weeks: preview&.numbers, preview_label: preview&.label,
-            scoreboard_week: preview&.scoreboard_week)
+            recap_postseason: record&.post_season, preview_week: preview&.number, preview_weeks: preview&.numbers,
+            preview_label: preview&.label, preview_postseason: preview&.postseason, scoreboard_week: preview&.scoreboard_week,
+            previewed_game_ids: previewed)
       elsif SHOWS.key?(slug)
         new(year: year, kind: slug)
       end
     end
 
-    attr_reader :year, :kind, :week, :preview_week, :preview_weeks, :preview_label, :scoreboard_week
+    attr_reader :year, :kind, :week, :preview_week, :preview_weeks, :preview_label, :scoreboard_week, :recap_postseason,
+                :preview_postseason, :previewed_game_ids
 
-    def initialize(year:, kind:, week: nil, recap_label: nil, preview_week: nil, preview_weeks: nil, preview_label: nil, scoreboard_week: nil)
+    def initialize(year:, kind:, week: nil, recap_label: nil, recap_postseason: nil, preview_week: nil, preview_weeks: nil, preview_label: nil,
+                   preview_postseason: nil, scoreboard_week: nil, previewed_game_ids: [])
       @year = year.to_i
       @kind = kind
       @week = week
@@ -102,6 +106,9 @@ module Podcast
       @preview_weeks = preview_weeks || (Array(preview_week) if preview_week)
       @preview_label = preview_label
       @scoreboard_week = scoreboard_week
+      @recap_postseason = recap_postseason
+      @preview_postseason = preview_postseason
+      @previewed_game_ids = previewed_game_ids
     end
 
     # Nothing new to preview (it was all previewed already), but the hosts' bets still get graded.

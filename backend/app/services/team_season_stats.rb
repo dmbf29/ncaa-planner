@@ -26,14 +26,18 @@ class TeamSeasonStats
   # :college_game_stats preloaded) pass them in, so played_games doesn't
   # re-run CollegeSeason#games — SeasonDashboardSerializer does this to
   # avoid an N+1 across every coached team. Left nil elsewhere.
-  def initialize(college_season, games: nil)
+  # `through_week_number:` stops everything at that week (inclusive), for a recap written about an earlier week while
+  # later ones are already in the database (a back-dated episode); nil means all games so far.
+  def initialize(college_season, games: nil, through_week_number: nil)
     @college_season = college_season
     @games = games
+    @through_week_number = through_week_number
   end
 
   # Every played game for this team, paired with both sides' box score.
   def played_games
-    @played_games ||= (@games || @college_season.games.includes(:college_game_stats))
+    @played_games ||= (@games || @college_season.games.includes(:college_game_stats, :week))
+                      .select { |g| @through_week_number.nil? || g.week.number <= @through_week_number }
                       .map { |g| game_stat_pair(g) }
                       .compact
   end
@@ -153,10 +157,11 @@ class TeamSeasonStats
   def student_season_totals
     return @student_season_totals if defined?(@student_season_totals)
 
-    game_stats = StudentGameStat.joins(:student_season)
-                                 .where(student_seasons: { college_season_id: @college_season.id })
-                                 .includes(student_season: :student)
-                                 .to_a
+    scope = StudentGameStat.joins(:student_season)
+                           .where(student_seasons: { college_season_id: @college_season.id })
+                           .includes(student_season: :student)
+    scope = scope.joins(game: :week).where("weeks.number <= ?", @through_week_number) if @through_week_number
+    game_stats = scope.to_a
 
     @student_season_totals = game_stats.group_by(&:student_season).transform_values do |rows|
       STAT_LEADER_CATEGORIES.values.index_with { |column| rows.sum { |r| r.public_send(column) || 0 } }

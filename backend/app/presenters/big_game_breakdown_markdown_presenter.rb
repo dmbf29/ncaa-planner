@@ -101,6 +101,12 @@ class BigGameBreakdownMarkdownPresenter
               "This episode is the #{games.size} game#{'s' if games.size != 1} below, in this exact order#{', plus a short heads-up on other games at the very end' if also_on.any?}. There is no " \
               "big-picture season talk, no general college football discussion and no state-of-the-sport opening: the " \
               "opening line sets the scene, and everything after it is about these games.", "" ]
+    if postseason?
+      lines.insert(-2, "THE POSTSEASON: these are the College Football Playoff games and the bowl games of our coached teams. " \
+                       "There is NO conference standings or poll talk (the regular season is over): talk about the matchup, " \
+                       "the bracket and what a win means from here. Every game still closes with each host's single bet.")
+      lines.insert(-2, "")
+    end
     step = 0
     lines << "#{step += 1}. The mandatory opening, word for word."
     lines << "#{step += 1}. The Card: ONE sentence naming the games on the board, in order. No analysis."
@@ -282,6 +288,7 @@ class BigGameBreakdownMarkdownPresenter
   # " — RIVALS SHOWDOWN · THE FINALE" after a game's title when it applies.
   def game_tags(game, index)
     tags = []
+    tags << game[:bowl_name].to_s.upcase if game[:bowl_name].present?
     tags << "RIVALS SHOWDOWN" if game[:both_user_coached]
     tags << "THE FINALE" if index == games.size - 1
     tags.empty? ? "" : " — #{tags.join(' · ')}"
@@ -375,7 +382,7 @@ class BigGameBreakdownMarkdownPresenter
     name = team[:college][:name]
     coach = team[:coach] ? " (Coach #{team[:coach][:name]}, one of our coaches)" : ""
     rank = team[:ranking] ? "ranked No. #{team[:ranking]}" : "unranked"
-    lines = [ "- **#{name}**#{coach}: #{rank}" ]
+    lines = [ postseason? ? "- **#{name}**#{coach}" : "- **#{name}**#{coach}: #{rank}" ]
     lines << "  - **#{@data.dig(:season, :year)} record: #{record_phrase(team[:record])}**"
     lines.concat(conference_record_lines(team[:conference_record]))
     lines << "  - Current streak: #{streak_text(team[:streak])}" if streak_text(team[:streak])
@@ -404,7 +411,7 @@ class BigGameBreakdownMarkdownPresenter
   end
 
   def conference_record_lines(record)
-    return [] if record[:wins].zero? && record[:losses].zero?
+    return [] if record.nil? || (record[:wins].zero? && record[:losses].zero?)
 
     [ "  - Conference record: #{record_phrase(record)}" ]
   end
@@ -635,6 +642,10 @@ class BigGameBreakdownMarkdownPresenter
     return words unless half
 
     whole.zero? ? "a half" : "#{words} and a half"
+  end
+
+  def postseason?
+    @data[:postseason]
   end
 
   def also_on
