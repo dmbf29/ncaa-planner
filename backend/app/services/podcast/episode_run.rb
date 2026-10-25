@@ -185,6 +185,11 @@ module Podcast
         return ShowArtworkGenerator.new(markdown_path: path("recap.md"), spec: @spec, out_path: art_path, model: @model).call
       end
 
+      if @spec.championship?
+        log "Generating the national champions cover"
+        return ChampionshipArtworkGenerator.new(champion: @spec.champion, year: @year, out_path: art_path).call
+      end
+
       unless preview?
         FileUtils.cp(Show::COVER_SOURCE, art_path) # recap-only: the show cover
         return
@@ -203,6 +208,7 @@ module Podcast
         ScriptWriter.new(markdown_path: path("recap.md"),
                          preview_markdown_path: (path("preview.md") if preview?) || (path("scoreboard.md") if scoreboard?),
                          scoreboard_only: scoreboard?, postseason_recap: @spec.recap_postseason, postseason_preview: @spec.preview_postseason,
+                         championship: @spec.championship?,
                          year: @year, week_number: @week, recap_label: @spec.recap_label,
                          preview_label: @spec.preview_label, model: @model)
       else

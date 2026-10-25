@@ -87,17 +87,17 @@ module Podcast
         new(year: year, kind: "weekly", week: week, recap_label: (PreviewWeek.label(record) if record),
             recap_postseason: record&.post_season, preview_week: preview&.number, preview_weeks: preview&.numbers,
             preview_label: preview&.label, preview_postseason: preview&.postseason, scoreboard_week: preview&.scoreboard_week,
-            previewed_game_ids: previewed)
+            previewed_game_ids: previewed, champion: champion_of(record))
       elsif SHOWS.key?(slug)
         new(year: year, kind: slug)
       end
     end
 
     attr_reader :year, :kind, :week, :preview_week, :preview_weeks, :preview_label, :scoreboard_week, :recap_postseason,
-                :preview_postseason, :previewed_game_ids
+                :preview_postseason, :previewed_game_ids, :champion
 
     def initialize(year:, kind:, week: nil, recap_label: nil, recap_postseason: nil, preview_week: nil, preview_weeks: nil, preview_label: nil,
-                   preview_postseason: nil, scoreboard_week: nil, previewed_game_ids: [])
+                   preview_postseason: nil, scoreboard_week: nil, previewed_game_ids: [], champion: nil)
       @year = year.to_i
       @kind = kind
       @week = week
@@ -109,6 +109,7 @@ module Podcast
       @recap_postseason = recap_postseason
       @preview_postseason = preview_postseason
       @previewed_game_ids = previewed_game_ids
+      @champion = champion
     end
 
     # Nothing new to preview (it was all previewed already), but the hosts' bets still get graded.
@@ -116,6 +117,24 @@ module Podcast
 
     # What the recapped week is called: "Week 13", "Conference Championship", "Bowl Week 1".
     def recap_label = @recap_label.presence || "Week #{week}"
+
+    # Who won the national championship, when the recapped week is the one it was played in and it has been played.
+    def self.champion_of(record)
+      return nil unless record&.post_season
+
+      final = Game.where(week_id: record.id, cfp_round: "championship").includes(:college_game_stats, :home_college, :away_college).first
+      return nil unless final
+
+      scores = final.college_game_stats.index_by(&:college_id)
+      home = scores[final.home_college_id]&.final_score
+      away = scores[final.away_college_id]&.final_score
+      return nil unless home && away && home != away
+
+      (home > away ? final.home_college : final.away_college).name
+    end
+
+    # The national championship episode: the title game and the champion's road to it, with a champion cover.
+    def championship? = weekly? && champion.present?
 
     def weekly? = kind == "weekly"
 
@@ -141,6 +160,7 @@ module Podcast
     # Title without needing a script (weekly adds the preview unless there is none to preview).
     def title(recap_only: false)
       return show[:title].call(year) unless weekly?
+      return "#{year} National Championship Reactions | National Champions: #{champion}" if championship?
 
       parts = [ "#{year} #{recap_label} Reactions" ]
       parts << "#{preview_label} Preview" unless recap_only || preview_week.nil?

@@ -191,8 +191,65 @@ class SeasonWeeksSerializer
       conference_heisman_watch: conference_heisman_watch_for_week(week),
       conference_standings: primary && week.number >= MIN_WEEK_NUMBER_FOR_SEASON_STATS ? conference_standings_json : nil,
       conference_championships: primary ? conference_championships_json(week) : [],
-      cfp_games: week.post_season ? cfp_games_json(week) : []
+      cfp_games: week.post_season ? cfp_games_json(week) : [],
+      championship: week.post_season ? championship_json(week) : nil
     }
+  end
+
+  # The national championship game, once it has been played, with who won, the box score, the players of the game,
+  # its narrative, and the champion's whole road through the bracket (each CFP game it played, with that game's
+  # narrative where one exists). nil in every other week.
+  def championship_json(week)
+    final = all_games.find { |game| game.week_id == week.id && game.cfp_round == "championship" }
+    return nil unless final
+
+    result = game_result(final, final.home_college_id)
+    return nil unless result
+
+    champion = result[:won] ? final.home_college : final.away_college
+    runner_up = result[:won] ? final.away_college : final.home_college
+    {
+      bowl: final.bowl_name,
+      home: final.home_college.name, away: final.away_college.name,
+      home_score: result[:team_score], away_score: result[:opponent_score],
+      champion: champion.name, runner_up: runner_up.name, champion_ours: coached_college_ids.include?(champion.id),
+      narrative: final.narrative_summary.presence,
+      offensive_player_of_game: player_of_game_name(final.offensive_player_of_game),
+      defensive_player_of_game: player_of_game_name(final.defensive_player_of_game),
+      team_stats: [ final.home_college, final.away_college ].map { |college| championship_team_stats(final, college) },
+      road: champion_road_json(champion, week)
+    }
+  end
+
+  def player_of_game_name(student_season)
+    student_season && "#{student_season.student.name} (#{student_season.position}, #{student_season.college_season.college.name})"
+  end
+
+  def championship_team_stats(game, college)
+    stat = game.college_game_stats.find { |s| s.college_id == college.id }
+    return { team: college.name } unless stat
+
+    { team: college.name, total_yards: stat.total_yards, passing_yards: stat.passing_yards,
+      rushing_yards: stat.rushing_yards, turnovers: stat.turnovers }
+  end
+
+  # Every CFP game the champion played on the way to the title game (the title game itself has its own segment), in order.
+  def champion_road_json(champion, week)
+    all_games.select do |game|
+      game.cfp_round.present? && game.cfp_round != "championship" && game.week.number <= week.number &&
+        [ game.home_college_id, game.away_college_id ].include?(champion.id)
+    end.sort_by { |game| game.week.number }.filter_map do |game|
+      result = game_result(game, champion.id)
+      next unless result
+
+      home = game.home_college_id == champion.id
+      {
+        round: game.cfp_round, bowl: game.bowl_name,
+        opponent: (home ? game.away_college : game.home_college).name, home: home,
+        team_score: result[:team_score], opponent_score: result[:opponent_score], won: result[:won],
+        narrative: game.narrative_summary.presence
+      }
+    end
   end
 
   # Every College Football Playoff game in a postseason week (ours included, flagged), with the score once it has been

@@ -12,6 +12,7 @@ module Podcast
 
     WEEKLY = "First the main stories from the recap half, then a teaser of the games previewed and the hosts' lean on them.".freeze
     RECAP_ONLY = "The main stories from the week's results and what they mean for the standings.".freeze
+    CHAMPIONSHIP = "This is the national championship episode: the title game (the score, how it was won, the players who made it happen) and the champion's road through the playoff, name the champion and a moment or two that stood out.".freeze
     SEASON_LONG = "This episode is titled \"%<title>s\". Cover the headline takeaways team by team, and where the hosts land at the end.".freeze
 
     attr_reader :spec
@@ -43,6 +44,7 @@ module Podcast
 
     def brief
       return format(SEASON_LONG, title: title) unless spec.weekly?
+      return CHAMPIONSHIP if spec.championship?
 
       @recap_only ? RECAP_ONLY : WEEKLY
     end

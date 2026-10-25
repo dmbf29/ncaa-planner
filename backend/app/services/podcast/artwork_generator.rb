@@ -60,16 +60,35 @@ module Podcast
       [ Show::COVER_SOURCE, previous ].compact.select { |path| File.exist?(path) && path != out_path }
     end
 
+    # How the panels sit on the cover for a given number of games. The reference cover has four, and told to copy it
+    # the image model fills any empty slot with invented games (made-up teams, spreads and picks), so the prompt says
+    # exactly how many there are and how to arrange them.
+    PANEL_LAYOUTS = {
+      1 => "ONE large panel centered under the headline, filling the lower two thirds of the cover",
+      2 => "TWO large panels side by side, filling the lower half of the cover",
+      3 => "THREE panels in a single row under the headline",
+      4 => "FOUR panels in a 2x2 grid, as in the reference cover",
+      5 => "FIVE panels: three on top and two below",
+      6 => "SIX panels in a 3x2 grid"
+    }.freeze
+
     def image_prompt(facts)
+      count = facts.scan(/^PANEL \d+:/).size
+      layout = PANEL_LAYOUTS.fetch(count, "#{count} equally sized panels in a tidy grid")
       <<~PROMPT
         Create a square podcast episode cover in the same style as the reference images. Image 1 is the show logo
         ("Rising in the Sun Belt", a sunburst over palm trees); reproduce that logo in the top-left corner. Image 2 is
-        last week's episode cover: copy its layout, its stadium-at-sunset background, its bold brush-lettering
-        headline, its four colored game panels, the football-helmet matchups in each team's real colors, and the two
-        host headshots (Arlis Boardingham and Ty Simpson) in "THE PICKS" strip of every panel.
+        last week's episode cover: copy its look, with its stadium-at-sunset background, its bold brush-lettering
+        headline, its colored game panels, the football-helmet matchups in each team's real colors, and the two
+        host headshots (Arlis Boardingham and Ty Simpson) in "THE PICKS" strip of every panel. Do NOT copy its panel
+        count, its games, its teams or any of its text or numbers.
 
         Headline (large brush lettering, same placement as before): "#{@recap_label.upcase} REACTIONS + #{@preview_label.upcase} PREVIEW".
         Small tag next to it: "RECAP. PREVIEW. ALL SUN BELT."
+
+        There are EXACTLY #{count} game panel#{'s' if count != 1} below: #{layout}. Show those and nothing else: never add,
+        invent or imply any other game, team, helmet, spread or pick. If that is fewer panels than the reference cover
+        has, make the panels larger and let the stadium background fill the rest of the space.
 
         Each panel's text must read exactly as follows, with each panel's spread and total shown in boxes and the two
         picks under "THE PICKS" beside the hosts' photos. Spell every word and number exactly as written:

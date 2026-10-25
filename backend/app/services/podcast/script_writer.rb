@@ -84,11 +84,12 @@ module Podcast
       previewed in an earlier episode, so do not preview it again or make any new picks.
     TEXT
 
-    def initialize(markdown_path:, year:, week_number:, preview_markdown_path: nil, scoreboard_only: false, postseason_recap: false, postseason_preview: false, recap_label: nil,
+    def initialize(markdown_path:, year:, week_number:, preview_markdown_path: nil, scoreboard_only: false, postseason_recap: false, postseason_preview: false, championship: false, recap_label: nil,
                    preview_label: nil, model: nil)
       @markdown = File.read(markdown_path)
       @scoreboard_only = scoreboard_only
       @postseason_recap = postseason_recap
+      @championship = championship
       @postseason_preview = postseason_preview
       @recap_label = recap_label
       @preview_label = preview_label
@@ -169,12 +170,14 @@ module Podcast
     end
 
     def segments
-      @segments ||= begin
-        list = [ opening_segment ] + team_headings.map { |team| team_segment(team) }
-        list << (combined? ? review_wrap_segment : closing_segment)
-        list.concat(@scoreboard_only ? scoreboard_segments : preview_segments) if combined?
-        list
-      end
+      @segments ||= @championship ? championship_segments : regular_segments
+    end
+
+    def regular_segments
+      list = [ opening_segment ] + team_headings.map { |team| team_segment(team) }
+      list << (combined? ? review_wrap_segment : closing_segment)
+      list.concat(@scoreboard_only ? scoreboard_segments : preview_segments) if combined?
+      list
     end
 
     def opening_segment
@@ -281,6 +284,55 @@ module Podcast
 
     def preview_segments
       [ preview_intro_segment ] + game_headings.map { |number, total, title| game_segment(number, total, title) } + [ preview_closing_segment ]
+    end
+
+    # The national championship episode: the title game, then the champion's road to it, then a sign-off. No team
+    # round-up, no preview, no bets.
+    def championship_segments
+      narrator, co_host = PodcastShow::HOSTS
+      [
+        Segment.new(
+          label: "Opening", kind: :review, words: 300,
+          instruction: <<~TEXT
+            Write the cold open of "#{SHOW_NAME}" for the NATIONAL CHAMPIONSHIP episode of the #{year} season. Follow this
+            structure exactly:
+            1. #{narrator[:name].split.first} opens with a brief, cinematic line about a national champion being crowned,
+               then says: "Welcome back to #{SHOW_NAME}, I'm #{narrator[:name]}..."
+            2. #{co_host[:name].split.first} follows up immediately with: "...and I'm #{co_host[:name]}."
+            Then set up the show in a few lines: the title game first, then the champion's road to it. Name the champion
+            only if the document's national championship section does. Don't recap the game yet.
+          TEXT
+        ),
+        Segment.new(
+          label: "The national championship game", kind: :review, words: 1300,
+          instruction: <<~TEXT
+            Write the segment on the national championship game, using THE NATIONAL CHAMPIONSHIP section of the document
+            (the final score, the team stats, the players of the game and how the game went) and, where one of our teams
+            played in it, that team's own section too. Tell how the game unfolded and build to its turning points, give
+            each host's own take, work in the players of the game by name with their real numbers, and celebrate the
+            champion. Do NOT walk through the earlier playoff games: the next segment does that. End with a natural handoff,
+            not a goodbye.
+          TEXT
+        ),
+        Segment.new(
+          label: "The road to the title", kind: :review, words: 1000,
+          instruction: <<~TEXT
+            Write the segment "The Road to the Title", using the ROAD TO THE TITLE section of the document: go round by round
+            through every playoff game the champion won to get here (the opponent, the score, home or on the road), and bring
+            in the key moments from each game's "Key moments" text. Pick out the games and moments that stood out, let the
+            hosts react to them, and build to the title game. Use only moments that are written in that section; never
+            invent a play. End with a natural handoff, not a goodbye.
+          TEXT
+        ),
+        Segment.new(
+          label: "Sign-off", kind: :review, words: 250,
+          instruction: <<~TEXT
+            Write the end of the show: a warm sign-off in both hosts' voices that celebrates the champion and the season,
+            ending on "see you next time" or similar and naming the show, "#{SHOW_NAME}". Do NOT name or tease any
+            upcoming episode.
+          TEXT
+        )
+      ]
     end
 
     # No preview (it was all previewed already): just the scoreboard of the hosts' bets, then the sign-off.

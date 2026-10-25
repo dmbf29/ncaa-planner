@@ -51,8 +51,9 @@ module Podcast
 
         Headline (large brush lettering, same placement as before): "#{spec.show[:headline].call(spec.year)}".
 
-        Show one colored panel per team below with that team's helmet in its real colors, the team name, and its fact.
-        Spell every word and number exactly as written:
+        Show exactly one colored panel per team below (#{facts.scan(/^TEAM \d+:/).size} in all) with that team's helmet in its
+        real colors, the team name, and its fact, and nothing else: never add, invent or imply any other team, helmet
+        or number, even if the old cover has more panels. Spell every word and number exactly as written:
 
         #{facts}
       PROMPT

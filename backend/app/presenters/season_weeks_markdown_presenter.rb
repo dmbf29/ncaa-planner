@@ -147,6 +147,8 @@ class SeasonWeeksMarkdownPresenter
   # Bowl / CFP weeks: the games our teams played, the CFP roundup, and the sign-off. No conference round-up, no
   # poll watch.
   def postseason_segments
+    return championship_segments if primary_week[:championship]
+
     around_cfp = "Around the CFP — Every College Football Playoff result of the week and what it means for the " \
                  "bracket. No standings, no poll."
     [
@@ -154,6 +156,18 @@ class SeasonWeeksMarkdownPresenter
       *game_segments,
       (around_cfp if primary_week[:cfp_games].present?),
       injury_report_segment,
+      sign_off_segment
+    ].compact
+  end
+
+  # The national championship episode: the title game, then the champion's road to it.
+  def championship_segments
+    champ = primary_week[:championship]
+    [
+      "#{reviewed_weeks_label} Kickoff & Headlines",
+      "The National Championship — #{champ[:champion]} over #{champ[:runner_up]}: how the title game was won, the key " \
+      "moments and the players of the game",
+      "The Road to the Title — Every playoff game #{champ[:champion]} won on the way, and the moments that stood out",
       sign_off_segment
     ].compact
   end
@@ -324,8 +338,43 @@ class SeasonWeeksMarkdownPresenter
       lines.concat(matchups_table(week_data[:coached_matchups]))
     end
 
-    lines.concat(cfp_games_lines(week_data[:cfp_games]))
+    if week_data[:championship]
+      lines.concat(championship_lines(week_data[:championship]))
+    else
+      lines.concat(cfp_games_lines(week_data[:cfp_games]))
+    end
     lines.concat(conference_heisman_lines(week_data[:conference_heisman_watch]))
+    lines
+  end
+
+  # The title game and the champion's road to it (see SeasonWeeksSerializer#championship_json).
+  def championship_lines(champ)
+    winner_score, loser_score = [ champ[:home_score], champ[:away_score] ].max, [ champ[:home_score], champ[:away_score] ].min
+    lines = [ "## 🏆 THE NATIONAL CHAMPIONSHIP — #{champ[:bowl]}", "",
+              "**#{champ[:champion].upcase} ARE THE NATIONAL CHAMPIONS.** Final: #{champ[:champion]} #{winner_score}, " \
+              "#{champ[:runner_up]} #{loser_score}. #{champ[:away]} @ #{champ[:home]}.", "" ]
+    champ[:team_stats].each do |stats|
+      next unless stats[:total_yards]
+
+      lines << "- #{stats[:team]}: #{stats[:total_yards]} total yards (#{stats[:passing_yards]} passing, #{stats[:rushing_yards]} rushing), " \
+               "#{stats[:turnovers]} turnover#{'s' unless stats[:turnovers] == 1}"
+    end
+    lines << "- Player of the game, offense: #{champ[:offensive_player_of_game]}" if champ[:offensive_player_of_game]
+    lines << "- Player of the game, defense: #{champ[:defensive_player_of_game]}" if champ[:defensive_player_of_game]
+    lines << ""
+    if champ[:narrative]
+      lines.concat([ "### 📖 How the title game went", champ[:narrative], "" ])
+    end
+
+    lines.concat([ "## 🛣️ THE ROAD TO THE TITLE: #{champ[:champion].upcase}", "",
+                   "Every College Football Playoff game #{champ[:champion]} won to get here, in order, with the key moments from each:", "" ])
+    champ[:road].each do |game|
+      round = game[:round].to_s.tr("_", " ").titleize
+      lines << "- **#{round}#{" (#{game[:bowl]})" if game[:bowl].present? && game[:bowl] != "CFP First Round"}** — #{game[:won] ? 'beat' : 'lost to'} " \
+               "#{game[:opponent]} #{game[:team_score]}-#{game[:opponent_score]} #{game[:home] ? 'at home' : 'on the road'}"
+      lines << "  - Key moments: #{game[:narrative]}" if game[:narrative]
+    end
+    lines << ""
     lines
   end
 

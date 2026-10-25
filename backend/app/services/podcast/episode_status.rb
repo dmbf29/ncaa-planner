@@ -71,7 +71,8 @@ module Podcast
           published: published.present?
         },
         audio_stale: audio_stale?,
-        recap_only: recap_only?, scoreboard_only: @spec.scoreboard_only?,
+        recap_only: recap_only?, scoreboard_only: @spec.scoreboard_only?, championship: @spec.championship?,
+        champion: @spec.champion,
         postseason: @spec.weekly? && (@spec.recap_postseason || @spec.preview_postseason) ? true : false,
         script_words: script_words,
         fact_check: fact_check_json,
