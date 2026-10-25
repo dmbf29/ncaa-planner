@@ -20,12 +20,27 @@ function CollegeSelect({ value, onChange, colleges }) {
   );
 }
 
+const OUTCOME_BADGES = {
+  fired: { label: "Fired", className: "bg-danger/10 text-danger" },
+  left: { label: "Leaving", className: "bg-warning/10 text-warning" },
+};
+
+// A coach who was fired or left their school shouldn't default back to it.
+const departed = (assignment) => assignment.previousCoachOutcome === "fired" || assignment.previousCoachOutcome === "left";
+
 function CoachRow({ assignment, collegeId, colleges, onChange }) {
   return (
     <tr className="border-b border-border align-top dark:border-darkborder">
       <td className="p-2">
         <p className="text-sm font-semibold text-charcoal dark:text-white">{assignment.coachName}</p>
-        <p className="text-xs text-textSecondary">Last season: {assignment.previousCollegeName}</p>
+        <p className="text-xs text-textSecondary">
+          Last season: {assignment.previousCollegeName}
+          {OUTCOME_BADGES[assignment.previousCoachOutcome] && (
+            <span className={`ml-2 inline-block rounded-full px-2 py-0.5 font-semibold ${OUTCOME_BADGES[assignment.previousCoachOutcome].className}`}>
+              {OUTCOME_BADGES[assignment.previousCoachOutcome].label}
+            </span>
+          )}
+        </p>
       </td>
       <td className="p-2">
         <CollegeSelect value={collegeId} onChange={onChange} colleges={colleges} />
@@ -114,7 +129,7 @@ function SeasonCoachesPage() {
           Object.fromEntries(
             (result.assignments || []).map((assignment) => [
               assignment.coachId,
-              assignment.currentCollegeId ?? assignment.previousCollegeId ?? null,
+              assignment.currentCollegeId ?? (departed(assignment) ? null : assignment.previousCollegeId) ?? null,
             ]),
           ),
         );

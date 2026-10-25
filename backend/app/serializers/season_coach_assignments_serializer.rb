@@ -22,6 +22,7 @@ class SeasonCoachAssignmentsSerializer
         coach_name: coach.name,
         previous_college_id: previous_college_season.college_id,
         previous_college_name: previous_college_season.college.name,
+        previous_coach_outcome: previous_college_season.coach_outcome,
         current_college_id: current_college_season&.college_id,
         current_college_name: current_college_season&.college&.name
       }
