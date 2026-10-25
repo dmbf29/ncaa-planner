@@ -61,6 +61,7 @@ Rails.application.routes.draw do
             get :coach_assignments
             get :coach_info
             post :commit_coach_assignments
+            post :assign_offseason_coach
             get :award_winners
             post :commit_award_winners
             post :start_roster_video

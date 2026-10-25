@@ -208,7 +208,9 @@ class EndOfSeasonReportCardMarkdownPresenter < MidseasonReportCardMarkdownPresen
   def coach_outcome_section(outcome)
     return [] if outcome.blank?
 
-    [ "### 👔 Coach's Future", "", "- Coach #{outcome[:coach_name]} #{COACH_OUTCOME_LINES[outcome[:outcome]]}.", "" ]
+    lines = [ "### 👔 Coach's Future", "", "- Coach #{outcome[:coach_name]} #{COACH_OUTCOME_LINES[outcome[:outcome]]}." ]
+    lines << "- Coach #{outcome[:coach_name]} has already landed the head coaching job at #{outcome[:new_college]} for next season." if outcome[:new_college]
+    lines + [ "" ]
   end
 
   def all_americans_section(all_americans)

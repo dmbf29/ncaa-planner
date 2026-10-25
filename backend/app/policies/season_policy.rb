@@ -11,6 +11,10 @@ class SeasonPolicy < ApplicationPolicy
     owner?
   end
 
+  def assign_offseason_coach?
+    owner?
+  end
+
   def analyze_schedule?
     owner?
   end

@@ -60,8 +60,8 @@ class PortalPreviewSerializer
 
   def coached_college_seasons
     @coached_college_seasons ||= @season.college_seasons
-                                         .includes(:college, :coach, student_seasons: %i[student student_game_stats], portal_statuses: {})
-                                         .where.not(coach_id: nil)
+                                         .includes(:college, :coach, :offseason_coach, student_seasons: %i[student student_game_stats], portal_statuses: {})
+                                         .offseason_coached
                                          .joins(:college)
                                          .order("colleges.name")
                                          .to_a
@@ -75,7 +75,7 @@ class PortalPreviewSerializer
 
     {
       college: college_json(college_season.college, college_season.conference),
-      coach: { id: college_season.coach.id, name: college_season.coach.name },
+      coach: { id: college_season.offseason_coach_record.id, name: college_season.offseason_coach_record.name },
       summary: summary_json(enriched, departures),
       departures: departures,
       position_needs: position_needs_json(college_season, enriched, statuses_by_student_season_id),

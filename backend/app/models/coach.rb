@@ -1,6 +1,7 @@
 class Coach < ApplicationRecord
   belongs_to :dynasty
   has_many :college_seasons, dependent: :nullify
+  has_many :offseason_college_seasons, class_name: "CollegeSeason", foreign_key: :offseason_coach_id, dependent: :nullify, inverse_of: :offseason_coach
   has_many :season_awards, dependent: :destroy
 
   validates :name, presence: true

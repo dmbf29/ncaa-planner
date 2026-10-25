@@ -8,7 +8,8 @@ class SeasonCoachInfoSerializer
   def as_json
     {
       season: { id: @season.id, year: @season.year },
-      coaches: coached_college_seasons.map { |cs| coach_json(cs) }
+      coaches: coached_college_seasons.map { |cs| coach_json(cs) },
+      colleges: College.order(:name).map { |college| { id: college.id, name: college.name } }
     }
   end
 
@@ -16,6 +17,10 @@ class SeasonCoachInfoSerializer
 
   def coached_college_seasons
     @season.college_seasons.includes(:college, :coach).where.not(coach_id: nil).sort_by { |cs| cs.coach.name }
+  end
+
+  def offseason_college_ids_by_coach_id
+    @offseason_college_ids_by_coach_id ||= @season.college_seasons.where.not(offseason_coach_id: nil).pluck(:offseason_coach_id, :college_id).to_h
   end
 
   def coach_json(college_season)
@@ -30,7 +35,8 @@ class SeasonCoachInfoSerializer
       },
       college: { id: college_season.college.id, name: college_season.college.name },
       college_season_id: college_season.id,
-      coach_outcome: college_season.coach_outcome
+      coach_outcome: college_season.coach_outcome,
+      offseason_college_id: offseason_college_ids_by_coach_id[coach.id]
     }
   end
 end

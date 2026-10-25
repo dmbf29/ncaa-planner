@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
-import { fetchDynasties, fetchCoachInfo, updateCollegeSeasonAttributes } from "../lib/apiClient";
+import { fetchDynasties, fetchCoachInfo, updateCollegeSeasonAttributes, assignOffseasonCoach } from "../lib/apiClient";
 
 const selectClass =
   "rounded border border-border bg-white px-2 py-1 text-sm text-textPrimary focus:border-burnt focus:outline-none dark:border-darkborder dark:bg-darksurface dark:text-white";
@@ -17,8 +17,10 @@ const OUTCOMES = [
 const STATUS_LABELS = { saving: "Saving...", saved: "Saved", error: "Couldn't save" };
 const STATUS_CLASSES = { saving: "text-textSecondary", saved: "text-success", error: "text-danger" };
 
-function OutcomeRow({ row }) {
+function OutcomeRow({ row, colleges, dynastyId, seasonId }) {
   const [outcome, setOutcome] = useState(row.coachOutcome ?? "");
+  const [newCollegeId, setNewCollegeId] = useState(row.offseasonCollegeId ?? "");
+  const [moveError, setMoveError] = useState(null);
   const [status, setStatus] = useState(null);
   const requestId = useRef(0);
 
@@ -35,6 +37,25 @@ function OutcomeRow({ row }) {
     }
   };
 
+  const handleMove = async (e) => {
+    const value = e.target.value;
+    const previous = newCollegeId;
+    const id = ++requestId.current;
+    setNewCollegeId(value);
+    setMoveError(null);
+    setStatus("saving");
+    try {
+      await assignOffseasonCoach(dynastyId, seasonId, row.coach.id, value === "" ? null : Number(value));
+      if (id === requestId.current) setStatus("saved");
+    } catch (err) {
+      setNewCollegeId(previous);
+      setMoveError(err.message);
+      if (id === requestId.current) setStatus("error");
+    }
+  };
+
+  const departing = outcome === "fired" || outcome === "left";
+
   return (
     <tr className="border-b border-border/60 last:border-0 dark:border-darkborder/60">
       <td className="px-4 py-2">
@@ -50,6 +71,23 @@ function OutcomeRow({ row }) {
           ))}
         </select>
       </td>
+      <td className="px-2 py-2">
+        {departing ? (
+          <>
+            <select value={newCollegeId} onChange={handleMove} className={selectClass}>
+              <option value="">— no new job yet —</option>
+              {colleges.map((college) => (
+                <option key={college.id} value={college.id}>
+                  {college.name}
+                </option>
+              ))}
+            </select>
+            {moveError && <p className="mt-1 text-xs text-danger">{moveError}</p>}
+          </>
+        ) : (
+          <span className="text-xs text-textSecondary">—</span>
+        )}
+      </td>
       <td className="px-3 py-2 text-xs">{status && <span className={STATUS_CLASSES[status]}>{STATUS_LABELS[status]}</span>}</td>
     </tr>
   );
@@ -58,6 +96,7 @@ function OutcomeRow({ row }) {
 function CoachOutcomesUpdatePage() {
   const navigate = useNavigate();
 
+  const [dynastyId, setDynastyId] = useState(null);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -77,6 +116,7 @@ function CoachOutcomesUpdatePage() {
           setError("This dynasty doesn't have a season yet.");
           return;
         }
+        setDynastyId(dynasty.id);
         setData(await fetchCoachInfo(dynasty.id, latestSeason.id));
       } catch (err) {
         setError(err.message);
@@ -111,8 +151,9 @@ function CoachOutcomesUpdatePage() {
       {data && (
         <div className="space-y-4 pb-8">
           <p className="text-sm text-textSecondary">
-            {data.season.year} season. Record whether each user coach keeps their job. Changes save automatically and show up in the End of
-            Season Report Cards.
+            {data.season.year} season. Record whether each user coach keeps their job. If a coach was fired or is leaving, pick the program they now
+            run: the Portal Preview and Signing Day pods use it, while this season&rsquo;s recaps keep their old team. Changes save
+            automatically.
           </p>
           <Card className="overflow-hidden">
             <div className="overflow-x-auto">
@@ -121,12 +162,13 @@ function CoachOutcomesUpdatePage() {
                   <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-textSecondary dark:border-darkborder">
                     <th className="px-4 py-2 font-semibold">Coach</th>
                     <th className="px-2 py-2 font-semibold">Outcome</th>
+                    <th className="px-2 py-2 font-semibold">New job</th>
                     <th className="px-3 py-2 font-semibold"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.coaches.map((row) => (
-                    <OutcomeRow key={row.collegeSeasonId} row={row} />
+                    <OutcomeRow key={row.collegeSeasonId} row={row} colleges={data.colleges || []} dynastyId={dynastyId} seasonId={data.season.id} />
                   ))}
                 </tbody>
               </table>

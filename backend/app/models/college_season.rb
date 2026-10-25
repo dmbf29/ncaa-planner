@@ -23,6 +23,11 @@ class CollegeSeason < ApplicationRecord
 
   belongs_to :college
   belongs_to :coach, optional: true
+  # Who runs this program for the offseason that follows the season (portal,
+  # signing day), set when a coach moves schools after the season ends. The
+  # season's own coach_id stays put so the season's recaps and report cards
+  # keep the coach who actually coached it. See #offseason_coach_record.
+  belongs_to :offseason_coach, class_name: "Coach", optional: true, inverse_of: :offseason_college_seasons
   belongs_to :season
   has_many :student_seasons, dependent: :destroy
   has_many :signed_recruits, dependent: :destroy
@@ -30,6 +35,21 @@ class CollegeSeason < ApplicationRecord
   has_one :recruiting_season, dependent: :destroy
   validates :season, uniqueness: { scope: :college }
   validates :coach_id, uniqueness: { scope: :season_id }, allow_nil: true
+  validates :offseason_coach_id, uniqueness: { scope: :season_id }, allow_nil: true
+
+  # Programs with a coach of ours for the offseason: a coach who was fired or
+  # left no longer holds their old program, so it only counts if someone was
+  # moved in; everyone else keeps theirs unless replaced.
+  OFFSEASON_COACH_SQL = "CASE WHEN college_seasons.coach_outcome IN (1, 2) THEN college_seasons.offseason_coach_id " \
+                        "ELSE COALESCE(college_seasons.offseason_coach_id, college_seasons.coach_id) END".freeze
+  scope :offseason_coached, -> { where("#{OFFSEASON_COACH_SQL} IS NOT NULL") }
+
+  def offseason_coach_record
+    return offseason_coach if offseason_coach_id
+    return nil if coach_fired? || coach_left?
+
+    coach
+  end
 
   def games
     Game.where(week_id: season.week_ids)

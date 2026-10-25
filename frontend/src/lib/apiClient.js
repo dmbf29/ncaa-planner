@@ -155,6 +155,11 @@ export const fetchTeamAttributes = (dynastyId, seasonId) =>
 export const updateCoach = (id, payload) =>
   api.put(`/api/v1/coaches/${id}`, { coach: payload }).then((r) => r.data);
 
+export const assignOffseasonCoach = (dynastyId, seasonId, coachId, collegeId) =>
+  api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/assign_offseason_coach`, { coachId, collegeId })
+    .then((r) => r.data);
+
 export const fetchCoachInfo = (dynastyId, seasonId) =>
   api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/coach_info`).then((r) => r.data);
 

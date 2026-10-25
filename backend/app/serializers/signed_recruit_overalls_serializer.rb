@@ -8,7 +8,7 @@ class SignedRecruitOverallsSerializer
   end
 
   def as_json
-    college_seasons = @season.college_seasons.where.not(coach_id: nil)
+    college_seasons = @season.college_seasons.offseason_coached
                              .includes(:college, signed_recruits: :student).order("colleges.name")
                              .references(:colleges)
     overalls = transfer_overalls(college_seasons)

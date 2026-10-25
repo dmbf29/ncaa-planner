@@ -361,6 +361,19 @@ module Api
         render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
       end
 
+      # Moves one of our coaches to a new program for the offseason (portal,
+      # signing day) without touching who coached the season itself. A nil
+      # college_id clears the move.
+      def assign_offseason_coach
+        authorize @season
+        result = OffseasonCoach::AssignService.new(@season).call(coach_id: params[:coach_id], college_id: params[:college_id])
+        if result[:error]
+          render json: { error: result[:error], code: "unprocessable_entity" }, status: :unprocessable_entity
+        else
+          render json: { season_id: @season.id, coach_id: result[:coach_id], college_id: result[:college_id] }
+        end
+      end
+
       def award_winners
         authorize @season
         render json: SeasonAwardWinnersSerializer.new(@season).as_json

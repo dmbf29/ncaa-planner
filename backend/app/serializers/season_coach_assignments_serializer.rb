@@ -23,6 +23,7 @@ class SeasonCoachAssignmentsSerializer
         previous_college_id: previous_college_season.college_id,
         previous_college_name: previous_college_season.college.name,
         previous_coach_outcome: previous_college_season.coach_outcome,
+        offseason_college_id: offseason_college_ids_by_coach_id[coach.id],
         current_college_id: current_college_season&.college_id,
         current_college_name: current_college_season&.college&.name
       }
@@ -33,6 +34,12 @@ class SeasonCoachAssignmentsSerializer
     return CollegeSeason.none unless @season.previous_season
 
     @season.previous_season.college_seasons.includes(:coach, :college).where.not(coach_id: nil).joins(:college).order("colleges.name")
+  end
+
+  # Where the previous season's Coach Outcomes page moved each coach for the
+  # offseason, so the new season starts them there.
+  def offseason_college_ids_by_coach_id
+    @offseason_college_ids_by_coach_id ||= @season.previous_season.college_seasons.where.not(offseason_coach_id: nil).pluck(:offseason_coach_id, :college_id).to_h
   end
 
   def current_college_seasons_by_coach_id

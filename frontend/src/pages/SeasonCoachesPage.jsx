@@ -129,7 +129,10 @@ function SeasonCoachesPage() {
           Object.fromEntries(
             (result.assignments || []).map((assignment) => [
               assignment.coachId,
-              assignment.currentCollegeId ?? (departed(assignment) ? null : assignment.previousCollegeId) ?? null,
+              assignment.currentCollegeId ??
+                assignment.offseasonCollegeId ??
+                (departed(assignment) ? null : assignment.previousCollegeId) ??
+                null,
             ]),
           ),
         );

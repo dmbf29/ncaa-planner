@@ -45,7 +45,9 @@ class EndOfSeasonReportCardSerializer < MidseasonReportCardSerializer
   def coach_outcome_json(college_season)
     return nil unless college_season.coach_outcome
 
-    { coach_name: college_season.coach&.name, outcome: college_season.coach_outcome }
+    new_college = college_season.season.college_seasons.includes(:college)
+                                .find_by(offseason_coach_id: college_season.coach_id)&.college
+    { coach_name: college_season.coach&.name, outcome: college_season.coach_outcome, new_college: new_college&.name }
   end
 
   def bowl_games_for(college_season)
