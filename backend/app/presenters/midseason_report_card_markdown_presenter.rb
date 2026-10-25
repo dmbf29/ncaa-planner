@@ -130,10 +130,28 @@ class MidseasonReportCardMarkdownPresenter
 
     lines.concat(pace_section(team[:vegas_context]))
     lines.concat(notable_results_section(team[:notable_results]))
+    lines.concat(player_of_the_season_section(team[:player_of_the_season]))
     lines.concat(team_stats_section(team[:team_stats]))
     lines.concat(played_schedule_section(team[:played_schedule]))
 
     lines
+  end
+
+  # The player who won the most player-of-the-game awards for this team
+  # (see CollegeSeason#player_of_the_season).
+  def player_of_the_season_section(player)
+    return [] if player.blank?
+
+    awards = [ ("#{player[:offensive_awards]} offensive" if player[:offensive_awards].positive?),
+               ("#{player[:defensive_awards]} defensive" if player[:defensive_awards].positive?) ].compact.join(" and ")
+    total = player[:offensive_awards] + player[:defensive_awards]
+    detail = [ player[:position], player[:class_year], ("#{player[:overall]} OVR" if player[:overall]) ].compact.join(", ")
+    [ "### 🌟 #{player_of_the_season_heading}", "",
+      "- #{player[:name]} (#{detail}) — #{total} player-of-the-game award#{'s' unless total == 1} (#{awards}), the most on the team", "" ]
+  end
+
+  def player_of_the_season_heading
+    "Player of the Season So Far"
   end
 
   def ratings_line(ratings)

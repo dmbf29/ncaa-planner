@@ -87,9 +87,25 @@ class MidseasonReportCardSerializer
       conference_standing: conference_standing_json(college_season),
       vegas_context: vegas_context_json(college_season, games, played_games),
       notable_results: notable_results_json(played_games),
+      player_of_the_season: player_of_the_season_json(college_season),
       team_stats: team_stats_json(college_season, played_games.size),
       played_schedule: played_games.map { |g| played_game_json(g) },
       remaining_schedule: remaining_games.map { |g| remaining_game_json(g) }
+    }
+  end
+
+  def player_of_the_season_json(college_season)
+    winner = college_season.player_of_the_season
+    return nil unless winner
+
+    student_season = winner[:student_season]
+    {
+      name: student_season.student.name,
+      position: student_season.position,
+      class_year: student_season.class_year,
+      overall: student_season.overall,
+      offensive_awards: winner[:offensive_awards],
+      defensive_awards: winner[:defensive_awards]
     }
   end
 
