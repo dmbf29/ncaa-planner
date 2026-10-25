@@ -17,6 +17,7 @@ import AllAmericansPage from "./pages/AllAmericansPage";
 import RosterPage from "./pages/RosterPage";
 import SigningClassPage from "./pages/SigningClassPage";
 import SeasonPlayersPage from "./pages/SeasonPlayersPage";
+import MarkTransfersUpdatePage from "./pages/MarkTransfersUpdatePage";
 import PlayerStatsPage from "./pages/PlayerStatsPage";
 import WeekResultsPage from "./pages/WeekResultsPage";
 import ExportPage from "./pages/ExportPage";
@@ -88,6 +89,7 @@ function App() {
         <Route path="/dynasty/updates/recruitment-trail" element={<RecruitmentTrailUpdatePage />} />
         <Route path="/dynasty/updates/recruit-overalls" element={<SignedRecruitOverallsPage />} />
         <Route path="/dynasty/updates/portal-preview" element={<PortalPreviewUpdatePage />} />
+        <Route path="/dynasty/updates/mark-transfers" element={<MarkTransfersUpdatePage />} />
         <Route path="/dynasty/updates/season/coaches" element={<SeasonCoachesPage />} />
         <Route path="/dynasty/updates/coach-info" element={<CoachInfoUpdatePage />} />
         <Route path="/dynasty/updates/coach-outcomes" element={<CoachOutcomesUpdatePage />} />

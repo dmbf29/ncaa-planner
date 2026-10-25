@@ -59,6 +59,9 @@ const STAT_COLUMNS = [
   { field: "awareness", label: "Awr" },
 ];
 
+// "throwAccuracyShort" -> "Throw Accuracy Short"
+const ratingLabel = (key) => key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
+
 // Players pulled onto a squad board from here are portal/scouting targets on
 // someone else's team, so they land as recruits tagged with this flag.
 const WATCH_FLAG_NAME = "watch";
@@ -88,6 +91,9 @@ function SeasonPlayersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filters, setFilters] = useState(emptyFilters);
+  // Which pool to browse. Defaults to the portal once anyone has been marked (Mark Transfers); until then there is
+  // nothing to filter to, so it starts on everyone.
+  const [portalOnly, setPortalOnly] = useState(null);
   const [sort, setSort] = useState({ field: "overall", direction: "desc" });
   const [activePlayer, setActivePlayer] = useState(null);
   const [addedIds, setAddedIds] = useState(() => new Set());
@@ -105,7 +111,10 @@ function SeasonPlayersPage() {
     setLoading(true);
     setError(null);
     fetchSeasonStudentSeasons(dynastyId, seasonId)
-      .then((result) => setData(result))
+      .then((result) => {
+        setData(result);
+        setPortalOnly(result.players.some((p) => p.inPortal));
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [dynastyId, seasonId]);
@@ -152,6 +161,7 @@ function SeasonPlayersPage() {
     const minOverall = filters.minOverall === "" ? null : Number(filters.minOverall);
 
     const rows = data.players.filter((p) => {
+      if (portalOnly && !p.inPortal) return false;
       if (search && !p.name.toLowerCase().includes(search)) return false;
       if (filters.positions.length && !filters.positions.includes(p.position)) return false;
       if (filters.classYears.length && !filters.classYears.includes(p.classYear)) return false;
@@ -171,7 +181,9 @@ function SeasonPlayersPage() {
       const cmp = typeof av === "string" ? av.localeCompare(bv) : av - bv;
       return cmp * dir;
     });
-  }, [data, filters, sort]);
+  }, [data, filters, sort, portalOnly]);
+
+  const portalCount = useMemo(() => (data?.players ?? []).filter((p) => p.inPortal).length, [data]);
 
   const toggleSort = (field) =>
     setSort((prev) => {
@@ -212,6 +224,18 @@ function SeasonPlayersPage() {
         <div className="space-y-4">
           <Card className="p-4">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <label className="block space-y-1 text-xs font-semibold uppercase tracking-wide text-textSecondary">
+                <span>Show</span>
+                <select
+                  value={portalOnly ? "portal" : "all"}
+                  onChange={(e) => setPortalOnly(e.target.value === "portal")}
+                  className={inputClass}
+                >
+                  <option value="portal">In Portal ({portalCount.toLocaleString()})</option>
+                  <option value="all">All Players</option>
+                </select>
+              </label>
+
               <label className="block space-y-1 text-xs font-semibold uppercase tracking-wide text-textSecondary">
                 <span>Search name</span>
                 <input
@@ -328,6 +352,13 @@ function SeasonPlayersPage() {
                           <div className="text-xs font-normal text-textSecondary">
                             {player.position} &middot; {player.classYear}
                           </div>
+                          {portalOnly && Object.keys(player.ratings ?? {}).length > 0 && (
+                            <div className="text-[11px] font-normal text-textSecondary">
+                              {Object.entries(player.ratings)
+                                .map(([key, value]) => `${ratingLabel(key)} ${value}`)
+                                .join(" · ")}
+                            </div>
+                          )}
                         </td>
                         <td className="px-3 py-2 text-center">
                           <Link

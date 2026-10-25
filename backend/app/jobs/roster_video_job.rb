@@ -12,6 +12,7 @@ class RosterVideoJob < ApplicationJob
   queue_as :default
 
   TOOL_DIR = Rails.root.join("tools/roster_video")
+  SCRIPT = TOOL_DIR.join("extract.py")
   PYTHON = ENV.fetch("ROSTER_VIDEO_PYTHON") { TOOL_DIR.join("venv/bin/python").to_s }
   UPLOAD_DIR = Rails.root.join("tmp/roster_video")
   MAX_CONCURRENT = Integer(ENV.fetch("ROSTER_VIDEO_CONCURRENCY", 2))
@@ -26,7 +27,7 @@ class RosterVideoJob < ApplicationJob
 
   def perform(token:, path:)
     unless File.executable?(PYTHON)
-      return AnalysisStatus.failed!(token, "Roster video tool isn't set up — expected a Python env at #{PYTHON} (see tools/roster_video/README.md).")
+      return AnalysisStatus.failed!(token, "Video tool isn't set up — expected a Python env at #{PYTHON} (see tools/roster_video/README.md).")
     end
 
     AnalysisStatus.progress!(token, { stage: "queued" })
@@ -48,7 +49,7 @@ class RosterVideoJob < ApplicationJob
     AnalysisStatus.progress!(token, { stage: "starting" })
     stdout = +""
     stderr_tail = []
-    Open3.popen3(PYTHON, TOOL_DIR.join("extract.py").to_s, path) do |stdin, out, err, wait|
+    Open3.popen3(PYTHON, self.class::SCRIPT.to_s, path) do |stdin, out, err, wait|
       stdin.close
       reader = Thread.new { out.each_line { |line| stdout << line } }
       err.each_line do |line|

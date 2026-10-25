@@ -224,6 +224,29 @@ export const analyzeRosterVideo = (dynastyId, seasonId, file, { onProgress, isCa
     );
 };
 
+// Local-only: Rails runs tools/transfer_video over a recording of the "players leaving" screen (OCR, no AI API)
+// and matches the Transfer rows to this season's rosters. Resolves with { rows, summary }; nothing is saved yet.
+export const analyzeTransferVideo = (dynastyId, seasonId, file, { onProgress, isCancelled } = {}) => {
+  const formData = new FormData();
+  formData.append("video", file);
+  const base = `/api/v1/dynasties/${dynastyId}/seasons/${seasonId}`;
+  return api
+    .post(`${base}/start_transfer_video`, formData, { headers: { "Content-Type": "multipart/form-data" } })
+    .then((r) =>
+      pollAnalysis(`${base}/transfer_video_status`, r.data.token, {
+        onProgress,
+        isCancelled,
+        timeoutMs: ROSTER_VIDEO_POLL_TIMEOUT_MS,
+      }),
+    );
+};
+
+// rows: [{ studentSeasonId, name, overall, speed, ... }]; flags each in_portal and updates the ratings given.
+export const commitTransfers = (dynastyId, seasonId, rows, clearFirst = false) =>
+  api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_transfers`, { rows, clearFirst })
+    .then((r) => r.data);
+
 // Local-only: Rails runs tools/team_builder_csv over a recording of the team's full roster table and resolves with
 // { csv, filename, playerCount, flagged, summary } -- a Team Builder Unleashed CSV; nothing is saved to the dynasty.
 const TEAM_BUILDER_EXPORT_POLL_TIMEOUT_MS = 30 * 60 * 1000; // a run takes a few minutes, longer if another is queued

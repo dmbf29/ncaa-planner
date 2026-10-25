@@ -259,6 +259,47 @@ module Api
         end
       end
 
+      # Local-only, like #start_roster_video: tools/transfer_video reads a recording of the "players leaving" screen
+      # and returns only the Transfer rows. The status poll matches them to this season's rosters (nothing saved yet).
+      def start_transfer_video
+        authorize @season
+        return render_roster_video_dev_only unless Rails.env.development?
+
+        video = params[:video]
+        return render json: { error: "No video uploaded", code: "missing_video" }, status: :unprocessable_entity unless video.respond_to?(:tempfile)
+
+        token = SecureRandom.uuid
+        path = TransferVideoJob.stash_upload(token, video)
+        AnalysisStatus.pending!(token)
+        TransferVideoJob.perform_later(token: token, path: path.to_s)
+        render json: { token: token, status: "pending" }, status: :accepted
+      end
+
+      def transfer_video_status
+        authorize @season
+        return render_roster_video_dev_only unless Rails.env.development?
+
+        status = AnalysisStatus.read(params[:token])
+        case status[:status]
+        when "completed"
+          render json: { status: "completed", analysis: PortalTransfers::Matcher.new(@season).call(status[:result]) }
+        when "failed"
+          render json: { status: "failed", error: status[:error], code: "extraction_failed" }, status: :unprocessable_entity
+        when "not_found"
+          render json: { status: "failed", error: "Video job expired or not found — try again.", code: "extraction_failed" },
+                 status: :unprocessable_entity
+        else
+          render json: { status: "pending", progress: status[:progress] }
+        end
+      end
+
+      def commit_transfers
+        authorize @season
+        rows = Array(params[:rows]).map { |row| row.to_unsafe_h.deep_symbolize_keys }
+        warnings = PortalTransfers::CommitService.new(@season).call(rows, clear_first: ActiveModel::Type::Boolean.new.cast(params[:clear_first]))
+        render json: { season_id: @season.id, warnings: warnings }
+      end
+
       # Local-only: turns a recording of a team's full roster table (scrolled across every column) into a Team Builder
       # Unleashed CSV via tools/team_builder_csv. Same background/poll shape as #start_roster_video, but nothing is
       # saved to the dynasty -- the result is a CSV for the browser to download.

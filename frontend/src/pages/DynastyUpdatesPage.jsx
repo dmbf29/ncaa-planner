@@ -28,7 +28,7 @@ const BOWL_WEEK_UPDATES = [
 
 const AFTER_CHAMPIONSHIP_UPDATES = [
   { key: "portal-preview", label: "Portal Preview", icon: "fa-solid fa-door-open", description: "Upload each team's players leaving ahead of the transfer portal.", to: "/dynasty/updates/portal-preview" },
-  { key: "mark-transfers", label: "Mark Transfers", icon: "fa-solid fa-person-through-window", description: "Coming soon." },
+  { key: "mark-transfers", label: "Mark Transfers", icon: "fa-solid fa-person-through-window", description: "Upload a recording of the transfers to flag who's in the portal.", to: "/dynasty/updates/mark-transfers" },
 ];
 
 const SIGNING_DAY_UPDATES = [

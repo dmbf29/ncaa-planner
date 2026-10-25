@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_10_25_130000) do
+ActiveRecord::Schema[8.0].define(version: 2026_10_25_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -651,6 +651,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_10_25_130000) do
     t.integer "change_of_direction"
     t.integer "strength"
     t.integer "awareness"
+    t.boolean "in_portal", default: false, null: false
+    t.jsonb "ratings", default: {}, null: false
     t.index ["college_season_id"], name: "index_student_seasons_on_college_season_id"
     t.index ["student_id", "college_season_id"], name: "index_student_seasons_on_student_id_and_college_season_id", unique: true
     t.index ["student_id"], name: "index_student_seasons_on_student_id"

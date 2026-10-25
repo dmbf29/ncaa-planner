@@ -111,6 +111,18 @@ class SeasonPolicy < ApplicationPolicy
     owner?
   end
 
+  def start_transfer_video?
+    owner?
+  end
+
+  def transfer_video_status?
+    owner?
+  end
+
+  def commit_transfers?
+    owner?
+  end
+
   def start_team_builder_export?
     owner?
   end

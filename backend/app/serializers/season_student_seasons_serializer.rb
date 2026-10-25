@@ -27,6 +27,8 @@ class SeasonStudentSeasonsSerializer
     "student_seasons.awareness",
     "student_seasons.dev_trait",
     "student_seasons.nil_amount",
+    "student_seasons.in_portal",
+    "student_seasons.ratings",
     "college_seasons.id",
     "colleges.name",
     "college_seasons.conference"
@@ -55,7 +57,7 @@ class SeasonStudentSeasonsSerializer
     @players ||= player_rows.map do |row|
       id, first_name, last_name, position, class_year, overall, speed, acceleration,
         agility, change_of_direction, strength, awareness, dev_trait,
-        nil_amount, college_season_id, team, conference = row
+        nil_amount, in_portal, ratings, college_season_id, team, conference = row
 
       {
         id: id,
@@ -71,6 +73,8 @@ class SeasonStudentSeasonsSerializer
         awareness: awareness,
         dev_trait: dev_trait,
         nil_amount: nil_amount,
+        in_portal: in_portal,
+        ratings: ratings,
         college_season_id: college_season_id,
         team: team,
         conference: conference
