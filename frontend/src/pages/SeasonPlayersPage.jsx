@@ -454,7 +454,7 @@ function SeasonPlayersPage() {
                     const team = teamsById.get(player.collegeSeasonId);
                     return (
                       <tr key={player.id} className="border-b border-border/60 last:border-0 dark:border-darkborder/60">
-                        <td className="sticky left-0 z-10 bg-surface px-3 py-2 shadow-[1px_0_0_0] shadow-border/60 dark:bg-darksurface dark:shadow-darkborder/60">
+                        <td className="sticky left-0 z-10 bg-surface px-1 py-1 shadow-[1px_0_0_0] shadow-border/60 dark:bg-darksurface dark:shadow-darkborder/60">
                           <div className="flex items-start gap-2">
                             <button
                               type="button"
@@ -481,7 +481,7 @@ function SeasonPlayersPage() {
                               )}
                             </button>
                           ) : (
-                            <div className="text-sm font-semibold text-textPrimary dark:text-white">{player.name}</div>
+                            <div className="text-sm whitespace-nowrap font-semibold text-textPrimary dark:text-white">{player.name}</div>
                           )}
                           <div className="text-xs font-normal text-textSecondary">
                             {player.position} &middot; {player.classYear}
