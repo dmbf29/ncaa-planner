@@ -42,6 +42,40 @@ const emptyFilters = () => ({
   maxWeight: "",
 });
 
+// Compact archetype names for the table cells; the filter keeps the full names. Anything missing falls back to the full name.
+const ARCHETYPE_ABBREVIATIONS = {
+  "Pass Protector": "Pass Prot",
+  "Raw Strength": "Raw Str",
+  "Bump and Run": "Bump/Run",
+  "Gap Specialist": "Gap Spec",
+  "Power Rusher": "Pwr Rush",
+  "Pure Power": "Pure Pwr",
+  "Speed Rusher": "Spd Rush",
+  "Box Specialist": "Box Spec",
+  "Coverage Specialist": "Cov Spec",
+  "Backfield Threat": "Bkfld Thr",
+  "Contact Seeker": "Contact",
+  "East/West Playmaker": "E/W Play",
+  "Elusive Bruiser": "Elus Bruiser",
+  "North/South Blocker": "N/S Block",
+  "North/South Receiver": "N/S Rec",
+  "Edge Setter": "Edge Set",
+  "Well Rounded": "Well Rnd",
+  "Signal Caller": "Sig Caller",
+  "Backfield Creator": "Bkfld Crt",
+  "Dual Threat": "Dual Thr",
+  "Pocket Passer": "Pocket",
+  "Pure Runner": "Pure Run",
+  "Gritty Possession": "Gritty Poss",
+  "Physical Route Runner": "Phys RR",
+  "Pure Blocker": "Pure Blk",
+  "Vertical Threat": "Vert Thr",
+  "Contested Specialist": "Contested",
+  "Elusive Route Runner": "Elus RR",
+  "Route Artist": "Route Art",
+};
+const shortArchetype = (name) => ARCHETYPE_ABBREVIATIONS[name] ?? name;
+
 const formatHeight = (inches) => (inches == null ? "—" : `${Math.floor(inches / 12)}'${inches % 12}"`);
 
 // Accepts 6'2, 6'2", 6-2, 6 2 or plain inches (74); returns inches or null when blank/unparseable.
@@ -595,7 +629,9 @@ function SeasonPlayersPage() {
                         <td className="px-1 py-1 text-center">
                           <OverallBadge value={player.overall} />
                         </td>
-                        <td className="px-3 py-2 whitespace-nowrap text-textSecondary">{player.archetype ?? "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap text-textSecondary" title={player.archetype ?? undefined}>
+                          {player.archetype ? shortArchetype(player.archetype) : "—"}
+                        </td>
                         <td className="px-3 py-2 text-right tabular-nums text-textSecondary">
                           {formatHeight(player.heightInches)}
                         </td>
