@@ -85,7 +85,7 @@ module Podcast
         end
         record = season&.weeks&.find_by(number: week)
         new(year: year, kind: "weekly", week: week, recap_label: (PreviewWeek.label(record) if record),
-            recap_postseason: record&.post_season, preview_week: preview&.number, preview_weeks: preview&.numbers,
+            recap_postseason: record&.post_season, recap_conference_championship: record&.conference_championship, preview_week: preview&.number, preview_weeks: preview&.numbers,
             preview_label: preview&.label, preview_postseason: preview&.postseason, scoreboard_week: preview&.scoreboard_week,
             previewed_game_ids: previewed, champion: champion_of(record))
       elsif SHOWS.key?(slug)
@@ -93,10 +93,10 @@ module Podcast
       end
     end
 
-    attr_reader :year, :kind, :week, :preview_week, :preview_weeks, :preview_label, :scoreboard_week, :recap_postseason,
+    attr_reader :year, :kind, :week, :preview_week, :preview_weeks, :preview_label, :scoreboard_week, :recap_postseason, :recap_conference_championship,
                 :preview_postseason, :previewed_game_ids, :champion
 
-    def initialize(year:, kind:, week: nil, recap_label: nil, recap_postseason: nil, preview_week: nil, preview_weeks: nil, preview_label: nil,
+    def initialize(year:, kind:, week: nil, recap_label: nil, recap_postseason: nil, recap_conference_championship: nil, preview_week: nil, preview_weeks: nil, preview_label: nil,
                    preview_postseason: nil, scoreboard_week: nil, previewed_game_ids: [], champion: nil)
       @year = year.to_i
       @kind = kind
@@ -107,6 +107,7 @@ module Podcast
       @preview_label = preview_label
       @scoreboard_week = scoreboard_week
       @recap_postseason = recap_postseason
+      @recap_conference_championship = recap_conference_championship
       @preview_postseason = preview_postseason
       @previewed_game_ids = previewed_game_ids
       @champion = champion

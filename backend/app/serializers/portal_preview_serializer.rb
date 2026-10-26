@@ -69,6 +69,7 @@ class PortalPreviewSerializer
 
   def team_json(college_season)
     statuses_by_student_season_id = college_season.portal_statuses.index_by(&:student_season_id)
+    add_implicit_graduations(college_season, statuses_by_student_season_id)
     unmatched_statuses = college_season.portal_statuses.select { |ps| ps.student_season_id.nil? }
     enriched = college_season.student_seasons.map { |ss| { student_season: ss, portal_status: statuses_by_student_season_id[ss.id] } }
     departures = departures_json(enriched, unmatched_statuses)
@@ -81,6 +82,25 @@ class PortalPreviewSerializer
       position_needs: position_needs_json(college_season, enriched, statuses_by_student_season_id),
       roster_math: roster_math_json(college_season, enriched)
     }
+  end
+
+  # The "players leaving" screenshots don't reliably include every
+  # graduating senior (a season's upload may only cover transfers and
+  # draft declarations), but a senior with no portal row has no eligibility
+  # left, so he's graduating either way. Fill those in as unsaved
+  # "graduation" statuses so every downstream count and depth calculation
+  # treats them as gone. A senior with an explicit row (transfer,
+  # pro_draft, staying) keeps it.
+  def add_implicit_graduations(college_season, statuses_by_student_season_id)
+    college_season.student_seasons.each do |ss|
+      next if statuses_by_student_season_id.key?(ss.id)
+      next unless SENIOR_CLASS_YEARS.include?(ss.class_year)
+
+      statuses_by_student_season_id[ss.id] = PortalStatus.new(
+        college_season: college_season, student_season: ss, last_name: ss.student.last_name,
+        position: ss.position, class_year: ss.class_year, overall: ss.overall, status: "graduation"
+      )
+    end
   end
 
   def college_json(college, conference)

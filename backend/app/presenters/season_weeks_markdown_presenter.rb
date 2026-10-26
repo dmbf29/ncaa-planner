@@ -76,6 +76,14 @@ class SeasonWeeksMarkdownPresenter
              "games, the bracket and what each result means from here. Next week's games are NOT previewed here."
     end
 
+    if championship_week?
+      note = "PRODUCER NOTE: Welcome back to the studio, team. It's conference championship week, so below are your " \
+             "pre-show game notes for today's taping: the conference title games our teams played. Teams that were not " \
+             "in a title game are NOT covered. There is NO conference standings talk this week (the regular season is " \
+             "over and the title games settled it): talk only about the championship games and what each result means " \
+             "from here. These games are at neutral sites: nobody is home or away. Next week's games are NOT previewed here."
+    end
+
     older_weeks = @data[:weeks][1..]
     if older_weeks.present?
       labels = older_weeks.map { |week_data| week_label(week_data[:week]) }.join(", ")
@@ -124,6 +132,12 @@ class SeasonWeeksMarkdownPresenter
   # The reviewed week is a bowl / College Football Playoff week.
   def postseason?
     primary_week.present? && primary_week[:week][:post_season]
+  end
+
+  # The conference championship week: the regular season is over, so only the games actually played get covered
+  # and there is no standings talk (the title game itself is what settled them).
+  def championship_week?
+    primary_week.present? && primary_week[:week][:conference_championship]
   end
 
   def segments
@@ -296,11 +310,13 @@ class SeasonWeeksMarkdownPresenter
     return postseason_week_section(week_data, primary: primary) if week[:post_season]
 
     lines = [ "---", "", "# 🏈 #{week_label(week).upcase}#{primary ? ' (CURRENT)' : ''}", "" ]
-    lines.concat(at_a_glance_table(week_data[:teams]))
+    # A team that sat out the conference championship week gets no section, same as the bowl weeks.
+    teams = week[:conference_championship] ? played_teams(week_data[:teams]) : week_data[:teams]
+    lines.concat(at_a_glance_table(teams))
     lines.concat(top_25_poll_lines(week_data[:top_25], week[:number] + 1))
     lines.concat(bowl_projections_lines(week_data[:bowl_projections]))
 
-    week_data[:teams].each { |team| lines.concat(team_week_section(team)) }
+    teams.each { |team| lines.concat(team_week_section(team)) }
 
     if week_data[:coached_matchups].any?
       lines << "## 🆚 MATCHUPS BETWEEN OUR COACHES THIS WEEK"
@@ -314,7 +330,7 @@ class SeasonWeeksMarkdownPresenter
       lines.concat(conference_scoreboard_lines(week_data[:conference_results]))
     end
 
-    lines.concat(conference_standings_lines(week_data[:conference_standings]))
+    lines.concat(conference_standings_lines(week_data[:conference_standings])) unless week[:conference_championship]
     lines.concat(conference_championship_lines(week_data[:conference_championships]))
     lines.concat(conference_top_25_lines(week_data[:conference_top_25], week[:number]))
     lines.concat(conference_heisman_lines(week_data[:conference_heisman_watch]))
@@ -343,7 +359,6 @@ class SeasonWeeksMarkdownPresenter
     else
       lines.concat(cfp_games_lines(week_data[:cfp_games]))
     end
-    lines.concat(conference_heisman_lines(week_data[:conference_heisman_watch]))
     lines
   end
 
@@ -352,7 +367,7 @@ class SeasonWeeksMarkdownPresenter
     winner_score, loser_score = [ champ[:home_score], champ[:away_score] ].max, [ champ[:home_score], champ[:away_score] ].min
     lines = [ "## 🏆 THE NATIONAL CHAMPIONSHIP — #{champ[:bowl]}", "",
               "**#{champ[:champion].upcase} ARE THE NATIONAL CHAMPIONS.** Final: #{champ[:champion]} #{winner_score}, " \
-              "#{champ[:runner_up]} #{loser_score}. #{champ[:away]} @ #{champ[:home]}.", "" ]
+              "#{champ[:runner_up]} #{loser_score}. #{champ[:away]} vs #{champ[:home]} (neutral site).", "" ]
     champ[:team_stats].each do |stats|
       next unless stats[:total_yards]
 
@@ -371,7 +386,7 @@ class SeasonWeeksMarkdownPresenter
     champ[:road].each do |game|
       round = game[:round].to_s.tr("_", " ").titleize
       lines << "- **#{round}#{" (#{game[:bowl]})" if game[:bowl].present? && game[:bowl] != "CFP First Round"}** — #{game[:won] ? 'beat' : 'lost to'} " \
-               "#{game[:opponent]} #{game[:team_score]}-#{game[:opponent_score]} #{game[:home] ? 'at home' : 'on the road'}"
+               "#{game[:opponent]} #{game[:team_score]}-#{game[:opponent_score]} #{game[:neutral_site] ? 'at a neutral site' : (game[:home] ? 'at home' : 'on the road')}"
       lines << "  - Key moments: #{game[:narrative]}" if game[:narrative]
     end
     lines << ""
@@ -392,7 +407,7 @@ class SeasonWeeksMarkdownPresenter
     games.each do |game|
       label = game[:bowl].presence || game[:round].to_s.tr("_", " ").titleize
       score = game[:winner] ? " — #{game[:winner]} won, #{[ game[:home_score], game[:away_score] ].max}-#{[ game[:home_score], game[:away_score] ].min}" : " — not yet played"
-      lines << "- [#{label}] #{game[:away]} @ #{game[:home]}#{score}#{' (our team)' if game[:ours]}"
+      lines << "- [#{label}] #{game[:away]} #{game[:neutral_site] ? 'vs' : '@'} #{game[:home]}#{score}#{' (our team)' if game[:ours]}"
     end
     lines << ""
     lines
@@ -429,8 +444,11 @@ class SeasonWeeksMarkdownPresenter
 
   def championship_team(team)
     star = team[:coached_by_us] ? " ⭐" : ""
-    conf = record_str(team[:conference_record][:wins], team[:conference_record][:losses])
     overall = record_str(team[:overall_record][:wins], team[:overall_record][:losses])
+    # In championship week the title game is the story, so no conference record (that's standings talk).
+    return "#{team[:college][:name]}#{star} (#{overall} overall)" if championship_week?
+
+    conf = record_str(team[:conference_record][:wins], team[:conference_record][:losses])
     "#{team[:college][:name]}#{star} (#{conf} conf, #{overall} overall)"
   end
 
@@ -653,7 +671,8 @@ class SeasonWeeksMarkdownPresenter
 
     lines.concat(player_of_the_week_lines(team[:players_of_the_week]))
     lines.concat(top_performers_lines(team[:top_performers]))
-    lines.concat(heisman_in_game_lines(team[:heisman_in_game]))
+    # The Heisman is awarded after the conference championships, so a bowl or playoff game has no Heisman angle.
+    lines.concat(heisman_in_game_lines(team[:heisman_in_game])) unless postseason
     lines.concat(injury_report_lines(team[:injury_report]))
     lines.concat(recruiting_trail_lines(team[:recruiting_trail]))
     lines.concat(season_stats_lines(team[:season_stats]))
@@ -847,9 +866,10 @@ class SeasonWeeksMarkdownPresenter
   end
 
   def opponent_line(opponent)
-    where = opponent[:home] ? "vs" : "@"
+    where = opponent[:home] || opponent[:neutral_site] ? "vs" : "@"
     tag = opponent[:user_coached] ? " [fellow user-coached team]" : ""
-    "#{where} #{opponent[:name]}#{tag}"
+    site = opponent[:neutral_site] ? " (neutral site)" : ""
+    "#{where} #{opponent[:name]}#{site}#{tag}"
   end
 
   def next_up_lines(next_game, lingering_injuries, season_outlook)

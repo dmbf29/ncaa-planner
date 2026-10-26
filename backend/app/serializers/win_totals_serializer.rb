@@ -79,6 +79,52 @@ class WinTotalsSerializer
     }
   end
 
+  RECENT_SEASONS = 3
+
+  # The program's own recent seasons (most recent first), whoever coached them.
+  def program_history_json(college_season)
+    dynasty_college_seasons.select { |cs| cs.college_id == college_season.college_id }
+                           .reverse.first(RECENT_SEASONS).filter_map { |cs| history_entry_json(cs) }
+  end
+
+  # Every earlier stop this coach made in the dynasty, oldest first. new_job
+  # is true when his most recent earlier season was at a different program,
+  # in which case previous_college/previous_outcome say where he came from and
+  # how that ended (see CollegeSeason#coach_outcome).
+  def coach_history_json(college_season)
+    coach = college_season.coach
+    stops = dynasty_college_seasons.select { |cs| cs.coach_id == coach.id }
+    last = stops.last
+    new_job = last.present? && last.college_id != college_season.college_id
+
+    {
+      seasons: stops.filter_map { |cs| history_entry_json(cs)&.merge(college: cs.college.name, outcome: cs.coach_outcome) },
+      new_job: new_job,
+      previous_college: (last.college.name if new_job),
+      previous_outcome: (last.coach_outcome if new_job)
+    }
+  end
+
+  def history_entry_json(college_season)
+    return nil if college_season.wins.nil? && college_season.losses.nil?
+
+    {
+      year: college_season.season.year,
+      wins: college_season.wins,
+      losses: college_season.losses,
+      conference_wins: college_season.conference_wins,
+      conference_losses: college_season.conference_losses
+    }
+  end
+
+  # Every earlier season's team records in this dynasty, oldest first.
+  def dynasty_college_seasons
+    @dynasty_college_seasons ||= CollegeSeason.joins(:season)
+                                              .where(seasons: { dynasty_id: @season.dynasty_id })
+                                              .where("seasons.year < ?", @season.year)
+                                              .includes(:college, :season).order("seasons.year").to_a
+  end
+
   def strength_ranked
     @strength_ranked ||= all_college_seasons.filter_map { |cs| [ cs, calculator.team_strength(cs) ] }
                                              .select { |_cs, strength| strength }
@@ -97,6 +143,8 @@ class WinTotalsSerializer
       coach: { id: college_season.coach.id, name: college_season.coach.name },
       ratings: ratings_json(college_season),
       previous_season_record: previous_season_record_json(college_season.college_id),
+      program_history: program_history_json(college_season),
+      coach_history: coach_history_json(college_season),
       vegas_win_total: line,
       outlook: outlook_json(line, probabilities, distribution),
       hot_seat: hot_seat_json(college_season, line, schedule, distribution),

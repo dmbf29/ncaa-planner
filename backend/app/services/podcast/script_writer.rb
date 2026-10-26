@@ -76,6 +76,22 @@ module Podcast
       are over: NEVER talk about conference standings, the conference championship race, the poll, rankings, "the
       top 25" or a team's ranking. Talk only about the games themselves, how they were won or lost, the bracket, and what
       a result means for what comes next. A team's record and its recent scores are fine.
+      The Heisman Trophy has already been awarded (it comes after the conference championships): NEVER mention the
+      Heisman, a Heisman candidate, Heisman hype or a player helping or hurting his Heisman case.
+    TEXT
+
+    NEUTRAL_SITE_RULES = <<~TEXT.freeze
+      HOME AND AWAY: only a regular-season game and a College Football Playoff first-round game have a home team. A
+      conference championship, a bowl game and every later playoff round is at a neutral site, so for those NEVER say
+      home, away, hosting, visiting, "at home", "on the road", "home field", "home crowd" or "home cooking", and never
+      call either team the home or road team. The source marks these games "vs" or "neutral site".
+    TEXT
+
+    CONFERENCE_CHAMPIONSHIP_RULES = <<~TEXT.freeze
+      IT IS CONFERENCE CHAMPIONSHIP WEEK. The regular season is over and the title games settled the standings:
+      NEVER talk about conference standings or the conference race. Only the teams that played in a title game are
+      covered; do not mention a coached team that was not in one except in passing at most. Always name the
+      conference when you talk about a title game ("the Sun Belt Championship Game").
     TEXT
 
     SCOREBOARD_RULES = <<~TEXT.freeze
@@ -103,11 +119,12 @@ module Podcast
       - Never invent history beyond the document, and never mention that the document exists.
     TEXT
 
-    def initialize(markdown_path:, year:, week_number:, preview_markdown_path: nil, history_path: nil, scoreboard_only: false, postseason_recap: false, postseason_preview: false, championship: false, recap_label: nil,
+    def initialize(markdown_path:, year:, week_number:, preview_markdown_path: nil, history_path: nil, scoreboard_only: false, postseason_recap: false, conference_championship_recap: false, postseason_preview: false, championship: false, recap_label: nil,
                    preview_label: nil, model: nil)
       @markdown = File.read(markdown_path)
       @scoreboard_only = scoreboard_only
       @postseason_recap = postseason_recap
+      @conference_championship_recap = conference_championship_recap
       @championship = championship
       @postseason_preview = postseason_preview
       @recap_label = recap_label
@@ -163,9 +180,11 @@ module Podcast
 
     def rules_for(segment)
       case segment.kind
-      when :preview then @postseason_preview ? "#{preview_rules}\n#{POSTSEASON_RULES}" : preview_rules
+      when :preview then [ preview_rules, NEUTRAL_SITE_RULES, (POSTSEASON_RULES if @postseason_preview) ].compact.join("\n")
       when :scoreboard then SCOREBOARD_RULES
-      else @postseason_recap ? "#{REVIEW_RULES}\n#{POSTSEASON_RULES}" : REVIEW_RULES
+      else
+        [ REVIEW_RULES, (NEUTRAL_SITE_RULES if @postseason_recap || @conference_championship_recap),
+          (POSTSEASON_RULES if @postseason_recap), (CONFERENCE_CHAMPIONSHIP_RULES if @conference_championship_recap) ].compact.join("\n")
       end
     end
 
@@ -201,10 +220,56 @@ module Podcast
     end
 
     def regular_segments
-      list = [ opening_segment ] + team_headings.map { |team| team_segment(team) }
+      list = [ opening_segment ] + game_segments
       list << (combined? ? review_wrap_segment : closing_segment)
       list.concat(@scoreboard_only ? scoreboard_segments : preview_segments) if combined?
       list
+    end
+
+    # One segment per game, not per team: a game between two of our coaches shows up in both teams' sections, and
+    # writing a segment for each told it twice. Those rivals games are told once, from both sides, and lead the show.
+    def game_segments
+      done = []
+      rivals, others = [], []
+      team_headings.each do |team|
+        next if done.include?(team)
+
+        opponent = coached_opponent(team)
+        done << team
+        if opponent
+          done << opponent
+          rivals << head_to_head_segment(team, opponent)
+        else
+          others << team_segment(team)
+        end
+      end
+      rivals + others
+    end
+
+    # The other coached team this team's game was against, or nil.
+    def coached_opponent(team)
+      opponent = team_section(team).to_s[/^- [WL] \d+-\d+ (?:vs|@) (.+?)(?: \(neutral site\))? \[fellow user-coached team\]/, 1]
+      opponent if opponent && team_headings.include?(opponent)
+    end
+
+    def team_section(team)
+      markdown.split(/^(?=## )/).find { |part| part.start_with?("## #{team} (Coach:") }
+    end
+
+    def head_to_head_segment(team, opponent)
+      Segment.new(
+        label: "#{team} vs #{opponent}", kind: :review, words: 1300,
+        instruction: <<~TEXT
+          #{team} and #{opponent} played EACH OTHER in #{label}, and both are teams of ours. Write ONE segment on this
+          single game, using both teams' sections of the document (they describe the same game from each side). Tell
+          the game once: do not retell it from the second team's side or write a second segment on it. Make the Defining
+          Storyline the centerpiece if a section lists one; otherwise build to the game's turning points. Cover both
+          coaches' perspectives, work in the players of the game and standout performers from BOTH sides by name with
+          their real numbers, give each host's own take, and land on what it means for each team's season and the
+          rivalry. #{@scoreboard_only ? "Mention each team's next opponent in one short line only, no analysis or prediction." : "Mention each team's next opponent in one short line only."}
+          End the segment with a natural handoff, not a goodbye.
+        TEXT
+      )
     end
 
     def opening_segment
@@ -261,8 +326,7 @@ module Podcast
 
     # True when the document's section for this team says it had no game.
     def bye?(team)
-      section = markdown.split(/^(?=## )/).find { |part| part.start_with?("## #{team} (Coach:") }
-      section.to_s.include?("Bye week")
+      team_section(team).to_s.include?("Bye week")
     end
 
     def closing_segment
@@ -280,6 +344,7 @@ module Podcast
     # Combined episode: the recap ends here, with no tease and no sign-off, and pivots into the preview.
     def review_wrap_segment
       return postseason_wrap_segment if @postseason_recap
+      return championship_week_wrap_segment if @conference_championship_recap
 
       Segment.new(
         label: "Review wrap-up", kind: :review, words: 450,
@@ -288,6 +353,20 @@ module Podcast
           at where the Sun Belt standings stand, the matchups between our coaches this week and the projected Sun Belt
           championship if the document has those sections. Ignore the document's "Next Episode" section completely.
           #{@scoreboard_only ? "Finish with a line that turns to the hosts' own scorecard, e.g. time to see how their bets did. Do NOT preview any games." : "Finish with a line that turns the show toward next week's games, e.g. that it's time to look ahead."} Do NOT
+          sign off, and do not name or tease any upcoming episode.
+        TEXT
+      )
+    end
+
+    # Conference championship week: the title games are the whole recap, so no standings and no regular-season round-up.
+    def championship_week_wrap_segment
+      Segment.new(
+        label: "Review wrap-up", kind: :review, words: 300,
+        instruction: <<~TEXT
+          Write the end of the recap half: a quick run through the other conference scores in the document, if it lists
+          any, and what the title game results mean for the national picture (the rankings and bowl projections the
+          document lists). NO conference standings. Ignore the document's "Next Episode" section completely.
+          #{@scoreboard_only ? "Finish with a line that turns to the hosts' own scorecard, e.g. time to see how their bets did. Do NOT preview any games." : "Finish with a line that turns the show toward the next games, e.g. that it's time to look ahead."} Do NOT
           sign off, and do not name or tease any upcoming episode.
         TEXT
       )
@@ -391,7 +470,8 @@ module Podcast
         instruction: <<~TEXT
           The recap half just ended. Write the transition into the preview of #{preview_week} (call it that on air, never by a week number if it has a name), with
           NO new introductions or welcome, then these two beats:
-          1. THE CARD: one sentence naming the #{game_headings.size} games on the board, in the document's order. No analysis.
+          1. THE CARD: one sentence naming the #{game_headings.size} games on the board, in the document's order. No analysis. A conference
+             championship game is named with its conference ("the Sun Belt Championship Game"), never just "the conference championship".
           2. THE SCOREBOARD: use the document's "THE SCOREBOARD" section to review last week's bets game by game, in
              that order: the game and its final score, each host's bet and whether it hit or missed, and one short
              reaction each. About fifteen seconds a game. Then each host's season record.
@@ -413,6 +493,7 @@ module Podcast
           (use the wording of their Call lines in the document), give one fresh reason, and react to the other host's
           call. #{finale ? 'This is the finale: build the energy and let it run longer and bigger than the earlier games.' : 'Move through it tightly; the show builds toward the last game.'}
           #{rivals ? 'It is also a RIVALS SHOWDOWN between two of our coaches, so give both coaches\' perspectives and say what it means for each season and the rivalry.' : ''}
+          #{title.include?('CHAMPIONSHIP GAME') ? 'This is a conference title game: say which conference it is for when you introduce it, and treat it as a neutral-site game (no home or road team).' : ''}
           #{number.to_i == 1 ? '' : 'Do not re-introduce the show; continue straight from the previous game.'}
         TEXT
       )

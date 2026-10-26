@@ -245,7 +245,7 @@ class SeasonWeeksSerializer
       home = game.home_college_id == champion.id
       {
         round: game.cfp_round, bowl: game.bowl_name,
-        opponent: (home ? game.away_college : game.home_college).name, home: home,
+        opponent: (home ? game.away_college : game.home_college).name, home: home, neutral_site: neutral_site?(game),
         team_score: result[:team_score], opponent_score: result[:opponent_score], won: result[:won],
         narrative: game.narrative_summary.presence
       }
@@ -259,7 +259,7 @@ class SeasonWeeksSerializer
       result = game_result(game, game.home_college_id)
       {
         round: game.cfp_round, bowl: game.bowl_name,
-        home: game.home_college.name, away: game.away_college.name,
+        home: game.home_college.name, away: game.away_college.name, neutral_site: neutral_site?(game),
         home_score: result && result[:team_score], away_score: result && result[:opponent_score],
         winner: result && (result[:won] ? game.home_college.name : game.away_college.name),
         ours: [ game.home_college_id, game.away_college_id ].any? { |id| coached_college_ids.include?(id) }
@@ -728,7 +728,7 @@ class SeasonWeeksSerializer
       status: result ? "final" : "scheduled",
       bowl_name: game.bowl_name,
       cfp_round: game.cfp_round,
-      opponent: opponent_json(opponent, home),
+      opponent: opponent_json(opponent, home, game),
       result: result,
       narrative_summary: result ? game.narrative_summary : nil,
       defining_storyline: result ? game.additional_context.presence : nil,
@@ -782,12 +782,19 @@ class SeasonWeeksSerializer
       week_number: game.week.number,
       bowl_name: game.bowl_name,
       cfp_round: game.cfp_round,
-      opponent: opponent_json(opponent, home)
+      opponent: opponent_json(opponent, home, game)
     }
   end
 
-  def opponent_json(opponent, home)
-    { id: opponent.id, name: opponent.name, home: home, user_coached: coached_college_ids.include?(opponent.id) }
+  def opponent_json(opponent, home, game)
+    { id: opponent.id, name: opponent.name, home: home, neutral_site: neutral_site?(game),
+      user_coached: coached_college_ids.include?(opponent.id) }
+  end
+
+  # Only the regular season and the CFP first round have a real home team: a conference championship, a bowl and
+  # every later playoff round is at a neutral site, where "home" is just the listing order.
+  def neutral_site?(game)
+    game.week.conference_championship || (game.week.post_season && game.cfp_round != "first_round")
   end
 
   def ranking_json(college_id, week)

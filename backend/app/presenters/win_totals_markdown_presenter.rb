@@ -42,6 +42,9 @@ class WinTotalsMarkdownPresenter
     "The Early Test only appears when the coach could be shown the door early. Name the opening games and the " \
     "bye week, and say what a loss means: 'drop either one and he could be out by the Week 3 bye.' When the " \
     "block says EASY START, make a point that a loss in those games would be damning.",
+    "When a team's header carries a NEW JOB line, open that team's segment with the new coach: where he came " \
+    "from, how it ended there, and what his record at his previous stop says about whether this line is " \
+    "realistic. A coach staying put only gets his record at the program if it matters to the over/under.",
     "A coach reading ICE COLD or COOL gets one quick line and the buyout, nothing more. Don't invent drama " \
     "that isn't in the block, and don't speculate about boosters, contracts or anything not listed here."
   ].freeze
@@ -144,6 +147,7 @@ class WinTotalsMarkdownPresenter
     lines << "**Ratings:** #{ratings_line(team[:ratings])}"
     last_season = record_line(team[:previous_season_record])
     lines << "**Last Season:** #{last_season}" if last_season
+    lines.concat(history_lines(team))
     lines << "**Schedule Snapshot:** #{schedule_summary_line(team[:schedule_summary])}"
     outlook = outlook_line(team[:outlook])
     lines << "**Outlook:** #{outlook}" if outlook
@@ -154,6 +158,30 @@ class WinTotalsMarkdownPresenter
     lines.concat(position_group_section(team[:position_group_averages]))
     lines.concat(hot_seat_section(team[:hot_seat]))
 
+    lines
+  end
+
+  OUTCOME_PHRASES = { "fired" => "was fired after the season", "left" => "left the program after the season",
+                      "continued" => "stayed on" }.freeze
+
+  def history_lines(team)
+    lines = []
+    program = team[:program_history]
+    if program.present? && program.size > 1
+      lines << "**Program, Recent Seasons:** #{program.map { |s| "#{s[:year]} #{record_line(s)}" }.join('; ')}"
+    end
+
+    coach = team[:coach_history]
+    return lines if coach.blank?
+
+    if coach[:new_job]
+      lines << "**🆕 NEW JOB:** Coach #{team[:coach][:name]} is brand new to this program. Last season he was at " \
+               "#{coach[:previous_college]}, where he #{OUTCOME_PHRASES.fetch(coach[:previous_outcome], 'was the head coach')}."
+    end
+    if coach[:seasons].present?
+      stops = coach[:seasons].map { |s| "#{s[:year]} #{s[:college]} #{record_line(s)}" }.join("; ")
+      lines << "**Coach's Record in Our League:** #{stops}"
+    end
     lines
   end
 

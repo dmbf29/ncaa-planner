@@ -150,6 +150,9 @@ class BigGameBreakdownSerializer
       id: game.id,
       bowl_name: game.bowl_name,
       cfp_round: game.cfp_round,
+      postseason: game.week.post_season,
+      neutral_site: neutral_site?(game),
+      championship_conference: game.week.conference_championship ? conference_of(game.home_college_id) : nil,
       time: game.time&.iso8601,
       conference_game: conference_game?(game),
       both_user_coached: both_coached?(game),
@@ -163,6 +166,12 @@ class BigGameBreakdownSerializer
       picks_locked: picks.any?,
       picks: picks.map { |pick| pick_json(pick, game) }
     }
+  end
+
+  # Only the regular season and the CFP first round have a real home team. Conference championships, bowls and
+  # every later CFP round are played at a neutral site, where "home" is just the listing order.
+  def neutral_site?(game)
+    game.week.conference_championship || (game.week.post_season && game.cfp_round != "first_round")
   end
 
   # `team`, `number` and `favorite` are what a host says out loud ("Kansas
@@ -396,7 +405,7 @@ class BigGameBreakdownSerializer
   end
 
   def standings_stakes?
-    !postseason? && @week.number >= MIN_WEEK_FOR_STANDINGS_STAKES
+    !postseason? && !@week.conference_championship && @week.number >= MIN_WEEK_FOR_STANDINGS_STAKES
   end
 
   # Every earlier meeting between the two programs, in this dynasty's

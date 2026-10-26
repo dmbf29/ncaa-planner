@@ -235,7 +235,7 @@ module Podcast
         ScriptWriter.new(markdown_path: path("recap.md"),
                          preview_markdown_path: (path("preview.md") if preview?) || (path("scoreboard.md") if scoreboard?),
                          history_path: history_path,
-                         scoreboard_only: scoreboard?, postseason_recap: @spec.recap_postseason, postseason_preview: @spec.preview_postseason,
+                         scoreboard_only: scoreboard?, postseason_recap: @spec.recap_postseason, conference_championship_recap: @spec.recap_conference_championship, postseason_preview: @spec.preview_postseason,
                          championship: @spec.championship?,
                          year: @year, week_number: @week, recap_label: @spec.recap_label,
                          preview_label: @spec.preview_label, model: @model)

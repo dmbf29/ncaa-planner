@@ -41,6 +41,11 @@ class BigGameBreakdownMarkdownPresenter
     "When a Heisman candidate is on the field (the Heisman watch line in a game's stakes), make it a storyline: " \
     "what it means for the opposing defense to face him, or for our team if he's ours, and how his production " \
     "backs it up. Only name players listed there; never invent a candidate.",
+    "HOME AND AWAY: only a regular-season game or a College Football Playoff first-round game has a home team. A game " \
+    "listed with \"vs\" (a conference championship, a bowl, a later playoff round) is at a neutral site: never say " \
+    "hosting, visiting, at home, on the road, home field, home crowd or home cooking about it.",
+    "A game tagged as a conference championship game is that conference's title game: name the conference every " \
+    "time you introduce the game (\"the Sun Belt Championship Game\"), never just \"the conference championship\".",
     "Only our coaches' teams have player production on file. For any other team's player (an opponent's " \
     "quarterback or key players) there are no stats below, only a rating and role: talk about him in plain " \
     "English (arm talent, experience, how he fits the matchup), never quote production for him, and never guess " \
@@ -168,8 +173,9 @@ class BigGameBreakdownMarkdownPresenter
   end
 
   # "No. 13 Arizona State @ Marshall": a ranked team carries its poll number.
+  # A neutral-site game (conference championship, bowl, later CFP rounds) has no home team, so it reads "vs".
   def matchup_title(game)
-    "#{ranked_name(game[:away])} @ #{ranked_name(game[:home])}"
+    "#{ranked_name(game[:away])} #{game[:neutral_site] ? 'vs' : '@'} #{ranked_name(game[:home])}"
   end
 
   def ranked_name(team)
@@ -289,6 +295,7 @@ class BigGameBreakdownMarkdownPresenter
   def game_tags(game, index)
     tags = []
     tags << game[:bowl_name].to_s.upcase if game[:bowl_name].present?
+    tags << "#{game[:championship_conference].to_s.upcase} CHAMPIONSHIP GAME" if game[:championship_conference].present?
     tags << "RIVALS SHOWDOWN" if game[:both_user_coached]
     tags << "THE FINALE" if index == games.size - 1
     tags.empty? ? "" : " — #{tags.join(' · ')}"
@@ -318,6 +325,7 @@ class BigGameBreakdownMarkdownPresenter
   def matchup_type(game)
     stakes = game[:stakes]
     if game[:both_user_coached] then "RIVALS SHOWDOWN: two of our coaches head to head"
+    elsif game[:championship_conference].present? then "#{game[:championship_conference]} Championship Game (neutral site)"
     elsif stakes[:conference_game] then "#{stakes[:conference]} conference game"
     else "Non-conference game"
     end
@@ -325,7 +333,7 @@ class BigGameBreakdownMarkdownPresenter
 
   def line_lines(game)
     line = game[:line]
-    where = line[:favorite_is_home] ? "at home" : "on the road"
+    where = game[:neutral_site] ? "neutral site" : (line[:favorite_is_home] ? "at home" : "on the road")
     [
       "",
       "**THE LINE:** #{line[:favorite]} -#{line[:spread]} (favorite, #{where}) · Total: #{line[:total]}",
@@ -433,6 +441,8 @@ class BigGameBreakdownMarkdownPresenter
   # strong defense) is a storyline for the stakes; stay silent when there are
   # none.
   def heisman_lines(game)
+    return [] if game[:postseason] # the Heisman is awarded after the conference championships
+
     entries = [ game[:away], game[:home] ].flat_map do |team|
       team[:heisman_candidates].map { |player| [ team, player ] }
     end
