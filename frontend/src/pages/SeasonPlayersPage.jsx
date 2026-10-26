@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
+import SeasonSwitcher from "../components/SeasonSwitcher";
 import Card from "../components/Card";
 import MultiSelect from "../components/MultiSelect";
 import OverallBadge from "../components/OverallBadge";
 import AddToSquadModal from "../components/AddToSquadModal";
-import { API_BASE_URL, fetchFlags, fetchSeasonStudentSeasons } from "../lib/apiClient";
+import { API_BASE_URL, fetchDynastyPortal, fetchFlags, fetchSeasonStudentSeasons } from "../lib/apiClient";
 
 // The full season pool is ~11k players — never render all of them. Filters
 // narrow it down; this is just the ceiling on how many rows we paint.
@@ -98,6 +99,7 @@ function squadPayload(player, seasonYear, watchFlagId) {
 function SeasonPlayersPage() {
   const { dynastyId, seasonId } = useParams();
   const [data, setData] = useState(null);
+  const [seasons, setSeasons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filters, setFilters] = useState(emptyFilters);
@@ -116,6 +118,12 @@ function SeasonPlayersPage() {
       .then((flags) => setWatchFlagId(flags.find((f) => f.name === WATCH_FLAG_NAME)?.id ?? null))
       .catch(() => setWatchFlagId(null));
   }, [authed]);
+
+  useEffect(() => {
+    fetchDynastyPortal(dynastyId)
+      .then((portal) => setSeasons(portal.seasons ?? []))
+      .catch(() => {});
+  }, [dynastyId]);
 
   useEffect(() => {
     setLoading(true);
@@ -230,7 +238,19 @@ function SeasonPlayersPage() {
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
-        eyebrow={data ? `${data.season.year} Season` : undefined}
+        eyebrow={
+          seasons.length > 1 ? (
+            <SeasonSwitcher
+              seasons={seasons}
+              activeSeasonId={seasonId}
+              dynastyId={dynastyId}
+              suffix="/players"
+              className="mb-1 normal-case tracking-normal font-sans"
+            />
+          ) : data ? (
+            `${data.season.year} Season`
+          ) : undefined
+        }
         title="All Players"
         actions={
           <Link

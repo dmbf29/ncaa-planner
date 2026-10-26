@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { clsx } from "clsx";
+import SeasonSwitcher from "../components/SeasonSwitcher";
 import PageHeader from "../components/PageHeader";
 import TeamDashboardCard from "../components/TeamDashboardCard";
 import Top25Snapshot from "../components/Top25Snapshot";
@@ -34,29 +35,6 @@ function TeamTabs({ teams, activeTeamId, onSelect }) {
         >
           {team.college.name}
         </button>
-      ))}
-    </div>
-  );
-}
-
-function SeasonSwitcher({ seasons, activeSeasonId, dynastyId }) {
-  if (!seasons || seasons.length < 2) return null;
-
-  return (
-    <div className="mb-6 flex flex-wrap gap-1.5">
-      {seasons.map((season) => (
-        <Link
-          key={season.id}
-          to={`/dynasty/${dynastyId}/seasons/${season.id}`}
-          className={clsx(
-            "rounded-md px-3 py-1.5 text-sm font-semibold transition",
-            String(season.id) === String(activeSeasonId)
-              ? "bg-charcoal text-white dark:bg-white/10"
-              : "border border-border text-textSecondary hover:bg-border/30 dark:border-darkborder dark:hover:bg-white/10",
-          )}
-        >
-          {season.year}
-        </Link>
       ))}
     </div>
   );
