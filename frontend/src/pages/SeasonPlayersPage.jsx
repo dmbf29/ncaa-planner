@@ -17,7 +17,7 @@ const inputClass =
 
 // Text columns sort A→Z by default; rating columns sort high→low, since the
 // top of the list is what you're looking for in the portal.
-const ASCENDING_BY_DEFAULT = new Set(["name", "team", "devTrait"]);
+const ASCENDING_BY_DEFAULT = new Set(["name", "team", "devTrait", "archetype"]);
 
 const POSITION_ORDER = [
   "QB", "HB", "FB", "WR", "TE", "LT", "RT", "LG", "RG", "C", "LEDG", "REDG",
@@ -35,7 +35,24 @@ const emptyFilters = () => ({
   teams: [],
   conferences: [],
   minOverall: "",
+  archetypes: [],
+  minHeight: "",
+  maxHeight: "",
+  minWeight: "",
+  maxWeight: "",
 });
+
+const formatHeight = (inches) => (inches == null ? "—" : `${Math.floor(inches / 12)}'${inches % 12}"`);
+
+// Accepts 6'2, 6'2", 6-2, 6 2 or plain inches (74); returns inches or null when blank/unparseable.
+function parseHeight(text) {
+  const t = text.trim();
+  if (!t) return null;
+  const ftIn = t.match(/^(\d)\s*['\-\s]\s*(\d{1,2})?\s*"?$/);
+  if (ftIn) return Number(ftIn[1]) * 12 + Number(ftIn[2] ?? 0);
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}
 
 function sortValueFor(player, field) {
   if (field === "team") return player.team;
@@ -227,6 +244,10 @@ function SeasonPlayersPage() {
     () => (data?.filters.classYears ?? []).map((year) => ({ value: year, label: year })),
     [data],
   );
+  const archetypeOptions = useMemo(() => {
+    const names = [...new Set((data?.players ?? []).map((p) => p.archetype).filter(Boolean))].sort();
+    return names.map((name) => ({ value: name, label: name }));
+  }, [data]);
   const teamOptions = useMemo(() => {
     const teams = [...(data?.filters.teams ?? [])].sort(
       (a, b) => Number(b.coached) - Number(a.coached) || a.name.localeCompare(b.name),
@@ -246,6 +267,10 @@ function SeasonPlayersPage() {
     if (!data) return [];
     const search = filters.search.trim().toLowerCase();
     const minOverall = filters.minOverall === "" ? null : Number(filters.minOverall);
+    const minHeight = parseHeight(filters.minHeight);
+    const maxHeight = parseHeight(filters.maxHeight);
+    const minWeight = filters.minWeight === "" ? null : Number(filters.minWeight);
+    const maxWeight = filters.maxWeight === "" ? null : Number(filters.maxWeight);
 
     const rows = data.players.filter((p) => {
       if (pool === "portal" && !p.inPortal) return false;
@@ -256,6 +281,11 @@ function SeasonPlayersPage() {
       if (filters.teams.length && !filters.teams.includes(String(p.collegeSeasonId))) return false;
       if (filters.conferences.length && !filters.conferences.includes(p.conference)) return false;
       if (minOverall != null && (p.overall ?? -1) < minOverall) return false;
+      if (filters.archetypes.length && !filters.archetypes.includes(p.archetype)) return false;
+      if (minHeight != null && (p.heightInches ?? -1) < minHeight) return false;
+      if (maxHeight != null && (p.heightInches == null || p.heightInches > maxHeight)) return false;
+      if (minWeight != null && (p.weightLbs ?? -1) < minWeight) return false;
+      if (maxWeight != null && (p.weightLbs == null || p.weightLbs > maxWeight)) return false;
       return true;
     });
 
@@ -295,6 +325,11 @@ function SeasonPlayersPage() {
   const filtersActive =
     filters.search !== "" ||
     filters.minOverall !== "" ||
+    filters.archetypes.length > 0 ||
+    filters.minHeight !== "" ||
+    filters.maxHeight !== "" ||
+    filters.minWeight !== "" ||
+    filters.maxWeight !== "" ||
     filters.positions.length > 0 ||
     filters.classYears.length > 0 ||
     filters.teams.length > 0 ||
@@ -385,6 +420,13 @@ function SeasonPlayersPage() {
                 selected={filters.conferences}
                 onChange={(vals) => setFilter("conferences", vals)}
               />
+              <MultiSelect
+                label="Archetype"
+                options={archetypeOptions}
+                selected={filters.archetypes}
+                onChange={(vals) => setFilter("archetypes", vals)}
+                searchable
+              />
 
               <label className="block space-y-1 text-xs font-semibold uppercase tracking-wide text-textSecondary">
                 <span>Min OVR</span>
@@ -395,6 +437,46 @@ function SeasonPlayersPage() {
                   value={filters.minOverall}
                   onChange={(e) => setFilter("minOverall", e.target.value)}
                   placeholder="e.g. 80"
+                  className={inputClass}
+                />
+              </label>
+              <label className="block space-y-1 text-xs font-semibold uppercase tracking-wide text-textSecondary">
+                <span>Min height</span>
+                <input
+                  type="text"
+                  value={filters.minHeight}
+                  onChange={(e) => setFilter("minHeight", e.target.value)}
+                  placeholder="e.g. 6'2"
+                  className={inputClass}
+                />
+              </label>
+              <label className="block space-y-1 text-xs font-semibold uppercase tracking-wide text-textSecondary">
+                <span>Max height</span>
+                <input
+                  type="text"
+                  value={filters.maxHeight}
+                  onChange={(e) => setFilter("maxHeight", e.target.value)}
+                  placeholder="e.g. 6'6"
+                  className={inputClass}
+                />
+              </label>
+              <label className="block space-y-1 text-xs font-semibold uppercase tracking-wide text-textSecondary">
+                <span>Min weight (lbs)</span>
+                <input
+                  type="number"
+                  value={filters.minWeight}
+                  onChange={(e) => setFilter("minWeight", e.target.value)}
+                  placeholder="e.g. 200"
+                  className={inputClass}
+                />
+              </label>
+              <label className="block space-y-1 text-xs font-semibold uppercase tracking-wide text-textSecondary">
+                <span>Max weight (lbs)</span>
+                <input
+                  type="number"
+                  value={filters.maxWeight}
+                  onChange={(e) => setFilter("maxWeight", e.target.value)}
+                  placeholder="e.g. 260"
                   className={inputClass}
                 />
               </label>
@@ -427,6 +509,9 @@ function SeasonPlayersPage() {
                     <SortableTh label="Player" field="name" sort={sort} onSort={toggleSort} sticky />
                     <SortableTh label="Team" field="team" sort={sort} onSort={toggleSort} align="center" />
                     <SortableTh label="OVR" field="overall" sort={sort} onSort={toggleSort} align="center" />
+                    <SortableTh label="Archetype" field="archetype" sort={sort} onSort={toggleSort} />
+                    <SortableTh label="Ht" field="heightInches" sort={sort} onSort={toggleSort} align="right" />
+                    <SortableTh label="Wt" field="weightLbs" sort={sort} onSort={toggleSort} align="right" />
                     {STAT_COLUMNS.map((col) => (
                       <SortableTh
                         key={col.field}
@@ -510,6 +595,11 @@ function SeasonPlayersPage() {
                         <td className="px-1 py-1 text-center">
                           <OverallBadge value={player.overall} />
                         </td>
+                        <td className="px-3 py-2 whitespace-nowrap text-textSecondary">{player.archetype ?? "—"}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-textSecondary">
+                          {formatHeight(player.heightInches)}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-textSecondary">{player.weightLbs ?? "—"}</td>
                         {STAT_COLUMNS.map((col) => (
                           <td key={col.field} className="px-1 py-1 text-center tabular-nums text-textSecondary">
                             {player[col.field] ?? "—"}
@@ -525,7 +615,7 @@ function SeasonPlayersPage() {
                   })}
                   {shown.length === 0 && (
                     <tr>
-                      <td colSpan={9 + ratingColumns.length} className="px-3 py-6 text-center text-sm text-textSecondary">
+                      <td colSpan={12 + ratingColumns.length} className="px-3 py-6 text-center text-sm text-textSecondary">
                         No players match these filters.
                       </td>
                     </tr>
