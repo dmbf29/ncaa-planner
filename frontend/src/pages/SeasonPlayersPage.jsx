@@ -43,10 +43,14 @@ function sortValueFor(player, field) {
   return player[field];
 }
 
-function SortableTh({ label, field, sort, onSort, align = "left" }) {
+function SortableTh({ label, field, sort, onSort, align = "left", sticky = false }) {
   const active = sort.field === field;
   return (
-    <th className={`px-3 py-2 ${align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"}`}>
+    <th
+      className={`px-3 py-2 ${align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"} ${
+        sticky ? "sticky left-0 z-10 bg-surface dark:bg-darksurface" : ""
+      }`}
+    >
       <button
         type="button"
         onClick={() => onSort(field)}
@@ -420,7 +424,7 @@ function SeasonPlayersPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-xs uppercase tracking-wide text-textSecondary dark:border-darkborder">
-                    <SortableTh label="Player" field="name" sort={sort} onSort={toggleSort} />
+                    <SortableTh label="Player" field="name" sort={sort} onSort={toggleSort} sticky />
                     <SortableTh label="Team" field="team" sort={sort} onSort={toggleSort} align="center" />
                     <SortableTh label="OVR" field="overall" sort={sort} onSort={toggleSort} align="center" />
                     {STAT_COLUMNS.map((col) => (
@@ -450,7 +454,7 @@ function SeasonPlayersPage() {
                     const team = teamsById.get(player.collegeSeasonId);
                     return (
                       <tr key={player.id} className="border-b border-border/60 last:border-0 dark:border-darkborder/60">
-                        <td className="px-3 py-2">
+                        <td className="sticky left-0 z-10 bg-surface px-3 py-2 shadow-[1px_0_0_0] shadow-border/60 dark:bg-darksurface dark:shadow-darkborder/60">
                           <div className="flex items-start gap-2">
                             <button
                               type="button"
@@ -469,7 +473,7 @@ function SeasonPlayersPage() {
                               type="button"
                               onClick={() => setActivePlayer(player)}
                               title="Add to a squad board"
-                              className="text-left font-semibold text-textPrimary hover:text-burnt hover:underline dark:text-white dark:hover:text-burnt"
+                              className="whitespace-nowrap text-sm text-left font-semibold text-textPrimary hover:text-burnt hover:underline dark:text-white dark:hover:text-burnt"
                             >
                               {player.name}
                               {addedIds.has(player.id) && (
@@ -477,7 +481,7 @@ function SeasonPlayersPage() {
                               )}
                             </button>
                           ) : (
-                            <div className="font-semibold text-textPrimary dark:text-white">{player.name}</div>
+                            <div className="text-sm font-semibold text-textPrimary dark:text-white">{player.name}</div>
                           )}
                           <div className="text-xs font-normal text-textSecondary">
                             {player.position} &middot; {player.classYear}
@@ -485,7 +489,7 @@ function SeasonPlayersPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-3 py-2 text-center">
+                        <td className="px-1 py-1 text-center">
                           <Link
                             to={rosterPath(player.collegeSeasonId)}
                             title={player.team}
@@ -503,16 +507,16 @@ function SeasonPlayersPage() {
                             )}
                           </Link>
                         </td>
-                        <td className="px-3 py-2 text-center">
+                        <td className="px-1 py-1 text-center">
                           <OverallBadge value={player.overall} />
                         </td>
                         {STAT_COLUMNS.map((col) => (
-                          <td key={col.field} className="px-3 py-2 text-right tabular-nums text-textSecondary">
+                          <td key={col.field} className="px-1 py-1 text-center tabular-nums text-textSecondary">
                             {player[col.field] ?? "—"}
                           </td>
                         ))}
                         {ratingColumns.map((key) => (
-                          <td key={key} className="px-3 py-2 text-right tabular-nums text-textSecondary">
+                          <td key={key} className="px-1 py-1 text-center tabular-nums text-textSecondary">
                             {player.ratings?.[key] ?? "—"}
                           </td>
                         ))}
