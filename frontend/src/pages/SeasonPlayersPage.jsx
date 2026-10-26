@@ -77,6 +77,36 @@ const ratingLabel = (key) => key.replace(/([A-Z])/g, " $1").replace(/^./, (c) =>
 // someone else's team, so they land as recruits tagged with this flag.
 const WATCH_FLAG_NAME = "watch";
 
+// Watched players live in this browser only (no login), keyed by the stable student id so the
+// list carries across seasons.
+function useWatchlist(dynastyId) {
+  const key = `watchlist:${dynastyId}`;
+  const [ids, setIds] = useState(() => new Set());
+
+  useEffect(() => {
+    try {
+      setIds(new Set(JSON.parse(localStorage.getItem(key) ?? "[]")));
+    } catch {
+      setIds(new Set());
+    }
+  }, [key]);
+
+  const toggle = (studentId) =>
+    setIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(studentId)) next.delete(studentId);
+      else next.add(studentId);
+      try {
+        localStorage.setItem(key, JSON.stringify([...next]));
+      } catch {
+        // storage unavailable: the star still works for this visit
+      }
+      return next;
+    });
+
+  return [ids, toggle];
+}
+
 function squadPayload(player, seasonYear, watchFlagId) {
   const attributes = {};
   STAT_COLUMNS.forEach(({ field }) => {
@@ -105,7 +135,8 @@ function SeasonPlayersPage() {
   const [filters, setFilters] = useState(emptyFilters);
   // Which pool to browse. Defaults to the portal once anyone has been marked (Mark Transfers); until then there is
   // nothing to filter to, so it starts on everyone.
-  const [portalOnly, setPortalOnly] = useState(null);
+  const [pool, setPool] = useState("all");
+  const [watchlist, toggleWatch] = useWatchlist(dynastyId);
   const [sort, setSort] = useState({ field: "overall", direction: "desc" });
   const [activePlayer, setActivePlayer] = useState(null);
   const [addedIds, setAddedIds] = useState(() => new Set());
@@ -131,7 +162,7 @@ function SeasonPlayersPage() {
     fetchSeasonStudentSeasons(dynastyId, seasonId)
       .then((result) => {
         setData(result);
-        setPortalOnly(result.players.some((p) => p.inPortal));
+        setPool(result.players.some((p) => p.inPortal) ? "portal" : "all");
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -182,7 +213,8 @@ function SeasonPlayersPage() {
     const minOverall = filters.minOverall === "" ? null : Number(filters.minOverall);
 
     const rows = data.players.filter((p) => {
-      if (portalOnly && !p.inPortal) return false;
+      if (pool === "portal" && !p.inPortal) return false;
+      if (pool === "watchlist" && !watchlist.has(p.studentId)) return false;
       if (search && !p.name.toLowerCase().includes(search)) return false;
       if (filters.positions.length && !filters.positions.includes(p.position)) return false;
       if (filters.classYears.length && !filters.classYears.includes(p.classYear)) return false;
@@ -202,7 +234,7 @@ function SeasonPlayersPage() {
       const cmp = typeof av === "string" ? av.localeCompare(bv) : av - bv;
       return cmp * dir;
     });
-  }, [data, filters, sort, portalOnly]);
+  }, [data, filters, sort, pool, watchlist]);
 
   const portalCount = useMemo(() => (data?.players ?? []).filter((p) => p.inPortal).length, [data]);
 
@@ -272,12 +304,13 @@ function SeasonPlayersPage() {
               <label className="block space-y-1 text-xs font-semibold uppercase tracking-wide text-textSecondary">
                 <span>Show</span>
                 <select
-                  value={portalOnly ? "portal" : "all"}
-                  onChange={(e) => setPortalOnly(e.target.value === "portal")}
+                  value={pool}
+                  onChange={(e) => setPool(e.target.value)}
                   className={inputClass}
                 >
                   <option value="portal">In Portal ({portalCount.toLocaleString()})</option>
                   <option value="all">All Players</option>
+                  <option value="watchlist">Watchlist ({watchlist.size.toLocaleString()})</option>
                 </select>
               </label>
 
@@ -387,6 +420,19 @@ function SeasonPlayersPage() {
                     return (
                       <tr key={player.id} className="border-b border-border/60 last:border-0 dark:border-darkborder/60">
                         <td className="px-3 py-2">
+                          <div className="flex items-start gap-2">
+                            <button
+                              type="button"
+                              onClick={() => toggleWatch(player.studentId)}
+                              title={watchlist.has(player.studentId) ? "Remove from watchlist" : "Add to watchlist"}
+                              aria-pressed={watchlist.has(player.studentId)}
+                              className={`mt-0.5 text-lg leading-none ${
+                                watchlist.has(player.studentId) ? "text-warning" : "text-textSecondary/40 hover:text-warning"
+                              }`}
+                            >
+                              {watchlist.has(player.studentId) ? "★" : "☆"}
+                            </button>
+                            <div>
                           {authed ? (
                             <button
                               type="button"
@@ -404,6 +450,8 @@ function SeasonPlayersPage() {
                           )}
                           <div className="text-xs font-normal text-textSecondary">
                             {player.position} &middot; {player.classYear}
+                          </div>
+                            </div>
                           </div>
                         </td>
                         <td className="px-3 py-2 text-center">

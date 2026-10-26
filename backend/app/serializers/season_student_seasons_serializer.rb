@@ -31,7 +31,8 @@ class SeasonStudentSeasonsSerializer
     "student_seasons.ratings",
     "college_seasons.id",
     "colleges.name",
-    "college_seasons.conference"
+    "college_seasons.conference",
+    "student_seasons.student_id"
   ].freeze
 
   def initialize(season)
@@ -57,10 +58,11 @@ class SeasonStudentSeasonsSerializer
     @players ||= player_rows.map do |row|
       id, first_name, last_name, position, class_year, overall, speed, acceleration,
         agility, change_of_direction, strength, awareness, dev_trait,
-        nil_amount, in_portal, ratings, college_season_id, team, conference = row
+        nil_amount, in_portal, ratings, college_season_id, team, conference, student_id = row
 
       {
         id: id,
+        student_id: student_id,
         name: "#{first_name} #{last_name}".strip,
         position: position,
         class_year: class_year,
