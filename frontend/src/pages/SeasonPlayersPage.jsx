@@ -70,8 +70,39 @@ const STAT_COLUMNS = [
   { field: "awareness", label: "Awr" },
 ];
 
-// "throwAccuracyShort" -> "Throw Accuracy Short"
-const ratingLabel = (key) => key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
+// Short column headers for the position-specific ratings (EA's own abbreviations where they exist).
+const RATING_LABELS = {
+  tackle: "TAK",
+  runBlock: "RBK",
+  passBlock: "PBK",
+  hitPower: "POW",
+  blockShedding: "BSH",
+  manCoverage: "MCV",
+  runBlockFinesse: "RBF",
+  passBlockFinesse: "PBF",
+  passBlockPower: "PBP",
+  runBlockPower: "RBP",
+  playRecognition: "PRC",
+  spectacularCatch: "SPC",
+  catchInTraffic: "CIT",
+  catching: "CTH",
+  throwAccuracyShort: "TAS",
+  throwAccuracyMid: "TAM",
+  throwAccuracyDeep: "TAD",
+  throwOnRun: "TOR",
+  throwPower: "THP",
+  carrying: "CAR",
+  breakTackle: "BTK",
+  kickPower: "KPW",
+  kickAccuracy: "KAC",
+  trucking: "TRK",
+  leadBlock: "LBK",
+  impactBlock: "IBK",
+};
+
+// "throwAccuracyShort" -> "Throw Accuracy Short" for anything not in the table above
+const ratingLabel = (key) =>
+  RATING_LABELS[key] ?? key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
 
 // Players pulled onto a squad board from here are portal/scouting targets on
 // someone else's team, so they land as recruits tagged with this flag.
