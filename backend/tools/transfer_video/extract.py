@@ -2,7 +2,7 @@
 """Read a screen recording of the "players leaving" (Reason / Persuasion Chance) screen and list who is transferring.
 
 Scroll through each team so every player is highlighted in turn. For each highlighted row whose REASON starts with
-"Transfer", the right-hand pane gives the full name, position, class, overall and the six attribute tiles. Rows with any
+"Transfer" or "Leaving" (the same thing), the right-hand pane gives the full name, position, class, overall and the six attribute tiles. Rows with any
 other reason (Pro Draft, Graduation, Staying) are ignored. Everything is OCR'd locally (Apple Vision via ocrmac) --
 no AI API calls. Reuses the pane/name helpers from tools/roster_video and its venv.
 
@@ -30,7 +30,10 @@ STABLE_FRAMES = 3
 PANE_X0 = 0.78  # the pane's left edge, as a fraction of frame width
 ATTRIBUTE_FIELDS = {"AWARENESS": "awareness", "SPEED": "speed", "ACCELERATION": "acceleration",
                     "STRENGTH": "strength", "AGILITY": "agility", "CHANGE OF DIRECTION": "change_of_direction"}
-REASON_RE = re.compile(r"^\W*tran[s5]f[e3]r\b(?:\W*\(?\s*(.*?)\)?\s*$)?", re.IGNORECASE)
+REASON_RE = re.compile(r"^\W*(?:tran[s5]f[e3]r|leaving)\b(?:\W*\(?\s*(.*?)\)?\s*$)?", re.IGNORECASE)
+
+
+OTHER_REASON_RE = re.compile(r"pro\s*draft|graduat|staying", re.IGNORECASE)
 
 
 def pane_signature_box(shape):
@@ -91,7 +94,11 @@ def reason_of(crop):
     """The reason text of the highlighted row, and whether it is a Transfer ('Transfer (Playing Style)')."""
     text = " ".join(rv.clean(t) for t, _, _ in rv.ocr(cv2.resize(crop, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC))).strip()
     m = REASON_RE.match(text)
-    return text, (m.group(1) or "").strip() if m else None
+    # A crop caught mid-scroll can hold part of a neighbouring row ("Transfer (NIL) Pro Draft (Projected Round 5"):
+    # that reading is the wrong row, so it is dropped rather than flagging a player who isn't leaving.
+    if not m or OTHER_REASON_RE.search(text):
+        return text, None
+    return text, (m.group(1) or "").rsplit("(", 1)[-1].strip(" ()")
 
 
 def read_attributes(crop):

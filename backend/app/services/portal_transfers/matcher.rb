@@ -30,8 +30,10 @@ module PortalTransfers
     private
 
     def resolve(row, partial:)
-      college = resolve_college(row[:team])
+      college = resolve_team(row[:team])
       college_season = college && @college_seasons[college.id]
+      college_season ||= unique_roster_for(row) unless college
+      college ||= college_season&.college
       base = {
         team: row[:team], college_id: college&.id, college_name: college&.name, college_season_id: college_season&.id,
         name: partial ? "#{row[:first_initial]}. #{row[:last_name]}" : "#{row[:first_name]} #{row[:last_name]}",
@@ -54,13 +56,40 @@ module PortalTransfers
                           ratings.reject { |key, value| match.ratings[key] == value }.keys).uniq)
     end
 
+    # An unreadable banner: if exactly one college_season has a roster player with this name and position, that's the team.
+    def unique_roster_for(row)
+      hits = @season.college_seasons.includes(:college).select do |cs|
+        candidates_for(cs, row, partial: row[:first_name].blank?).size == 1
+      end
+      hits.first if hits.one?
+    end
+
+    # The banner OCR picks up stray marks ("• MIAMI UNIVERSITY", "- TEXAS", "7 GEORGIA STATE") and drops punctuation
+    # ("Hawai'i", "Texas A&M" -> "TEXAS ASM"), so after the exact lookup the names are compared as bare letters,
+    # allowing one slip on longer names when only one college is that close.
+    def resolve_team(raw)
+      cleaned = raw.to_s.sub(/\A[^A-Za-z]+/, "").strip
+      resolve_college(cleaned) || begin
+        key = fold(cleaned)
+        keyed = colleges_by_matchable_name.transform_keys { |name| fold(name) }
+        keyed[key] || fuzzy_unique(keyed, key)
+      end
+    end
+
+    def fuzzy_unique(keyed, key)
+      return if key.length < 6
+
+      close = keyed.select { |name, _| name.length >= 6 && StringDistance.levenshtein(name, key) <= 1 }.values.uniq
+      close.first if close.one?
+    end
+
     def candidates_for(college_season, row, partial:)
       roster = (@rosters[college_season.id] ||= college_season.student_seasons.includes(:student).to_a)
       last = fold(row[:last_name])
       position = PositionBoardMapping.canonical(row[:position]) if row[:position].present?
 
       by_name = roster.select do |ss|
-        last_names_match?(fold(ss.student.last_name), last) &&
+        (last_names_match?(fold(ss.student.last_name), last) || same_first_and_close_last?(ss, row, last, partial)) &&
           (partial ? first_initial(ss) == row[:first_initial].to_s.strip.downcase[0] : RosterImport::Matcher.same_first_name?(ss.student.first_name, row[:first_name]))
       end
       by_name = by_name.select { |ss| PositionBoardMapping.canonical(ss.position) == position } if position && by_name.size > 1
@@ -77,6 +106,16 @@ module PortalTransfers
     # One OCR slip is tolerated on longer names; the I/l/1 and O/0 lookalikes are folded first.
     def last_names_match?(a, b)
       a == b || (a.length >= 6 && b.length >= 6 && StringDistance.levenshtein(a, b) <= 1)
+    end
+
+    # "Elijah Hrown" for "Elijah Brown": a short last name can't take a one-letter slip on its own, but an exact
+    # first name on the same roster makes it safe.
+    def same_first_and_close_last?(student_season, row, last, partial)
+      return false if partial
+
+      mine = fold(student_season.student.last_name)
+      mine.length >= 4 && last.length >= 4 && StringDistance.levenshtein(mine, last) <= 1 &&
+        student_season.student.first_name.to_s.strip.casecmp?(row[:first_name].to_s.strip)
     end
 
     def fold(text)
