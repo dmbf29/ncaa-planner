@@ -18,6 +18,15 @@ const inputClass =
 // top of the list is what you're looking for in the portal.
 const ASCENDING_BY_DEFAULT = new Set(["name", "team", "devTrait"]);
 
+const POSITION_ORDER = [
+  "QB", "HB", "FB", "WR", "TE", "LT", "RT", "LG", "RG", "C", "LEDG", "REDG",
+  "DT", "SAM", "MIKE", "WILL", "CB", "FS", "SS", "K", "P",
+];
+const positionRank = (pos) => {
+  const i = POSITION_ORDER.indexOf(pos);
+  return i === -1 ? POSITION_ORDER.length : i;
+};
+
 const emptyFilters = () => ({
   search: "",
   positions: [],
@@ -29,6 +38,7 @@ const emptyFilters = () => ({
 
 function sortValueFor(player, field) {
   if (field === "team") return player.team;
+  if (field.startsWith("ratings.")) return player.ratings?.[field.slice(8)];
   return player[field];
 }
 
@@ -133,7 +143,10 @@ function SeasonPlayersPage() {
   }, [data]);
 
   const positionOptions = useMemo(
-    () => (data?.filters.positions ?? []).map((pos) => ({ value: pos, label: pos })),
+    () =>
+      [...(data?.filters.positions ?? [])]
+        .sort((a, b) => positionRank(a) - positionRank(b) || a.localeCompare(b))
+        .map((pos) => ({ value: pos, label: pos })),
     [data],
   );
   const classYearOptions = useMemo(
@@ -192,6 +205,18 @@ function SeasonPlayersPage() {
     });
 
   const shown = filtered.slice(0, RENDER_CAP);
+
+  // Position-specific ratings (beyond the fixed columns) become trailing columns, most common first.
+  const ratingColumns = useMemo(() => {
+    const fixed = new Set(STAT_COLUMNS.map((c) => c.field));
+    const counts = new Map();
+    shown.forEach((p) =>
+      Object.keys(p.ratings ?? {}).forEach((key) => {
+        if (!fixed.has(key)) counts.set(key, (counts.get(key) ?? 0) + 1);
+      }),
+    );
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([key]) => key);
+  }, [shown]);
   const filtersActive =
     filters.search !== "" ||
     filters.minOverall !== "" ||
@@ -324,8 +349,16 @@ function SeasonPlayersPage() {
                         align="right"
                       />
                     ))}
-                    <SortableTh label="Dev" field="devTrait" sort={sort} onSort={toggleSort} />
-                    <SortableTh label="NIL" field="nilAmount" sort={sort} onSort={toggleSort} align="right" />
+                    {ratingColumns.map((key) => (
+                      <SortableTh
+                        key={key}
+                        label={ratingLabel(key)}
+                        field={`ratings.${key}`}
+                        sort={sort}
+                        onSort={toggleSort}
+                        align="right"
+                      />
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -352,13 +385,6 @@ function SeasonPlayersPage() {
                           <div className="text-xs font-normal text-textSecondary">
                             {player.position} &middot; {player.classYear}
                           </div>
-                          {portalOnly && Object.keys(player.ratings ?? {}).length > 0 && (
-                            <div className="text-[11px] font-normal text-textSecondary">
-                              {Object.entries(player.ratings)
-                                .map(([key, value]) => `${ratingLabel(key)} ${value}`)
-                                .join(" · ")}
-                            </div>
-                          )}
                         </td>
                         <td className="px-3 py-2 text-center">
                           <Link
@@ -386,16 +412,17 @@ function SeasonPlayersPage() {
                             {player[col.field] ?? "—"}
                           </td>
                         ))}
-                        <td className="px-3 py-2 text-textSecondary">{player.devTrait ?? "—"}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-textSecondary">
-                          {player.nilAmount != null ? `$${player.nilAmount.toLocaleString()}` : "—"}
-                        </td>
+                        {ratingColumns.map((key) => (
+                          <td key={key} className="px-3 py-2 text-right tabular-nums text-textSecondary">
+                            {player.ratings?.[key] ?? "—"}
+                          </td>
+                        ))}
                       </tr>
                     );
                   })}
                   {shown.length === 0 && (
                     <tr>
-                      <td colSpan={11} className="px-3 py-6 text-center text-sm text-textSecondary">
+                      <td colSpan={9 + ratingColumns.length} className="px-3 py-6 text-center text-sm text-textSecondary">
                         No players match these filters.
                       </td>
                     </tr>
