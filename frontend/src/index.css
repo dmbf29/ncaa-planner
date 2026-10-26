@@ -37,8 +37,6 @@ body {
 }
 
 /* Hide the "Powered by Netlify" badge Netlify injects into deployed pages. */
-.nl-wrap,
-.nl-badge,
-.nl-card {
+#nl-badge-frame {
   display: none !important;
 }
