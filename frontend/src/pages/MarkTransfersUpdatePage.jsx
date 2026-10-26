@@ -35,6 +35,24 @@ function ValueChange({ current, incoming }) {
   );
 }
 
+const feetInches = (inches) => (inches == null ? null : `${Math.floor(inches / 12)}'${inches % 12}"`);
+
+// Archetype, height and weight under the player's name; a changed value shows old → new.
+function BioLine({ row }) {
+  const { current = {}, incoming = {} } = row;
+  const parts = [
+    ["archetype", (v) => v],
+    ["heightInches", feetInches],
+    ["weightLbs", (v) => (v == null ? null : `${v} lbs`)],
+  ].map(([field, format]) => {
+    if (incoming[field] == null) return null;
+    const next = format(incoming[field]);
+    return current[field] == null || current[field] === incoming[field] ? next : `${format(current[field])} → ${next}`;
+  });
+  const shown = parts.filter(Boolean);
+  return shown.length > 0 ? <p className="text-xs text-textSecondary">{shown.join(" · ")}</p> : null;
+}
+
 // The six tiles the game shows for this player's position (Throw Power for a QB, Run Block for a lineman, ...).
 function RatingsCell({ row }) {
   const keys = Object.keys(row.incomingRatings || {});
@@ -289,6 +307,7 @@ function MarkTransfersUpdatePage() {
                         {row.alreadyInPortal && <span className="ml-1.5 text-xs font-normal text-textSecondary">already in portal</span>}
                         {row.needsReview.length > 0 && <span className="ml-1.5 text-xs font-normal text-warning">check</span>}
                       </p>
+                      <BioLine row={row} />
                       <p className="text-xs text-textSecondary">
                         {row.collegeName} &middot; {row.position} &middot; {row.classYear}
                         {row.partial && " · read from the table only, ratings unchanged"}

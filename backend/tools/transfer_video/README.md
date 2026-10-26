@@ -12,7 +12,7 @@ roster_video/venv/bin/python transfer_video/extract.py recording.mov > transfers
 
 Record each team's list with the highlight stepping through the rows (hold the stick down). The team is read from the
 banner at the top. Output: `{ "players": [...], "unhighlighted": [...] }`. `players` carry `team`, `first_name`,
-`last_name`, `position`, `class_year`, `overall`, `transfer_reason` and whichever of `speed`, `acceleration`,
+`last_name`, `position`, `class_year`, `overall`, `transfer_reason`, `archetype`, `height_inches`, `weight_lbs`, a `ratings` map of the six position tiles and whichever of `speed`, `acceleration`,
 `agility`, `change_of_direction`, `strength`, `awareness` appear on the tiles (the other tiles, e.g. Throw Power, aren't
 tracked). `unhighlighted` are Transfer rows seen in the table but never selected (the highlight can jump two rows):
 only initial + last name, class and overall, so they can be flagged but not have stats updated.

@@ -14,6 +14,7 @@ module PortalTransfers
     include CollegeMatching
 
     STAT_FIELDS = %w[overall speed acceleration agility change_of_direction strength awareness].freeze
+    BIO_FIELDS = %w[archetype height_inches weight_lbs].freeze
 
     def initialize(season)
       @season = season
@@ -124,11 +125,15 @@ module PortalTransfers
 
     def incoming_values(row, partial:)
       fields = partial ? %w[overall] : STAT_FIELDS
-      fields.each_with_object({}) { |field, hash| hash[field] = row[field].to_i if row[field].present? }
+      values = fields.each_with_object({}) { |field, hash| hash[field] = row[field].to_i if row[field].present? }
+      return values if partial
+
+      BIO_FIELDS.each { |field| values[field] = (field == "archetype" ? row[field].to_s : row[field].to_i) if row[field].present? }
+      values
     end
 
     def current_values(student_season)
-      STAT_FIELDS.index_with { |field| student_season[field] }
+      (STAT_FIELDS + BIO_FIELDS).index_with { |field| student_season[field] }
     end
 
     def describe(student_season)

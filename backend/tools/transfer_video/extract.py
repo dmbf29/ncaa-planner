@@ -101,6 +101,34 @@ def reason_of(crop):
     return text, (m.group(1) or "").rsplit("(", 1)[-1].strip(" ()")
 
 
+HEIGHT_RE = re.compile(r"(\d)\s*['\u2019\u2032`]\s*(\d{1,2})")
+WEIGHT_RE = re.compile(r"(\d{2,3})\s*[lI1|]bs", re.IGNORECASE)
+
+
+def read_bio(crop):
+    """{archetype, height_inches, weight_lbs} from the pane's ARCHETYPE and HEIGHT & WEIGHT lines (any may be missing).
+    The value sits on the line below its label, in the same column."""
+    tokens = [(rv.clean(t), x, 1 - (y + bh)) for t, _, (x, y, _bw, bh) in rv.ocr(crop)]
+
+    def below(label):
+        for text, x, top in tokens:
+            if text.upper().replace(" ", "") == label:
+                nearby = [(t2 - top, v) for v, x2, t2 in tokens if t2 > top and abs(x2 - x) < 0.12]
+                return min(nearby)[1] if nearby else None
+
+    out = {}
+    archetype = below("ARCHETYPE")
+    if archetype:
+        out["archetype"] = re.sub(r"\s+", " ", archetype).strip()
+    size = below("HEIGHT&WEIGHT") or " ".join(t for t, _, _ in tokens)
+    height, weight = HEIGHT_RE.search(size), WEIGHT_RE.search(size)
+    if height:
+        out["height_inches"] = int(height.group(1)) * 12 + int(height.group(2))
+    if weight:
+        out["weight_lbs"] = int(weight.group(1))
+    return out
+
+
 def read_attributes(crop):
     """({label: int} for every attribute tile, {field: int} for the six that have columns). Each number is paired
     with the label directly above it; the tiles shown depend on the player's position."""
@@ -177,12 +205,16 @@ def read_player(item, detail):
         "class_year": pane["class"],
         "overall": int(ovr) if ovr else None,
         "transfer_reason": detail,
+        **read_bio(item["pane"]),
         "ratings": {re.sub(r"\W+", "_", label.lower()).strip("_"): value for label, value in tiles.items()},
         **attributes,
     }
     flags = []
     if player["overall"] is None:
         flags.append("missing overall")
+    missing = [f for f in ("archetype", "height_inches", "weight_lbs") if f not in player]
+    if missing:
+        flags.append(f"missing {', '.join(missing)}")
     if len(tiles) != 6:
         flags.append(f"read {len(tiles)} of 6 attribute tiles")
     if pane["position"] not in rv.VALID_POSITIONS:

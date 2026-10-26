@@ -29,6 +29,9 @@ class SeasonStudentSeasonsSerializer
     "student_seasons.nil_amount",
     "student_seasons.in_portal",
     "student_seasons.ratings",
+    "student_seasons.archetype",
+    "student_seasons.height_inches",
+    "student_seasons.weight_lbs",
     "college_seasons.id",
     "colleges.name",
     "college_seasons.conference",
@@ -58,7 +61,7 @@ class SeasonStudentSeasonsSerializer
     @players ||= player_rows.map do |row|
       id, first_name, last_name, position, class_year, overall, speed, acceleration,
         agility, change_of_direction, strength, awareness, dev_trait,
-        nil_amount, in_portal, ratings, college_season_id, team, conference, student_id = row
+        nil_amount, in_portal, ratings, archetype, height_inches, weight_lbs, college_season_id, team, conference, student_id = row
 
       {
         id: id,
@@ -77,6 +80,9 @@ class SeasonStudentSeasonsSerializer
         nil_amount: nil_amount,
         in_portal: in_portal,
         ratings: ratings,
+        archetype: archetype,
+        height_inches: height_inches,
+        weight_lbs: weight_lbs,
         college_season_id: college_season_id,
         team: team,
         conference: conference

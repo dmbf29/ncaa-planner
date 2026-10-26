@@ -22,6 +22,7 @@ module PortalTransfers
         attributes = Matcher::STAT_FIELDS.each_with_object({ in_portal: true }) do |field, hash|
           hash[field] = row[field.to_sym].to_i if row[field.to_sym].present?
         end
+        Matcher::BIO_FIELDS.each { |field| attributes[field] = row[field.to_sym] if row[field.to_sym].present? }
         # Position-specific tiles merge into what's on file, so a rating the screen didn't show this time is kept.
         attributes[:ratings] = student_season.ratings.merge(row[:ratings].to_h.transform_keys(&:to_s).transform_values(&:to_i)) if row[:ratings].present?
         student_season.update!(attributes)
