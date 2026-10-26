@@ -35,3 +35,10 @@ body {
   );
   background-size: 120px 1px;
 }
+
+/* Hide the "Powered by Netlify" badge Netlify injects into deployed pages. */
+.nl-wrap,
+.nl-badge,
+.nl-card {
+  display: none !important;
+}
