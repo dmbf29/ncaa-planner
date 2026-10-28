@@ -101,6 +101,10 @@ class NsdBreakdownMarkdownPresenter
   def team_section(team)
     lines = [ "---", "", "## ✍️ #{team[:college][:name]} (Coach: #{team[:coach][:name]})" ]
     lines << "**Conference:** #{team[:college][:conference]}" if team[:college][:conference]
+    if team[:coach][:previous_college]
+      lines << "**New Coach:** #{team[:coach][:name]} is new at #{team[:college][:name]} this offseason, having coached " \
+               "#{team[:coach][:previous_college]} until now. Mention the move briefly, once."
+    end
     lines << ""
     return lines + [ "- No signees logged yet.", "" ] if team[:total_signed].zero?
 

@@ -100,6 +100,14 @@ function ScriptEditor({ dynastyId, seasonId, slug, locked, onSaved }) {
   const [saved, setSaved] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    if (!expanded) return undefined;
+    const onKey = (event) => event.key === "Escape" && setExpanded(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [expanded]);
 
   const load = useCallback(async () => {
     if (text !== null) return;
@@ -131,17 +139,30 @@ function ScriptEditor({ dynastyId, seasonId, slug, locked, onSaved }) {
       {text === null ? (
         <p className="text-sm text-textSecondary">{error || "Loading the script..."}</p>
       ) : (
-        <div className="space-y-2">
-          <p className="text-xs text-textSecondary">
-            One line per turn, each starting with &ldquo;ARLIS: &rdquo; or &ldquo;TY: &rdquo;. Editing after the voices
-            are made means producing the audio again.
-          </p>
+        <div
+          className={clsx(
+            "space-y-2",
+            expanded && "fixed inset-0 z-50 flex flex-col space-y-3 bg-white p-6 dark:bg-charcoal",
+          )}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-xs text-textSecondary">
+              One line per turn, each starting with &ldquo;ARLIS: &rdquo; or &ldquo;TY: &rdquo;. Editing after the
+              voices are made means producing the audio again.
+            </p>
+            <button type="button" onClick={() => setExpanded(!expanded)} className={clsx(buttonSecondary, "shrink-0")}>
+              {expanded ? "Close (Esc)" : "Expand"}
+            </button>
+          </div>
           <textarea
             value={text}
             onChange={(event) => setText(event.target.value)}
             disabled={locked}
-            rows={16}
-            className="w-full rounded-md border border-border bg-transparent p-2 font-mono text-xs text-charcoal dark:border-darkborder dark:text-white"
+            rows={expanded ? undefined : 16}
+            className={clsx(
+              "w-full rounded-md border border-border bg-transparent p-2 font-mono text-charcoal dark:border-darkborder dark:text-white",
+              expanded ? "mx-auto min-h-0 max-w-4xl flex-1 text-base leading-relaxed" : "resize-y text-xs",
+            )}
           />
           <div className="flex items-center gap-3">
             <button type="button" onClick={save} disabled={busy || locked || text === saved} className={buttonSecondary}>

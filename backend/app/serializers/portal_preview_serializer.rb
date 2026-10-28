@@ -76,7 +76,8 @@ class PortalPreviewSerializer
 
     {
       college: college_json(college_season.college, college_season.conference),
-      coach: { id: college_season.offseason_coach_record.id, name: college_season.offseason_coach_record.name },
+      coach: { id: college_season.offseason_coach_record.id, name: college_season.offseason_coach_record.name,
+                previous_college: college_season.offseason_coach_previous_college&.name },
       summary: summary_json(enriched, departures),
       departures: departures,
       position_needs: position_needs_json(college_season, enriched, statuses_by_student_season_id),

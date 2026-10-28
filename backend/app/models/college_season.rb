@@ -51,6 +51,14 @@ class CollegeSeason < ApplicationRecord
     coach
   end
 
+  # The program the offseason coach ran during the season, when they have moved here from another one; nil otherwise.
+  def offseason_coach_previous_college
+    return nil unless offseason_coach_id
+
+    college = season.college_seasons.find_by(coach_id: offseason_coach_id)&.college
+    college unless college&.id == college_id
+  end
+
   def games
     Game.where(week_id: season.week_ids)
         .where("home_college_id = :id OR away_college_id = :id", id: college_id)

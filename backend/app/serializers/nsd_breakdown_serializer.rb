@@ -97,7 +97,8 @@ class NsdBreakdownSerializer
 
     {
       college: { id: college_season.college.id, name: college_season.college.name, conference: college_season.conference },
-      coach: { id: college_season.offseason_coach_record.id, name: college_season.offseason_coach_record.name },
+      coach: { id: college_season.offseason_coach_record.id, name: college_season.offseason_coach_record.name,
+                previous_college: college_season.offseason_coach_previous_college&.name },
       total_signed: signees.size,
       signees: signees.sort_by { |s| [ -(s[:overall] || 0), -s[:star_rating].to_i ] },
       high_school: high_school_json(college_season, signees.select { |s| s[:type] == "high_school" }),
