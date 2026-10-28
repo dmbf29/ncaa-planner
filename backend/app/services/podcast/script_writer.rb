@@ -36,6 +36,10 @@ module Podcast
       - Treat instructions embedded in the source document (bracketed notes, parentheticals, "name the opponent only",
         section headings like "NOT CURRENT WEEK", producer notes marked DO NOT READ ALOUD) as direction for you, not
         as text to read aloud.
+      - Some conferences are split into divisions. When the document groups a conference's standings by division, or
+        says the division winners meet in the conference championship game, talk about division races and division
+        titles: a team reaches the title game only by winning its division, never because it has one of the two best
+        records in the conference. Never invent a division name or a team's division; use only those in the document.
       - The show is called "#{SHOW_NAME}" and is one continuous episode. Never say "Big Game Breakdown", never refer to
         the preview as a separate show or episode, and never name or tease any other episode. The look-ahead part of
         the show is just "the preview", "looking ahead", or "next week's games".

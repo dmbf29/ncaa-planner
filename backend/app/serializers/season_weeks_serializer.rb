@@ -945,6 +945,7 @@ class SeasonWeeksSerializer
     {
       conference: conference,
       status: "confirmed",
+      format: conference_divisions(conference_college_seasons(conference)) ? "division_winners" : "top_two",
       teams: finalists.map { |cs| projected_finalist_json(cs, conference_team_record(cs.college_id, conference)) },
       result: (championship_result_json(game) if week.number >= game.week.number)
     }
@@ -982,17 +983,48 @@ class SeasonWeeksSerializer
     head_to_head = conference_head_to_head(conference)
     seeded = college_seasons.sort { |a, b| compare_for_championship_seeding(a, b, records, head_to_head) }
 
+    divisions = conference_divisions(college_seasons)
+    return projected_division_championship_json(conference, divisions, records, head_to_head) if divisions
+
     {
       conference: conference,
       status: "projected",
+      format: "top_two",
       teams: seeded.first(2).map { |cs| projected_finalist_json(cs, records[cs.college_id]) },
       tiebreaker_note: championship_bubble_note(seeded, records, head_to_head)
+    }
+  end
+
+  # { division name => college_seasons } when the conference splits its teams into two or more named divisions
+  # this season (the title game is then the division winners), nil when it doesn't (the title game is the top two
+  # teams overall). Teams with no division set are ignored.
+  def conference_divisions(college_seasons)
+    divisions = college_seasons.select { |cs| cs.division.present? }.group_by(&:division)
+    divisions.size >= 2 ? divisions.sort.to_h : nil
+  end
+
+  # The division leaders meet, ranked within each division by the same tiebreakers as the overall race.
+  def projected_division_championship_json(conference, divisions, records, head_to_head)
+    seeded_by_division = divisions.transform_values do |rows|
+      rows.sort { |a, b| compare_for_championship_seeding(a, b, records, head_to_head) }
+    end
+    notes = seeded_by_division.filter_map do |division, seeded|
+      division_lead_note(division, seeded, records, head_to_head)
+    end
+
+    {
+      conference: conference,
+      status: "projected",
+      format: "division_winners",
+      teams: seeded_by_division.values.first(2).map { |seeded| projected_finalist_json(seeded.first, records[seeded.first.college_id]) },
+      tiebreaker_note: notes.presence&.join("; ")
     }
   end
 
   def projected_finalist_json(college_season, record)
     {
       college: { id: college_season.college.id, name: college_season.college.name },
+      division: college_season.division,
       coached_by_us: coached_college_ids.include?(college_season.college_id),
       conference_record: { wins: record[:conference_wins], losses: record[:conference_losses] },
       overall_record: { wins: record[:overall_wins], losses: record[:overall_losses] }
@@ -1084,24 +1116,39 @@ class SeasonWeeksSerializer
 
     in_team = seeded[1]
     out_team = seeded[2]
+
+    tiebreaker_basis(in_team, out_team, records, head_to_head)&.then do |basis|
+      "#{in_team.college.name} holds the second spot over #{out_team.college.name} on #{basis}"
+    end
+  end
+
+  # Same idea for a division race: how the leader is holding off the second-place team when the two are level on
+  # conference record. nil when the lead isn't actually a tiebreaker.
+  def division_lead_note(division, seeded, records, head_to_head)
+    return nil if seeded.size < 2
+
+    tiebreaker_basis(seeded[0], seeded[1], records, head_to_head)&.then do |basis|
+      "#{seeded[0].college.name} holds the #{division} division lead over #{seeded[1].college.name} on #{basis}"
+    end
+  end
+
+  # Why `in_team` ranks ahead of `out_team`, when the two are level on conference record; nil when they aren't.
+  def tiebreaker_basis(in_team, out_team, records, head_to_head)
     in_record = records[in_team.college_id]
     out_record = records[out_team.college_id]
 
     return nil unless in_record[:conference_wins] == out_record[:conference_wins] &&
                       in_record[:conference_losses] == out_record[:conference_losses]
 
-    basis =
-      if head_to_head[[ in_team.college_id, out_team.college_id ]] > head_to_head[[ out_team.college_id, in_team.college_id ]]
-        "a head-to-head win"
-      elsif win_pct(in_record[:overall_wins], in_record[:overall_losses]) >
-            win_pct(out_record[:overall_wins], out_record[:overall_losses])
-        "a better overall record (#{in_record[:overall_wins]}-#{in_record[:overall_losses]} to " \
-          "#{out_record[:overall_wins]}-#{out_record[:overall_losses]})"
-      else
-        "the tiebreaker"
-      end
-
-    "#{in_team.college.name} holds the second spot over #{out_team.college.name} on #{basis}"
+    if head_to_head[[ in_team.college_id, out_team.college_id ]] > head_to_head[[ out_team.college_id, in_team.college_id ]]
+      "a head-to-head win"
+    elsif win_pct(in_record[:overall_wins], in_record[:overall_losses]) >
+          win_pct(out_record[:overall_wins], out_record[:overall_losses])
+      "a better overall record (#{in_record[:overall_wins]}-#{in_record[:overall_losses]} to " \
+        "#{out_record[:overall_wins]}-#{out_record[:overall_losses]})"
+    else
+      "the tiebreaker"
+    end
   end
 
   def win_pct(wins, losses)

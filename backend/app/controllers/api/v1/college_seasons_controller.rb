@@ -15,6 +15,7 @@ module Api
             defense: @college_season.defense,
             prestige: @college_season.prestige,
             conference: @college_season.conference,
+            division: @college_season.division,
             coach_outcome: @college_season.coach_outcome
           }
         else
@@ -30,7 +31,7 @@ module Api
       end
 
       def college_season_params
-        params.require(:college_season).permit(:overall, :offense, :defense, :prestige, :conference, :coach_outcome)
+        params.require(:college_season).permit(:overall, :offense, :defense, :prestige, :conference, :division, :coach_outcome)
       end
     end
   end

@@ -31,9 +31,10 @@ function AttributeInput({ value, onChange, step = 1 }) {
   );
 }
 
-function TeamAttributesRow({ team, conferenceOptions }) {
+function TeamAttributesRow({ team, conferenceOptions, divisionListId }) {
   const [values, setValues] = useState({
     conference: team.conference,
+    division: team.division,
     overall: team.overall,
     offense: team.offense,
     defense: team.defense,
@@ -94,6 +95,16 @@ function TeamAttributesRow({ team, conferenceOptions }) {
           ))}
         </select>
       </td>
+      <td className="px-2 py-1.5">
+        <input
+          type="text"
+          list={divisionListId}
+          value={values.division ?? ""}
+          onChange={(e) => update({ division: e.target.value.trim() === "" ? null : e.target.value })}
+          placeholder="None"
+          className="w-28 rounded border border-transparent bg-transparent px-1.5 py-1 text-sm text-textPrimary focus:border-burnt focus:bg-white focus:outline-none dark:text-white dark:focus:bg-darksurface"
+        />
+      </td>
       <td className="px-3 py-1.5 text-xs">
         {status && <span className={STATUS_CLASSES[status]}>{STATUS_LABELS[status]}</span>}
       </td>
@@ -102,6 +113,8 @@ function TeamAttributesRow({ team, conferenceOptions }) {
 }
 
 function ConferenceAttributesTable({ conference, conferenceOptions }) {
+  const divisionListId = `divisions-${conference.conference}`;
+  const divisionNames = [...new Set(conference.teams.map((team) => team.division).filter(Boolean))];
   return (
     <Card className="overflow-hidden">
       <div className="border-b border-border bg-charcoal px-4 py-3 text-white dark:border-darkborder">
@@ -117,15 +130,26 @@ function ConferenceAttributesTable({ conference, conferenceOptions }) {
               <th className="px-2 py-2 font-semibold">Defense</th>
               <th className="px-2 py-2 font-semibold">Prestige</th>
               <th className="px-2 py-2 font-semibold">Conference</th>
+              <th className="px-2 py-2 font-semibold">Division</th>
               <th className="px-3 py-2 font-semibold"></th>
             </tr>
           </thead>
           <tbody>
             {conference.teams.map((team) => (
-              <TeamAttributesRow key={team.id} team={team} conferenceOptions={conferenceOptions} />
+              <TeamAttributesRow
+                key={team.id}
+                team={team}
+                conferenceOptions={conferenceOptions}
+                divisionListId={divisionListId}
+              />
             ))}
           </tbody>
         </table>
+        <datalist id={divisionListId}>
+          {divisionNames.map((name) => (
+            <option key={name} value={name} />
+          ))}
+        </datalist>
       </div>
     </Card>
   );

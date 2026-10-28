@@ -452,6 +452,8 @@ class BigGameBreakdownSerializer
   # lag until a whole gameweek has been committed).
   def conference_race_json(game)
     conference = conference_of(game.home_college_id)
+    return division_race_json(game, conference) if divisions?(conference)
+
     table = conference_table(conference)
     positions = table.each_with_index.to_h { |row, index| [ row[:college_id], index + 1 ] }
     shown = table.first(STANDINGS_TABLE_SIZE).map { |row| row.except(:college_id) }
@@ -464,6 +466,45 @@ class BigGameBreakdownSerializer
     }
   end
 
+  # Whether the conference splits into two or more named divisions this season, in which case the division
+  # winners (not the top two teams overall) meet in the title game and the race is run division by division.
+  def divisions?(conference)
+    conference_divisions(conference).size >= 2
+  end
+
+  def conference_divisions(conference)
+    @conference_divisions ||= {}
+    @conference_divisions[conference] ||= conference_table(conference).filter_map { |row| row[:division] }.uniq
+  end
+
+  # The standings race for a divisional conference: where each team sits in its own division, with a table for
+  # the division(s) of the two teams playing.
+  def division_race_json(game, conference)
+    table = conference_table(conference)
+    home_division = division_of(game.home_college_id)
+    away_division = division_of(game.away_college_id)
+    position = lambda do |college_id, division|
+      table.select { |row| row[:division] == division }.index { |row| row[:college_id] == college_id }&.+(1)
+    end
+
+    {
+      conference: conference,
+      divisional: true,
+      home_division: home_division,
+      away_division: away_division,
+      same_division: home_division.present? && home_division == away_division,
+      home_position: position.call(game.home_college_id, home_division),
+      away_position: position.call(game.away_college_id, away_division),
+      divisions: [ home_division, away_division ].compact.uniq.map do |division|
+        { division: division, table: table.select { |row| row[:division] == division }.first(STANDINGS_TABLE_SIZE).map { |row| row.except(:college_id) } }
+      end
+    }
+  end
+
+  def division_of(college_id)
+    college_seasons_by_college_id[college_id]&.division.presence
+  end
+
   # Teams in a conference, best conference record first (ties by overall
   # record), counting only games already played.
   def conference_table(conference)
@@ -473,7 +514,7 @@ class BigGameBreakdownSerializer
         results = results_for(cs.college_id)
         conf = record_json(results.select { |result| result[:conference_game] })
         overall = record_json(results)
-        { college_id: cs.college_id, name: cs.college.name, user_coached: coached_college_ids.include?(cs.college_id),
+        { college_id: cs.college_id, name: cs.college.name, division: cs.division.presence, user_coached: coached_college_ids.include?(cs.college_id),
           conference_record: conf, overall_record: overall, plays_this_week: week_games.any? { |g| [ g.home_college_id, g.away_college_id ].include?(cs.college_id) } }
       end
       rows.sort_by { |row| [ -row[:conference_record][:wins], row[:conference_record][:losses], -row[:overall_record][:wins], row[:name] ] }
@@ -500,8 +541,11 @@ class BigGameBreakdownSerializer
 
   def ripple_reason(game, other, ours)
     if conference_game?(game) && conference_game?(other) && conference_of(other.home_college_id) == conference_of(game.home_college_id)
-      top = conference_table(conference_of(game.home_college_id)).first(4).map { |row| row[:college_id] }
-      return "conference title race" if ([ other.home_college_id, other.away_college_id ] & top).any?
+      conference = conference_of(game.home_college_id)
+      table = conference_table(conference)
+      top = divisions?(conference) ? table.group_by { |row| row[:division] }.values.flat_map { |rows| rows.first(2) } : table.first(4)
+      top = top.map { |row| row[:college_id] }
+      return (divisions?(conference) ? "division title race" : "conference title race") if ([ other.home_college_id, other.away_college_id ] & top).any?
     end
 
     our_ranks = ours.filter_map { |id| ranking_for(id) }

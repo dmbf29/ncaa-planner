@@ -471,6 +471,7 @@ class BigGameBreakdownMarkdownPresenter
 
   def conference_race_lines(race)
     return [] unless race
+    return division_race_lines(race) if race[:divisional]
 
     lines = [ "- **#{race[:conference]} race** (current standings; home team sits #{ordinal(race[:home_position])}, " \
               "road team #{ordinal(race[:away_position])}):" ]
@@ -478,6 +479,25 @@ class BigGameBreakdownMarkdownPresenter
       mark = row[:user_coached] ? " [our coach]" : ""
       lines << "  - #{index + 1}. #{row[:name]}#{mark}: #{row[:conference_record][:wins]}-#{row[:conference_record][:losses]} in conference " \
                "(#{row[:overall_record][:wins]}-#{row[:overall_record][:losses]} overall)"
+    end
+    lines
+  end
+
+  # Divisional conference: the division winners meet in the conference championship game, so the race that matters
+  # is each team's position in its own division.
+  def division_race_lines(race)
+    scope = race[:same_division] ? "both teams are in the #{race[:home_division]} division" :
+                                   "home team is in the #{race[:home_division]} division, road team in the #{race[:away_division]} division"
+    lines = [ "- **#{race[:conference]} division race** (current standings; #{scope}; the division winners meet in the " \
+              "conference championship game. Home team sits #{ordinal(race[:home_position])} in its division, " \
+              "road team #{ordinal(race[:away_position])} in its division):" ]
+    race[:divisions].each do |division|
+      lines << "  - #{division[:division]} Division:"
+      division[:table].each_with_index do |row, index|
+        mark = row[:user_coached] ? " [our coach]" : ""
+        lines << "    - #{index + 1}. #{row[:name]}#{mark}: #{row[:conference_record][:wins]}-#{row[:conference_record][:losses]} in conference " \
+                 "(#{row[:overall_record][:wins]}-#{row[:overall_record][:losses]} overall)"
+      end
     end
     lines
   end

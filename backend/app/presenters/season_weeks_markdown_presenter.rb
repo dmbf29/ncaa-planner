@@ -427,6 +427,7 @@ class SeasonWeeksMarkdownPresenter
       confirmed = entry[:status] == "confirmed"
       lines << "## 🏆 #{confirmed ? 'CONFIRMED' : 'PROJECTED'} #{entry[:conference].upcase} CHAMPIONSHIP"
       lines << ""
+      lines << "- The #{entry[:conference]} title game pits the two division winners; a team only gets there by winning its division." if entry[:format] == "division_winners"
       lines << "- #{championship_matchup_line(entry[:teams])}"
       if confirmed
         lines << "- #{championship_result_line(entry[:result])}" if entry[:result]
@@ -444,12 +445,13 @@ class SeasonWeeksMarkdownPresenter
 
   def championship_team(team)
     star = team[:coached_by_us] ? " ⭐" : ""
+    division = team[:division].present? ? "#{team[:division]} division, " : ""
     overall = record_str(team[:overall_record][:wins], team[:overall_record][:losses])
     # In championship week the title game is the story, so no conference record (that's standings talk).
-    return "#{team[:college][:name]}#{star} (#{overall} overall)" if championship_week?
+    return "#{team[:college][:name]}#{star} (#{division}#{overall} overall)" if championship_week?
 
     conf = record_str(team[:conference_record][:wins], team[:conference_record][:losses])
-    "#{team[:college][:name]}#{star} (#{conf} conf, #{overall} overall)"
+    "#{team[:college][:name]}#{star} (#{division}#{conf} conf, #{overall} overall)"
   end
 
   def championship_result_line(result)
@@ -467,7 +469,19 @@ class SeasonWeeksMarkdownPresenter
     conferences.each do |conference_data|
       lines << "## 🏟️ #{conference_data[:conference]} STANDINGS"
       lines << ""
-      lines.concat(conference_standings_table(conference_data[:teams]))
+      divisions = conference_data[:teams].group_by { |team| team[:division] }.reject { |division, _| division.blank? }
+      if divisions.size >= 2
+        lines << "The #{conference_data[:conference]} has two divisions, and the division winners meet in the conference championship game. " \
+                 "The first team listed in each division is its current leader."
+        lines << ""
+        divisions.sort.each do |division, teams|
+          lines << "### #{division} Division"
+          lines << ""
+          lines.concat(conference_standings_table(teams))
+        end
+      else
+        lines.concat(conference_standings_table(conference_data[:teams]))
+      end
     end
     lines
   end

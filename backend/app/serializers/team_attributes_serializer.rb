@@ -34,6 +34,7 @@ class TeamAttributesSerializer
       id: college_season.id,
       college: { id: college_season.college.id, name: college_season.college.name },
       conference: college_season.conference,
+      division: college_season.division,
       overall: college_season.overall,
       offense: college_season.offense,
       defense: college_season.defense,

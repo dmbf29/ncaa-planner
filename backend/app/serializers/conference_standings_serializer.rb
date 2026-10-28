@@ -64,6 +64,7 @@ class ConferenceStandingsSerializer
       id: college_season.id,
       college: { id: college_season.college.id, name: college_season.college.name },
       coach: college_season.coach && { id: college_season.coach.id, name: college_season.coach.name },
+      division: college_season.division,
       coached_by_us: coached_college_ids.include?(college_season.college_id),
       player_count: player_counts.fetch(college_season.id, 0),
       rank: rank_for_college(college_season.college_id),
