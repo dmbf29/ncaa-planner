@@ -285,6 +285,7 @@ class BigGameBreakdownSerializer
       college: { id: college_id, name: college_season.college.name, conference: college_season.conference },
       user_coached: coached_college_ids.include?(college_id),
       coach: college_season.coach && { name: college_season.coach.name },
+      new_conference_from: new_conference_from(college_season),
       previous_season: previous_season_json(college_id),
       record: record_json(results),
       conference_record: postseason? ? nil : record_json(results.select { |result| result[:conference_game] }),
@@ -375,6 +376,7 @@ class BigGameBreakdownSerializer
     games = previous.wins + previous.losses
     {
       year: @season.previous_season.year,
+      conference: previous.conference,
       wins: previous.wins,
       losses: previous.losses,
       conference_wins: previous.conference_wins,
@@ -382,6 +384,14 @@ class BigGameBreakdownSerializer
       points_per_game: previous.points_for && games.positive? ? (previous.points_for.to_f / games).round(1) : nil,
       points_allowed_per_game: previous.points_against && games.positive? ? (previous.points_against.to_f / games).round(1) : nil
     }
+  end
+
+  # The conference a team left to join its current one, or nil when it didn't
+  # move (or there's no prior season to tell). Last season's records were
+  # earned in that old league.
+  def new_conference_from(college_season)
+    from = previous_college_seasons[college_season.college_id]&.conference
+    from if from.present? && college_season.conference.present? && from != college_season.conference
   end
 
   def previous_college_seasons

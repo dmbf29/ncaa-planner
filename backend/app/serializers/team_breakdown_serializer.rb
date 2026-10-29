@@ -354,6 +354,7 @@ class TeamBreakdownSerializer
 
     {
       college: { id: college_season.college.id, name: college_season.college.name, conference: college_season.conference },
+      new_conference_from: new_conference_from(college_season, previous),
       coach: { id: college_season.coach.id, name: college_season.coach.name },
       ratings: {
         overall: college_season.overall,
@@ -375,6 +376,14 @@ class TeamBreakdownSerializer
         total: starters.size
       }
     }
+  end
+
+  # The conference a team left to join this one, or nil when it didn't move
+  # (or there's no prior season to tell). Last season's record and conference
+  # record were earned there, not in the current conference.
+  def new_conference_from(college_season, previous)
+    from = previous&.conference
+    from if from.present? && college_season.conference.present? && from != college_season.conference
   end
 
   def overall_benchmark(college_season, cohort)

@@ -27,6 +27,13 @@ class WinTotalsMarkdownPresenter
     "Then close the team's segment with the Hot Seat Check on its head coach (see the hot seat rules below)."
   ].freeze
 
+  NEW_CONFERENCE_RULES = [
+    "A team tagged NEW CONFERENCE is playing its first season in its current league. Mention it when you open the " \
+    "team, and remember its last-season and conference records came against a different set of opponents, so " \
+    "don't treat them as a baseline for this schedule. The same goes for teams marked NEW in 'Around the' " \
+    "conference sections."
+  ].freeze
+
   HOT_SEAT_RULES = [
     "Every team's segment ends with a Hot Seat Check on its head coach: how safe his job is if the team hits " \
     "the number, and what happens if it doesn't. Do it AFTER the over/under call, using the Hot Seat " \
@@ -111,7 +118,7 @@ class WinTotalsMarkdownPresenter
 
   def debate_format_lines
     lines = [ "## 🥊 DEBATE FORMAT (PRODUCER NOTE, DO NOT READ ALOUD)", "" ]
-    DEBATE_RULES.each { |rule| lines << "- #{rule}" }
+    (DEBATE_RULES + NEW_CONFERENCE_RULES).each { |rule| lines << "- #{rule}" }
     lines << ""
     lines
   end
@@ -144,6 +151,11 @@ class WinTotalsMarkdownPresenter
     lines << ""
     lines << "## 🎯 #{team[:college][:name]} (Coach: #{team[:coach][:name]}) — VEGAS LINE: #{format_line(team[:vegas_win_total])}"
     lines << "**Conference:** #{team[:college][:conference]}" if team[:college][:conference]
+    if team[:new_conference_from]
+      lines << "**🆕 NEW CONFERENCE:** First season in the #{team[:college][:conference]}, after #{team[:new_conference_from]}. " \
+               "Last season's record (conference record included) was played in the #{team[:new_conference_from]}, " \
+               "so it says little about how they'll fare against #{team[:college][:conference]} opponents."
+    end
     lines << "**Ratings:** #{ratings_line(team[:ratings])}"
     last_season = record_line(team[:previous_season_record])
     lines << "**Last Season:** #{last_season}" if last_season
@@ -404,7 +416,8 @@ class WinTotalsMarkdownPresenter
         last_season_note = last_season ? ", last season #{last_season}" : ""
         detail = "#{team[:overall]} OVR, #{team[:power_rating]} power rating#{last_season_note}"
         line = team[:vegas_win_total] ? format_line(team[:vegas_win_total]) : "NO LINE YET"
-        lines << "- #{team[:college][:name]}: #{line} (#{detail})"
+        new_league = team[:new_conference_from] ? " — NEW to the #{group[:conference]}, from the #{team[:new_conference_from]}" : ""
+        lines << "- #{team[:college][:name]}: #{line} (#{detail})#{new_league}"
       end
       lines << ""
     end

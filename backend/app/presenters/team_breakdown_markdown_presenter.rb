@@ -44,6 +44,9 @@ class TeamBreakdownMarkdownPresenter
     "dollar figure that looks huge in the Sun Belt can be middle of the pack nationally. Say which yardstick you " \
     "mean every time, and lead with the conference story, using the national one for the 'but how does that " \
     "travel?' beat. Don't read every cohort for every team.",
+    "A team marked 'New conference' is in its first season in its current league. Mention it when the team is " \
+    "introduced and wherever 'the conference' comes up for them: its conference record last season was earned in " \
+    "the old league, its room 'conference rank' is among new rivals, and it has no history in this league.",
     "The conference line is one beat of context, not a segment. Ratings are only reliable for colleges with a " \
     "roster on file (listed under Data Coverage). Nobody's hidden potential is known, so never speculate about it."
   ].freeze
@@ -134,6 +137,10 @@ class TeamBreakdownMarkdownPresenter
   def standing_lines(team)
     ratings = team[:ratings]
     lines = [ "### #{team[:college][:name]} (Coach: #{team[:coach][:name]})" ]
+    if team[:new_conference_from]
+      lines << "- 🆕 **New conference:** first season in the #{team[:college][:conference]}, after #{team[:new_conference_from]}. " \
+               "Last season's record below was played in the #{team[:new_conference_from]}, not the #{team[:college][:conference]}."
+    end
     lines << "- Team ratings: #{ratings[:overall] || '—'} overall (#{ratings[:offense] || '—'} offense, #{ratings[:defense] || '—'} defense)" \
              "#{rank_text(ratings[:conference_rank], ", ", " in the #{team[:college][:conference]}")}#{change_text(ratings[:change_from_last_year], ' from last year')}"
     benchmarks = (ratings[:benchmarks] || {}).filter_map do |cohort, bench|

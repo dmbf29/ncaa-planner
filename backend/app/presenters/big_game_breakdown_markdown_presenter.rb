@@ -52,7 +52,10 @@ class BigGameBreakdownMarkdownPresenter
     "at it. A stat line is only ever true when it's written next to the player below.",
     "Any thoughts on a team's recent performance belong where they fit (the stakes, the film room, the " \
     "quarterback duel) rather than in a separate section, and there are no separate \"upset alert\" or \"trap " \
-    "game\" segments. If a host feels one, a single sentence in the stakes is enough."
+    "game\" segments. If a host feels one, a single sentence in the stakes is enough.",
+    "A team marked 'New to the' a conference is in its first season in that league. Its last-season record " \
+    "(conference record included) was played in the old conference, so say so if you cite it, and don't treat " \
+    "it as a baseline against its new rivals."
   ].freeze
 
   def initialize(data)
@@ -394,6 +397,7 @@ class BigGameBreakdownMarkdownPresenter
     lines << "  - **#{@data.dig(:season, :year)} record: #{record_phrase(team[:record])}**"
     lines.concat(conference_record_lines(team[:conference_record]))
     lines << "  - Current streak: #{streak_text(team[:streak])}" if streak_text(team[:streak])
+    lines << "  - New to the #{team[:college][:conference]} this season, from the #{team[:new_conference_from]}" if team[:new_conference_from]
     lines.concat(previous_season_lines(team[:previous_season]))
     lines << "  - Last #{team[:recent_results].size}: #{team[:recent_results].map { |r| result_text(r) }.join(' · ')}" if team[:recent_results].present?
     lines << "  - Scoring: #{team[:scoring][:points_per_game]} points a game, allowing #{team[:scoring][:points_allowed_per_game]}" if team[:scoring]
@@ -405,7 +409,8 @@ class BigGameBreakdownMarkdownPresenter
 
     conference = previous[:conference_wins] && previous[:conference_losses] ? " (#{previous[:conference_wins]}-#{previous[:conference_losses]} in conference)" : ""
     scoring = previous[:points_per_game] && previous[:points_allowed_per_game] ? ", scoring #{previous[:points_per_game]} and allowing #{previous[:points_allowed_per_game]} a game" : ""
-    [ "  - Last season (#{previous[:year]}): #{previous[:wins]}-#{previous[:losses]}#{conference}#{scoring}" ]
+    league = previous[:conference] ? ", in the #{previous[:conference]}" : ""
+    [ "  - Last season (#{previous[:year]}#{league}): #{previous[:wins]}-#{previous[:losses]}#{conference}#{scoring}" ]
   end
 
   # "1-1 (1 win, 1 loss)": spelled out so the record can't be misread, and

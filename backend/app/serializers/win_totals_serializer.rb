@@ -79,6 +79,14 @@ class WinTotalsSerializer
     }
   end
 
+  # The conference a team left to join its current one, or nil when it didn't
+  # move (or there's no prior season to tell). Its previous record, including
+  # the conference record, was earned in that old league.
+  def new_conference_from(college_season)
+    from = previous_season_college_seasons_by_college_id[college_season.college_id]&.conference
+    from if from.present? && college_season.conference.present? && from != college_season.conference
+  end
+
   RECENT_SEASONS = 3
 
   # The program's own recent seasons (most recent first), whoever coached them.
@@ -140,6 +148,7 @@ class WinTotalsSerializer
 
     {
       college: college_json(college_season.college, college_season.conference),
+      new_conference_from: new_conference_from(college_season),
       coach: { id: college_season.coach.id, name: college_season.coach.name },
       ratings: ratings_json(college_season),
       previous_season_record: previous_season_record_json(college_season.college_id),
@@ -361,6 +370,7 @@ class WinTotalsSerializer
     strength = calculator.team_strength(college_season)
     {
       college: college_json(college_season.college, college_season.conference),
+      new_conference_from: new_conference_from(college_season),
       overall: college_season.overall,
       power_rating: strength&.round(1),
       previous_season_record: previous_season_record_json(college_season.college_id),
