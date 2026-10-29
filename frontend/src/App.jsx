@@ -39,6 +39,7 @@ import RecruitmentTrailUpdatePage from "./pages/RecruitmentTrailUpdatePage";
 import SignedRecruitOverallsPage from "./pages/SignedRecruitOverallsPage";
 import SeasonCoachesPage from "./pages/SeasonCoachesPage";
 import TeamAttributesPage from "./pages/TeamAttributesPage";
+import TeamRatingsPage from "./pages/TeamRatingsPage";
 import BowlProjectionsUpdatePage from "./pages/BowlProjectionsUpdatePage";
 import AwardWinnersPage from "./pages/AwardWinnersPage";
 import PortalPreviewUpdatePage from "./pages/PortalPreviewUpdatePage";
@@ -94,6 +95,7 @@ function App() {
         <Route path="/dynasty/updates/coach-info" element={<CoachInfoUpdatePage />} />
         <Route path="/dynasty/updates/coach-outcomes" element={<CoachOutcomesUpdatePage />} />
         <Route path="/dynasty/updates/team-attributes" element={<TeamAttributesPage />} />
+        <Route path="/dynasty/updates/team-ratings" element={<TeamRatingsPage />} />
         <Route path="/dynasty/updates/bowl-projections" element={<BowlProjectionsUpdatePage />} />
         <Route path="/dynasty/updates/award-winners" element={<AwardWinnersPage />} />
       </Routes>

@@ -55,6 +55,14 @@ class SeasonPolicy < ApplicationPolicy
     owner?
   end
 
+  def team_ratings?
+    owner?
+  end
+
+  def calculate_team_ratings?
+    owner?
+  end
+
   def analyze_team_stats?
     owner?
   end

@@ -148,6 +148,11 @@ module WinTotals
       end
     end
 
+    def room_of(position)
+      code = PositionBoardMapping.canonical(position)
+      ROOM_POSITIONS.find { |_room, codes| codes.include?(code) }&.first
+    end
+
     private
 
     # { "QB" => 78.0, ... } for every room with at least one rated player.
@@ -157,11 +162,6 @@ module WinTotals
         top = Array(by_room[room]).map(&:overall).max(slots)
         averages[room] = top.sum.to_f / top.size unless top.empty?
       end
-    end
-
-    def room_of(position)
-      code = PositionBoardMapping.canonical(position)
-      ROOM_POSITIONS.find { |_room, codes| codes.include?(code) }&.first
     end
   end
 end

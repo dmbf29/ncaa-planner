@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_10_28_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_10_29_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -185,6 +185,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_10_28_120000) do
     t.integer "coach_outcome"
     t.bigint "offseason_coach_id"
     t.string "division"
+    t.float "starter_overall"
+    t.float "starter_offense"
+    t.float "starter_defense"
     t.index ["coach_id"], name: "index_college_seasons_on_coach_id"
     t.index ["college_id"], name: "index_college_seasons_on_college_id"
     t.index ["offseason_coach_id"], name: "index_college_seasons_on_offseason_coach_id"

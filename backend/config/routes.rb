@@ -37,6 +37,8 @@ Rails.application.routes.draw do
         resources :seasons, only: %i[show create destroy] do
           member do
             get :team_attributes
+            get :team_ratings
+            post :calculate_team_ratings
             post :analyze_schedule
             get :analyze_schedule_status
             post :commit_schedule

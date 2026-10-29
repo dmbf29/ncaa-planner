@@ -152,6 +152,12 @@ export const fetchStandings = (dynastyId, seasonId) =>
 export const fetchTeamAttributes = (dynastyId, seasonId) =>
   api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/team_attributes`).then((r) => r.data);
 
+export const fetchTeamRatings = (dynastyId, seasonId) =>
+  api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/team_ratings`).then((r) => r.data);
+
+export const calculateTeamRatings = (dynastyId, seasonId) =>
+  api.post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/calculate_team_ratings`).then((r) => r.data);
+
 export const updateCoach = (id, payload) =>
   api.put(`/api/v1/coaches/${id}`, { coach: payload }).then((r) => r.data);
 

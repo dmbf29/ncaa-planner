@@ -97,6 +97,23 @@ module Api
         render json: ::TeamAttributesSerializer.new(@season).as_json
       end
 
+      def team_ratings
+        authorize @season
+        render json: ::TeamRatingsSerializer.new(@season).as_json
+      end
+
+      # Recomputes the starter-based ratings from the current rosters for every
+      # team in the season and saves them.
+      def calculate_team_ratings
+        authorize @season
+        @season.college_seasons.includes(:student_seasons).find_each do |college_season|
+          ratings = StarterRatings.for(college_season)
+          college_season.update!(starter_overall: ratings[:overall], starter_offense: ratings[:offense],
+                                 starter_defense: ratings[:defense])
+        end
+        render json: ::TeamRatingsSerializer.new(@season).as_json
+      end
+
       def coach_info
         authorize @season
         render json: ::SeasonCoachInfoSerializer.new(@season).as_json

@@ -21,19 +21,21 @@ from PIL import Image
 
 HEADERS = {"NAME", "YEAR", "POS", "OVR", "NIL", "DEV", "SPD", "ACC", "AGI", "COD", "STR", "AWR",
            "CAR", "BCV", "BTK", "CTH", "SPC", "CIT", "SRR", "MRR", "DRR", "JKM", "TRK", "PBK", "RBK"}
+HEADER_MISREADS = {"OUR": "OVR", "0VR": "OVR", "OVE": "OVR"}  # the sort arrow beside OVR confuses OCR
+I_LOOKALIKES = str.maketrans("l1|", "III")  # the row font draws a capital I like these
 STAT_FIELDS = {"SPD": "speed", "ACC": "acceleration", "AGI": "agility",
                "COD": "change_of_direction", "STR": "strength", "AWR": "awareness"}
 HOMOGLYPHS = str.maketrans("АВСЕНІКМОРТХаеорсху", "ABCEHIKMOPTXaeopcxy")
 VALID_POSITIONS = {"QB", "HB", "FB", "WR", "TE", "LT", "LG", "C", "RG", "RT", "LEDG", "REDG", "DT",
                    "MIKE", "WILL", "SAM", "CB", "FS", "SS", "K", "P"}
 # Bump when a change alters what the extractor OUTPUTS, so batch caches of earlier readings are re-read.
-OUTPUT_VERSION = 6
+OUTPUT_VERSION = 7
 STABLE_FRAMES = 4
 NAME_RE = re.compile(r"^[A-Za-z0-9]{1,2}\.\s*[A-Za-z]")  # the row's "J.Smith" shape
 
 
 def snap_position(pos):
-    pos = pos.upper()
+    pos = pos.upper().replace("$", "S")
     if pos in VALID_POSITIONS:
         return pos
     for fixed in (pos.replace("O", "Q"), pos.replace("0", "Q"), pos.replace("0", "O"), pos.replace("I", "L")):
@@ -60,8 +62,21 @@ def find_headers(frame):
     for text, _, (x, _y, bw, _h) in res:
         words = re.findall(r"[A-Z]{3,4}", clean(text).upper())
         t = words[-1] if words else ""
+        t = HEADER_MISREADS.get(t, t)
         if t in HEADERS:
             cols[t] = (x + bw / 2) * int(w * 0.76)
+    return fill_missing_stat_headers(cols)
+
+
+def fill_missing_stat_headers(cols):
+    """OCR sometimes drops one header ("COD"); the six stat columns are evenly spaced, so place it from the rest."""
+    order = list(STAT_FIELDS)
+    known = [(i, cols[c]) for i, c in enumerate(order) if c in cols]
+    if len(known) < 4 or len(known) == len(order):
+        return cols
+    slope, intercept = np.polyfit([i for i, _ in known], [x for _, x in known], 1)
+    for i, c in enumerate(order):
+        cols.setdefault(c, slope * i + intercept)
     return cols
 
 
@@ -73,6 +88,13 @@ def highlighted_band(frame):
     if len(bright) < 20:
         return None
     return top + bright[0], top + bright[-1]
+
+
+def row_settled(frame, band):
+    """True once the highlighted row's text is dark. Mid-fade it is pale on pale (darkest pixel ~210, vs ~20 settled)."""
+    w = frame.shape[1]
+    inner = cv2.cvtColor(frame[band[0] + 6: band[1] - 5, int(w * 0.08): int(w * 0.72)], cv2.COLOR_BGR2GRAY)
+    return inner.size > 0 and inner.min() < 120
 
 
 def confirmed(whole_reads, cell_reads):
@@ -127,6 +149,8 @@ def read_row(strip, cols):
                 # POS sits right next to OVR, so OCR can merge them ("LT67"); only trailing digits go, since a
                 # leading one is a misread letter ("0B" is QB) that snap_position fixes.
                 t = re.sub(r"(?<=[A-Za-z])\d+$", "", t)
+            elif col == "YEAR":
+                t = t.replace("$", "S")  # "(RS)" read as "(R$)"
             row[col] = (row.get(col, "") + " " + t).strip()
         else:
             votes.setdefault(col, []).append(digits(t))
@@ -255,7 +279,8 @@ def build(pane, row):
     flags = [f"unsure: {u}" for u in row["_unsure"]]
     if alnum(row["NAME"].split(".", 1)[-1]) != alnum(pane["last"]):
         flags.append(f"row/pane last name differ: {row['NAME']!r} vs {pane['last']!r}")
-    if initial_of(row["NAME"]) and pane["first"] and alnum(initial_of(row["NAME"])) != alnum(pane["first"][0]):
+    if initial_of(row["NAME"]) and pane["first"] and \
+            alnum(initial_of(row["NAME"]).translate(I_LOOKALIKES)) != alnum(pane["first"][0].translate(I_LOOKALIKES)):
         flags.append(f"row/pane first initial differ: {row['NAME']!r} vs {pane['first']!r}")
     row_pos = position_from_row(row["POS"]) if row.get("POS") else ""
     if row_pos and row_pos != pane["position"]:
@@ -400,7 +425,7 @@ def read_player(item):
 def scan(cap, total, shape):
     """Walk the video once; for each moment the pane holds still, keep small crops of that player."""
     y0, y1, x0 = pane_box(shape)
-    items, prev, stable, frame_no = [], None, 0, -1
+    items, prev, stable, frame_no, kept = [], None, 0, -1, False
     while True:
         ok, frame = cap.read()
         if not ok:
@@ -411,11 +436,14 @@ def scan(cap, total, shape):
         sig = cv2.resize(cv2.cvtColor(frame[y0:y1, x0:], cv2.COLOR_BGR2GRAY), (60, 32)).astype(int)
         stable = stable + 1 if prev is not None and np.abs(sig - prev).mean() < 1.5 else 0
         prev = sig
-        if stable != STABLE_FRAMES:
+        if stable == 0:
+            kept = False
+        if stable < STABLE_FRAMES or kept:
             continue
         band = highlighted_band(frame)
-        if band is None:
-            continue
+        if band is None or not row_settled(frame, band):
+            continue  # the pane can switch players before the table row finishes fading in; try the next frame
+        kept = True
         tw = int(frame.shape[1] * 0.76)
         height = band[1] - band[0] + 1
         below = frame[band[1] + 1: band[1] + 1 + height, :tw]

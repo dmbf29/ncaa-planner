@@ -43,6 +43,7 @@ const OFFSEASON_UPDATES = [
   { key: "team-schedule", label: "Team Schedule", icon: "fa-regular fa-rectangle-list", description: "Upload a team's full-season schedule screenshots.", to: "/dynasty/updates/team-schedule" },
   { key: "preseason-all-americans", label: "Preseason All-Americans", icon: "fa-solid fa-people-line", description: "Upload the National/Conference All-American screenshots.", to: "/dynasty/updates/all-americans" },
   { key: "team-attributes", label: "Team Attributes", icon: "fa-solid fa-bars-progress", description: "Update overall, offense, defense, and prestige for every team.", to: "/dynasty/updates/team-attributes" },
+  { key: "team-ratings", label: "Team Ratings", icon: "fa-solid fa-ranking-star", description: "Compare in-game offense/defense with starter-based ratings for every team.", to: "/dynasty/updates/team-ratings" },
 ];
 
 const COMING_SOON_UPDATES = [
