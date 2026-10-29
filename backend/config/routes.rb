@@ -37,7 +37,6 @@ Rails.application.routes.draw do
         resources :seasons, only: %i[show create destroy] do
           member do
             get :team_attributes
-            get :team_ratings
             post :calculate_team_ratings
             post :analyze_schedule
             get :analyze_schedule_status
@@ -146,6 +145,7 @@ Rails.application.routes.draw do
       get "dynasties/:id", to: "dynasty_portals#show"
       get "dynasties/:dynasty_id/seasons/:season_id/dashboard", to: "dynasty_portals#dashboard"
       get "dynasties/:dynasty_id/seasons/:season_id/standings", to: "dynasty_portals#standings"
+      get "dynasties/:dynasty_id/seasons/:season_id/team_ratings", to: "dynasty_portals#team_ratings"
       get "dynasties/:dynasty_id/seasons/:season_id/weeks/:week_number/rankings", to: "dynasty_portals#rankings"
       get "dynasties/:dynasty_id/seasons/:season_id/all_americans", to: "dynasty_portals#all_americans"
       get "dynasties/:dynasty_id/seasons/:season_id/college_seasons/:college_season_id/roster",

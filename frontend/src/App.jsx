@@ -60,6 +60,7 @@ function App() {
         <Route path="/dynasty" element={<DynastyDashboardPage />} />
         <Route path="/dynasty/:dynastyId" element={<DynastyShowPage />} />
         <Route path="/dynasty/:dynastyId/seasons/:seasonId" element={<DynastyShowPage />} />
+        <Route path="/dynasty/:dynastyId/seasons/:seasonId/team-ratings" element={<TeamRatingsPage />} />
         <Route path="/dynasty/:dynastyId/seasons/:seasonId/standings" element={<ConferenceStandingsPage />} />
         <Route path="/dynasty/:dynastyId/seasons/:seasonId/weeks/:weekNumber/rankings" element={<Top25Page />} />
         <Route path="/dynasty/:dynastyId/seasons/:seasonId/all-americans" element={<AllAmericansPage />} />
@@ -95,7 +96,6 @@ function App() {
         <Route path="/dynasty/updates/coach-info" element={<CoachInfoUpdatePage />} />
         <Route path="/dynasty/updates/coach-outcomes" element={<CoachOutcomesUpdatePage />} />
         <Route path="/dynasty/updates/team-attributes" element={<TeamAttributesPage />} />
-        <Route path="/dynasty/updates/team-ratings" element={<TeamRatingsPage />} />
         <Route path="/dynasty/updates/bowl-projections" element={<BowlProjectionsUpdatePage />} />
         <Route path="/dynasty/updates/award-winners" element={<AwardWinnersPage />} />
       </Routes>

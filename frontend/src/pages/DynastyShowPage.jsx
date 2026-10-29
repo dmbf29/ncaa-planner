@@ -118,7 +118,16 @@ function DynastyShowPage() {
       <PageHeader
         title={dashboard ? dashboard.dynasty.name : portal?.name || "Dynasty"}
         actions={
-          authed ? (
+          <>
+            {seasonId && (
+              <Link
+                to={`/dynasty/${dynastyId}/seasons/${seasonId}/team-ratings`}
+                className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+              >
+                Team Ratings
+              </Link>
+            )}
+            {authed ? (
             <>
               <Link
                 to="/dynasty/updates"
@@ -141,7 +150,8 @@ function DynastyShowPage() {
                 Export
               </Link>
             </>
-          ) : null
+            ) : null}
+          </>
         }
       />
 

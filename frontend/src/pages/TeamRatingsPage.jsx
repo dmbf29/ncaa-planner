@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
-import { calculateTeamRatings, fetchDynasties, fetchTeamRatings } from "../lib/apiClient";
+import { calculateTeamRatings, fetchTeamRatings } from "../lib/apiClient";
 
 const RATINGS = [
   { key: "overall", label: "OVR" },
@@ -41,10 +41,10 @@ const diffClass = (value) => {
 };
 
 function TeamRatingsPage() {
-  const navigate = useNavigate();
+  const { dynastyId, seasonId } = useParams();
+  const authed = Boolean(localStorage.getItem("jwt"));
 
   const [data, setData] = useState(null);
-  const [ids, setIds] = useState(null);
   const [loading, setLoading] = useState(true);
   const [calculating, setCalculating] = useState(false);
   const [error, setError] = useState(null);
@@ -58,36 +58,21 @@ function TeamRatingsPage() {
     const load = async () => {
       setLoading(true);
       try {
-        const dynasties = await fetchDynasties();
-        const dynasty = dynasties[0];
-        if (!dynasty) {
-          setError("No dynasty found yet.");
-          return;
-        }
-        const latestSeason = [...(dynasty.seasons || [])].sort((a, b) => b.year - a.year)[0];
-        if (!latestSeason) {
-          setError("This dynasty doesn't have a season yet.");
-          return;
-        }
-        setIds({ dynastyId: dynasty.id, seasonId: latestSeason.id });
-        setData(await fetchTeamRatings(dynasty.id, latestSeason.id));
+        setData(await fetchTeamRatings(dynastyId, seasonId));
       } catch (err) {
         setError(err.message);
-        if (err.message?.toLowerCase().includes("unauthorized")) {
-          navigate("/auth/login");
-        }
       } finally {
         setLoading(false);
       }
     };
     load();
-  }, [navigate]);
+  }, [dynastyId, seasonId]);
 
   const calculate = async () => {
     setCalculating(true);
     setError(null);
     try {
-      setData(await calculateTeamRatings(ids.dynastyId, ids.seasonId));
+      setData(await calculateTeamRatings(dynastyId, seasonId));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -145,16 +130,16 @@ function TeamRatingsPage() {
   ];
 
   return (
-    <div>
+    <div className="mx-auto max-w-[1420px]">
       <PageHeader
         title="Team Ratings"
-        eyebrow="Dynasty Updates"
+        eyebrow="Dynasty"
         actions={
           <Link
-            to="/dynasty/updates"
+            to={`/dynasty/${dynastyId}/seasons/${seasonId}`}
             className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
           >
-            Back to Updates
+            Back to Dynasty
           </Link>
         }
       />
@@ -165,14 +150,16 @@ function TeamRatingsPage() {
       {data && (
         <div className="space-y-4 pb-8">
           <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={calculate}
-              disabled={calculating}
-              className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {calculating ? "Calculating..." : "Calculate starter ratings"}
-            </button>
+            {authed && (
+              <button
+                type="button"
+                onClick={calculate}
+                disabled={calculating}
+                className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {calculating ? "Calculating..." : "Calculate starter ratings"}
+              </button>
+            )}
             <p className="text-sm text-textSecondary">
               {data.season.year} season.{" "}
               {data.calculatedAt

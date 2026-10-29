@@ -22,6 +22,10 @@ module Api
         render json: ::ConferenceStandingsSerializer.new(set_season).as_json
       end
 
+      def team_ratings
+        render json: ::TeamRatingsSerializer.new(set_season).as_json
+      end
+
       def rankings
         season = set_season
         week = season.weeks.find_by!(number: params[:week_number])

@@ -97,11 +97,6 @@ module Api
         render json: ::TeamAttributesSerializer.new(@season).as_json
       end
 
-      def team_ratings
-        authorize @season
-        render json: ::TeamRatingsSerializer.new(@season).as_json
-      end
-
       # Recomputes the starter-based ratings from the current rosters for every
       # team in the season and saves them.
       def calculate_team_ratings
