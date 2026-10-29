@@ -249,9 +249,11 @@ def _read_pane(crop):
     out["lefty"] = {"L": True, "R": False}.get(m.group(2)) if m else None
     out["jersey"] = m.group(3) if m else None
     hw = below("HEIGHT & WEIGHT", "r") or ""
-    hm = re.search(r"(\d)\s*['\u2019\u2018`\u00b4]\s*(\d{1,2})", hw)
+    # OCR sometimes reads the inches digit as a lookalike symbol ("6'4" comes out "6'%\"").
+    hm = re.search(r"(\d)\s*['\u2019\u2018`\u00b4]\s*([\d%SBOIlG]{1,2})", hw)
+    inches = hm.group(2).translate(str.maketrans("%SBOIlG", "4580116")) if hm else ""
     wm = re.search(r"(\d{2,3})\s*[lI1]?bs", hw)
-    out["height"] = int(hm.group(1)) * 12 + int(hm.group(2)) if hm else None
+    out["height"] = int(hm.group(1)) * 12 + int(inches) if hm and inches.isdigit() and int(inches) < 12 else None
     out["weight"] = int(wm.group(1)) if wm else None
     town = re.sub(r"[^A-Za-z0-9.,'\- ]", "", below("HOMETOWN", "l") or "").strip()
     city, _, st = town.rpartition(",")
@@ -427,7 +429,8 @@ def finalize(players, pane_reads, db):
             top, n, total = vote(vs)
             value[col] = top
             # Each cell is seen in ~25 frames, so stray misreads ('5' for 57 at a cut-off edge) are outvoted.
-            if col in RATINGS and (n < 2 or n < 0.7 * total):
+            # LSP (long snap) only scrolls into view for a moment, so one read is normal; only disagreement is worth flagging.
+            if col in RATINGS and ((n < 2 and col != "LSP") or n < 0.6 * total):
                 flags.append(f"{col} unsure: {Counter(v for v in vs if v is not None).most_common(3)}")
         if value.get("LSP") is None:
             value["LSP"] = 0  # long snapper: the one column that scrolls off the right edge only briefly
@@ -457,14 +460,19 @@ def finalize(players, pane_reads, db):
             pane_first = None
         db_first = db_first_name(db, initial, last, position, year) if db else None
         first, first_source = initial, "initial"
-        if pane_first and pane["first_votes"][0] >= 2:
+        # The DB name was reviewed when the roster was imported; the pane's OCR confuses letters (Q read as O: "Tario"
+        # for Tariq). So a DB match wins unless the two names are really different (a renamed or mismatched player).
+        similar = bool(pane_first and db_first) and edit_distance(alnum(pane_first), alnum(db_first)) <= 2
+        if db_first and (similar or not pane_first):
+            first, first_source = db_first, "db"
+        elif pane_first and pane["first_votes"][0] >= 2:
             first, first_source = pane_first, "video"
+            if db_first:
+                flags.append(f"first name: video says {pane_first!r}, DB says {db_first!r} (using the video's)")
         elif db_first:
             first, first_source = db_first, "db"
         elif pane_first:
             first, first_source = pane_first, "video (1 read)"
-        if pane_first and db_first and alnum(pane_first) != alnum(db_first):
-            flags.append(f"first name: video says {pane_first!r}, DB says {db_first!r}")
         if first_source == "initial":
             flags.append("first name is only an initial")
         if pane["reads"] == 0:
@@ -474,7 +482,7 @@ def finalize(players, pane_reads, db):
         if pane["reads"] and (pane.get("height") is None or pane.get("weight") is None):
             flags.append(f"height/weight unread (pane reads: {pane['reads']})")
         if pane["reads"] and pane.get("state") == NON_US and len(pane.get("state_text") or "") <= 3:
-            flags.append("hometown state not a US abbreviation, set to Non-US")
+            flags.append(f"hometown {pane.get('hometown')!r}: state {pane.get('state_text')!r} isn't a US abbreviation, set to Non-US")
 
         out.append({"first": first, "first_source": first_source, "last": last, "raw_name": raw_name,
                     "position": position, "csv_position": POSITION_TO_CSV.get(position, position), "class": year,
@@ -515,7 +523,8 @@ def main(video, out_dir, db_roster=None):
     frame_dir = os.path.join(out_dir, "frames")
     os.makedirs(frame_dir, exist_ok=True)
     files = sorted(os.path.join(frame_dir, f) for f in os.listdir(frame_dir) if f.endswith(".jpg"))
-    if not files or os.environ.get("RESCAN"):
+    cached = os.path.exists(os.path.join(out_dir, "frames.json")) and not os.environ.get("REOCR")
+    if (not files and not cached) or os.environ.get("RESCAN"):
         files = keep_still_frames(video, frame_dir)
     print(f"{len(files)} distinct still frames kept", file=sys.stderr, flush=True)
     frames = cached_pool_map(process_frame, files, os.path.join(out_dir, "frames.json"), "read")

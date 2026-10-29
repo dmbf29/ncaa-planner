@@ -40,6 +40,13 @@ class TeamBreakdownSerializer
     "Secondary" => "DB"
   }.freeze
 
+  # National yardsticks beside the conference one, so a team with CFP
+  # ambitions sees where it stands against the sport's best and not just its
+  # own league. :p4 is every Power 4 college; :ranked is the 25 colleges in
+  # the latest poll (see ranked_colleges).
+  P4_CONFERENCES = [ "ACC", "Big 12", "Big Ten", "SEC" ].freeze
+  BENCHMARKS = { p4: "Power 4", ranked: "Top 25" }.freeze
+
   # How many of a room's best players count as its starters.
   STARTER_SLOTS = {
     "Quarterbacks" => 1,
@@ -125,7 +132,7 @@ class TeamBreakdownSerializer
                     "#{@season.year} season, recorded at the end of April #{@season.year} right after spring " \
                     "practice, with the #{@season.year} season still ahead and no games played. It opens with where each team " \
                     "stands, then goes position group by position group comparing our teams' starting rooms to " \
-                    "each other, to the #{conference_label} and to a year ago, and closes with the hosts' " \
+                    "each other, to the #{conference_label}, to the Power 4 and the Top 25 nationally, and to a year ago, and closes with the hosts' " \
                     "verdicts. Rooms are judged on their starters, not the whole depth chart. Player-rating " \
                     "claims are only reliable for colleges with a scraped roster — see data_coverage."
     }
@@ -157,6 +164,30 @@ class TeamBreakdownSerializer
                                             .preload(:college, student_seasons: :student)
                                             .where(conference: coached_conferences)
                                             .to_a
+  end
+
+  # The poll "ranked" means at recording time: the last poll of the season
+  # just played (the new season has no games yet), else this season's own.
+  def ranked_colleges
+    @ranked_colleges ||= begin
+      weeks = [ previous_season, @season ].compact.map { |season| season.weeks.joins(:college_week_rankings).order(number: :desc).first }
+      weeks.compact.first&.college_week_rankings&.map(&:college_id) || []
+    end
+  end
+
+  # The college seasons a benchmark compares against. :conference is the
+  # coached teams' own league(s).
+  def cohort_college_seasons(cohort)
+    @cohort_college_seasons ||= {}
+    @cohort_college_seasons[cohort] ||= case cohort
+    when :conference then conference_college_seasons
+    when :p4 then national_college_seasons.select { |cs| P4_CONFERENCES.include?(cs.conference) }
+    when :ranked then national_college_seasons.select { |cs| ranked_colleges.include?(cs.college_id) }
+    end
+  end
+
+  def national_college_seasons
+    @national_college_seasons ||= @season.college_seasons.preload(:college, student_seasons: :student).to_a
   end
 
   def rostered_colleges
@@ -252,9 +283,9 @@ class TeamBreakdownSerializer
 
   # [{college, average, coached_by_us}] best first, for every conference
   # college with starters in this room.
-  def room_leaderboard(group)
+  def room_leaderboard(group, cohort = :conference)
     @room_leaderboards ||= {}
-    @room_leaderboards[group] ||= conference_college_seasons.filter_map do |cs|
+    @room_leaderboards[[ group, cohort ]] ||= cohort_college_seasons(cohort).filter_map do |cs|
       avg = starter_average(cs, group)
       avg && { college: { id: cs.college.id, name: cs.college.name }, average: avg, coached_by_us: cs.coach_id.present? }
     end.sort_by { |entry| [ -entry[:average], entry[:college][:name] ] }
@@ -265,6 +296,26 @@ class TeamBreakdownSerializer
     leaderboard = room_leaderboard(group)
     mine = leaderboard.find { |entry| entry[:college][:id] == college_season.college_id }
     mine && { rank: 1 + leaderboard.count { |entry| entry[:average] > mine[:average] }, of: leaderboard.size }
+  end
+
+  # Where our room would slot into a national cohort's leaderboard, plus the
+  # cohort's average and best room. Our team usually isn't in the cohort (a
+  # Sun Belt team isn't Power 4), so it is slotted in and counted in "of".
+  def benchmark_room(college_season, group, cohort)
+    mine = starter_average(college_season, group)
+    leaderboard = room_leaderboard(group, cohort)
+    return nil unless mine && leaderboard.any?
+
+    member = leaderboard.any? { |entry| entry[:college][:id] == college_season.college_id }
+    others = leaderboard.reject { |entry| entry[:college][:id] == college_season.college_id }
+    {
+      rank: 1 + others.count { |entry| entry[:average] > mine },
+      of: others.size + 1,
+      cohort_average: average(leaderboard.map { |entry| entry[:average] }),
+      cohort_best: leaderboard.first,
+      our_gap_to_average: (mine - average(leaderboard.map { |entry| entry[:average] })).round(1),
+      in_cohort: member
+    }
   end
 
   def last_year_room(college_season, group)
@@ -310,6 +361,7 @@ class TeamBreakdownSerializer
         defense: college_season.defense,
         prestige: college_season.prestige,
         conference_rank: overall_rank(college_season),
+        benchmarks: BENCHMARKS.keys.to_h { |cohort| [ cohort, overall_benchmark(college_season, cohort) ] },
         change_from_last_year: previous&.overall && college_season.overall && (college_season.overall - previous.overall)
       },
       last_season: previous && {
@@ -323,6 +375,16 @@ class TeamBreakdownSerializer
         total: starters.size
       }
     }
+  end
+
+  def overall_benchmark(college_season, cohort)
+    return nil unless college_season.overall
+
+    others = cohort_college_seasons(cohort).select { |cs| cs.overall && cs.college_id != college_season.college_id }
+    return nil if others.empty?
+
+    average = (others.sum(&:overall).to_f / others.size).round(1)
+    { rank: 1 + others.count { |cs| cs.overall > college_season.overall }, of: others.size + 1, cohort_average: average }
   end
 
   def overall_rank(college_season)
@@ -365,6 +427,7 @@ class TeamBreakdownSerializer
       starter_average: starter_average(college_season, group),
       player_count: this_room[:players].size,
       conference_rank: room_rank(college_season, group),
+      benchmarks: BENCHMARKS.keys.to_h { |cohort| [ cohort, benchmark_room(college_season, group, cohort) ] },
       last_year: last_year_room(college_season, group),
       team_biggest_room_change: room_change_flag(college_season, group),
       movers: movers(college_season, group),
@@ -380,7 +443,12 @@ class TeamBreakdownSerializer
       top_rooms: room_leaderboard(group).first(3),
       best_player: best && player_json(best).merge(college: { id: best.college_season.college.id, name: best.college_season.college.name }, coached_by_us: best.college_season.coach_id.present?),
       all_americans: all_americans_for_group(group).map { |aa| all_american_json(aa) },
-      nil_leaders: nil_leaderboard(nil_key).first(3)
+      nil_leaders: nil_leaderboard(nil_key).first(3),
+      national: BENCHMARKS.keys.to_h do |cohort|
+        [ cohort, { label: BENCHMARKS[cohort], size: room_leaderboard(group, cohort).size,
+                    top_rooms: room_leaderboard(group, cohort).first(3),
+                    nil_average: nil_cohort_average(nil_key, cohort), nil_leaders: nil_leaderboard(nil_key, cohort).first(3) } ]
+      end
     }
   end
 
@@ -393,12 +461,25 @@ class TeamBreakdownSerializer
     points * DOLLARS_PER_NIL_POINT
   end
 
-  def nil_leaderboard(nil_key)
+  def nil_leaderboard(nil_key, cohort = :conference)
     @nil_leaderboards ||= {}
-    @nil_leaderboards[nil_key] ||= conference_college_seasons.filter_map do |cs|
+    @nil_leaderboards[[ nil_key, cohort ]] ||= cohort_college_seasons(cohort).filter_map do |cs|
       amount = nil_dollars(cs, nil_key)
       amount && { college: { id: cs.college.id, name: cs.college.name }, amount: amount, coached_by_us: cs.coach_id.present? }
     end.sort_by { |entry| [ -entry[:amount], entry[:college][:name] ] }
+  end
+
+  def nil_cohort_average(nil_key, cohort)
+    board = nil_leaderboard(nil_key, cohort)
+    board.empty? ? nil : (board.sum { |entry| entry[:amount] }.to_f / board.size).round
+  end
+
+  # Where our spend would slot into a national cohort, same idea as benchmark_room.
+  def nil_benchmark(amount, college_season, nil_key, cohort)
+    others = nil_leaderboard(nil_key, cohort).reject { |entry| entry[:college][:id] == college_season.college_id }
+    return nil if others.empty?
+
+    { rank: 1 + others.count { |entry| entry[:amount] > amount }, of: others.size + 1, cohort_average: nil_cohort_average(nil_key, cohort) }
   end
 
   def nil_json(college_season, nil_key)
@@ -407,6 +488,7 @@ class TeamBreakdownSerializer
 
     leaderboard = nil_leaderboard(nil_key)
     {
+      benchmarks: BENCHMARKS.keys.to_h { |cohort| [ cohort, nil_benchmark(amount, college_season, nil_key, cohort) ] },
       dollars: amount,
       rank: 1 + leaderboard.count { |entry| entry[:amount] > amount },
       of: leaderboard.size,
@@ -524,6 +606,7 @@ class TeamBreakdownSerializer
       rostered_colleges: rostered_colleges.map(&:name),
       colleges_with_nil_spend_data: conference_college_seasons.count { |cs| cs.nil_spend_by_position.present? },
       last_season_available: previous_season.present?,
+      national_benchmarks: BENCHMARKS.keys.to_h { |cohort| [ cohort, { label: BENCHMARKS[cohort], colleges: cohort_college_seasons(cohort).size } ] },
       note: "Player ratings and 'best/strongest' claims are only reliable for the colleges listed in " \
             "rostered_colleges — our own coached teams plus whichever conference peers happen to have a scraped " \
             "roster. Season stats exist for our own teams only."

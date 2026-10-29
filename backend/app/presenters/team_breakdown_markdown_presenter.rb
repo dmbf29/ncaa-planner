@@ -37,6 +37,13 @@ class TeamBreakdownMarkdownPresenter
     "and never invent any.",
     "NIL is shown in dollars with its rank in the conference. Worth a line when spending and results line up " \
     "or clash (a big spender with a weak room, a bargain with a strong one); skip it otherwise.",
+    "Besides the conference, rooms, NIL and team ratings are measured against two national yardsticks: the Power 4 " \
+    "(every ACC, Big 12, Big Ten and SEC college) and the Top 25 (the latest poll). Our teams aren't in those groups, " \
+    "so a rank like '8th of 68' means where we would slot in. Their purpose is perspective for coaches with playoff " \
+    "ambitions: a room can be the best in the conference and still short of what a playoff team fields, or a " \
+    "dollar figure that looks huge in the Sun Belt can be middle of the pack nationally. Say which yardstick you " \
+    "mean every time, and lead with the conference story, using the national one for the 'but how does that " \
+    "travel?' beat. Don't read every cohort for every team.",
     "The conference line is one beat of context, not a segment. Ratings are only reliable for colleges with a " \
     "roster on file (listed under Data Coverage). Nobody's hidden potential is known, so never speculate about it."
   ].freeze
@@ -108,6 +115,9 @@ class TeamBreakdownMarkdownPresenter
     lines << "> #{coverage[:note]}"
     lines << ">"
     lines << "> **Rosters we have:** #{coverage[:rostered_colleges].join(', ')}"
+    (coverage[:national_benchmarks] || {}).each do |cohort, bench|
+      lines << "> **National yardstick, #{COHORT_LABELS.fetch(cohort.to_sym)}:** #{bench[:colleges]} colleges with rosters on file"
+    end
     lines << "> **Last season on record:** #{coverage[:last_season_available] ? 'yes' : 'no — skip every comparison to last year'}"
     lines << ""
     lines
@@ -126,6 +136,10 @@ class TeamBreakdownMarkdownPresenter
     lines = [ "### #{team[:college][:name]} (Coach: #{team[:coach][:name]})" ]
     lines << "- Team ratings: #{ratings[:overall] || '—'} overall (#{ratings[:offense] || '—'} offense, #{ratings[:defense] || '—'} defense)" \
              "#{rank_text(ratings[:conference_rank], ", ", " in the #{team[:college][:conference]}")}#{change_text(ratings[:change_from_last_year], ' from last year')}"
+    benchmarks = (ratings[:benchmarks] || {}).filter_map do |cohort, bench|
+      bench && "would rank #{ordinal(bench[:rank])} of #{bench[:of]} among #{COHORT_LABELS.fetch(cohort.to_sym)} (average #{bench[:cohort_average]})"
+    end
+    lines << "- Nationally: #{benchmarks.join('; ')}" if benchmarks.any?
     last = team[:last_season]
     lines << "- Last season: #{record(last[:wins], last[:losses])}#{conference_record(last)}" if last && last[:wins]
     lineup = team[:starting_lineup]
@@ -180,6 +194,7 @@ class TeamBreakdownMarkdownPresenter
     lines << "- Starters: #{team[:starters].map { |p| starter_text(p) }.join('; ')}"
     lines << "- Starter average #{team[:starter_average]}#{rank_text(team[:conference_rank], ' — ', ' in the conference')}" \
              "#{last_year_text(team[:last_year])}"
+    lines.concat(room_benchmark_lines(team[:benchmarks]))
     lines.concat(room_change_lines(team[:team_biggest_room_change], team[:last_year]))
     lines.concat(mover_lines(team[:movers]))
     lines << "- NIL: #{nil_text(team[:nil_spend])}" if team[:nil_spend]
@@ -187,6 +202,18 @@ class TeamBreakdownMarkdownPresenter
     lines.concat(production_lines(team[:last_season_production]))
     lines << ""
     lines
+  end
+
+  # "vs. the Power 4 (67 colleges): would rank 8th of 68, 3.2 above their 81.3 average" per cohort.
+  def room_benchmark_lines(benchmarks)
+    benchmarks.filter_map do |cohort, bench|
+      next unless bench
+
+      gap = bench[:our_gap_to_average]
+      relation = gap.zero? ? "right at" : "#{gap.abs} #{gap.positive? ? 'above' : 'below'}"
+      "- Nationally, vs. #{COHORT_LABELS.fetch(cohort.to_sym)}: would rank #{ordinal(bench[:rank])} of #{bench[:of]}, " \
+        "#{relation} their #{bench[:cohort_average]} average; best room is #{bench[:cohort_best][:college][:name]} (#{bench[:cohort_best][:average]})"
+    end
   end
 
   def starter_text(player)
@@ -220,6 +247,8 @@ class TeamBreakdownMarkdownPresenter
     [ "- #{flag == :jump ? '📈' : '📉'} #{label} on the roster: this room (#{signed(last_year[:change])})" ]
   end
 
+  COHORT_LABELS = { p4: "the Power 4", ranked: "the Top 25" }.freeze
+
   FALLER_THRESHOLD = -3
 
   def mover_lines(movers)
@@ -236,7 +265,11 @@ class TeamBreakdownMarkdownPresenter
   end
 
   def nil_text(nil_spend)
-    "#{currency(nil_spend[:dollars])} — #{ordinal(nil_spend[:rank])} of #{nil_spend[:of]} in the conference (conference average #{currency(nil_spend[:conference_average])})"
+    text = "#{currency(nil_spend[:dollars])} — #{ordinal(nil_spend[:rank])} of #{nil_spend[:of]} in the conference (conference average #{currency(nil_spend[:conference_average])})"
+    national = (nil_spend[:benchmarks] || {}).filter_map do |cohort, bench|
+      bench && "#{ordinal(bench[:rank])} of #{bench[:of]} vs. #{COHORT_LABELS.fetch(cohort.to_sym)} (average #{currency(bench[:cohort_average])})"
+    end
+    national.empty? ? text : "#{text}; nationally it would be #{national.join(', ')}"
   end
 
   def production_lines(production)
@@ -268,6 +301,15 @@ class TeamBreakdownMarkdownPresenter
     end
     if conference[:nil_leaders].present?
       lines << "- NIL spend leaders: #{conference[:nil_leaders].map { |e| "#{e[:college][:name]} (#{currency(e[:amount])})" }.join(', ')}"
+    end
+    (conference[:national] || {}).each do |cohort, national|
+      label = COHORT_LABELS.fetch(cohort.to_sym)
+      if national[:top_rooms].present?
+        lines << "- Best rooms in #{label}: #{national[:top_rooms].map { |r| "#{r[:college][:name]} (#{r[:average]})" }.join(', ')}"
+      end
+      if national[:nil_leaders].present?
+        lines << "- NIL spend leaders in #{label}: #{national[:nil_leaders].map { |e| "#{e[:college][:name]} (#{currency(e[:amount])})" }.join(', ')}; average #{currency(national[:nil_average])}"
+      end
     end
     lines << ""
     lines
