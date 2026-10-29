@@ -10,11 +10,34 @@ class TeamRatingsSerializer
     {
       season: { id: @season.id, year: @season.year },
       calculated_at: calculated_at,
+      coached_teams: coached_teams,
       teams: @season.college_seasons.includes(:college).map { |cs| team_json(cs) }
     }
   end
 
   private
+
+  # The teams our coaches run, each with the colleges they play this season,
+  # so the page can narrow the list to a coach's opponents.
+  def coached_teams
+    opponents = opponent_college_ids_by_college
+    @season.college_seasons.includes(:college, :coach).where.not(coach_id: nil).map do |cs|
+      {
+        college_id: cs.college_id,
+        college_name: cs.college.name,
+        coach_name: cs.coach.name,
+        opponent_college_ids: opponents[cs.college_id].to_a
+      }
+    end.sort_by { |team| team[:college_name] }
+  end
+
+  def opponent_college_ids_by_college
+    games = Game.where(week_id: @season.week_ids).pluck(:home_college_id, :away_college_id)
+    games.each_with_object(Hash.new { |hash, key| hash[key] = Set.new }) do |(home, away), memo|
+      memo[home] << away
+      memo[away] << home
+    end
+  end
 
   # The Top 25 rank from the most recent week with rankings entered, the same
   # "current" week the dashboard uses; empty before any rankings exist.

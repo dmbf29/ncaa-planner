@@ -51,6 +51,7 @@ function TeamRatingsPage() {
   const [sort, setSort] = useState({ id: "starter-overall", direction: "desc" });
   const [conference, setConference] = useState("");
   const [rankedOnly, setRankedOnly] = useState(false);
+  const [opponentsOf, setOpponentsOf] = useState("");
   const [showRanges, setShowRanges] = useState(false);
   const [ranges, setRanges] = useState({});
 
@@ -92,11 +93,14 @@ function TeamRatingsPage() {
     if (!data) return [];
     const column = columns.find((c) => c.id === sort.id);
     const factor = sort.direction === "asc" ? 1 : -1;
+    const coached = data.coachedTeams.find((c) => String(c.collegeId) === opponentsOf);
+    const opponents = coached ? new Set([coached.collegeId, ...coached.opponentCollegeIds]) : null;
     const filled = (bound) => bound !== "" && bound != null;
     const active = Object.entries(ranges).filter(([, { min, max }]) => filled(min) || filled(max));
     const visible = data.teams.filter((team) => {
       if (conference && team.conference !== conference) return false;
       if (rankedOnly && team.rank == null) return false;
+      if (opponents && !opponents.has(team.college.id)) return false;
       return active.every(([id, { min, max }]) => {
         const value = columns.find((c) => c.id === id).value(team);
         if (value == null) return false;
@@ -112,7 +116,7 @@ function TeamRatingsPage() {
       if (left === right) return a.college.name.localeCompare(b.college.name);
       return (typeof left === "string" ? left.localeCompare(right) : left - right) * factor;
     });
-  }, [data, sort, conference, rankedOnly, ranges]);
+  }, [data, sort, conference, rankedOnly, opponentsOf, ranges]);
 
   const toggleSort = (id) =>
     setSort((current) =>
@@ -186,6 +190,23 @@ function TeamRatingsPage() {
                 ))}
               </select>
             </label>
+            {data.coachedTeams.length > 0 && (
+              <label className="flex items-center gap-2">
+                <span className="text-textSecondary">Schedule of</span>
+                <select
+                  value={opponentsOf}
+                  onChange={(e) => setOpponentsOf(e.target.value)}
+                  className="rounded border border-border bg-white px-2 py-1 dark:border-darkborder dark:bg-darksurface"
+                >
+                  <option value="">Anyone</option>
+                  {data.coachedTeams.map((team) => (
+                    <option key={team.collegeId} value={team.collegeId}>
+                      {team.collegeName} ({team.coachName})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={rankedOnly} onChange={(e) => setRankedOnly(e.target.checked)} />
               <span>Ranked only</span>
@@ -194,12 +215,13 @@ function TeamRatingsPage() {
               {showRanges ? "Hide min/max filters" : "Min/max filters"}
             </button>
             <span className="text-textSecondary">{sortedTeams.length} teams</span>
-            {(conference || rankedOnly || Object.values(ranges).some((r) => r.min || r.max)) && (
+            {(conference || rankedOnly || opponentsOf || Object.values(ranges).some((r) => r.min || r.max)) && (
               <button
                 type="button"
                 onClick={() => {
                   setConference("");
                   setRankedOnly(false);
+                  setOpponentsOf("");
                   setRanges({});
                 }}
                 className="text-burnt hover:underline"
