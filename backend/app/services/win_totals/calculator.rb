@@ -1,7 +1,8 @@
 module WinTotals
   # Projects a regular-season win total for a college_season using a simple
-  # Elo-style model, then shades it to a half-point line so the podcast hosts
-  # always have a clean number to argue over/under.
+  # Elo-style model, then turns it into a line for the podcast hosts to argue
+  # over/under (see #vegas_win_total: a half-point line, or a whole number
+  # when that splits the bets more evenly).
   #
   # Team strength is a weighted average of the team's position-room starter
   # ratings (QB, RB, WR, TE, OL, DL, LB, DB), with the quarterback counting
@@ -21,7 +22,11 @@ module WinTotals
   # the rooms were in. The raw fit gave linemen, linebackers and defensive
   # backs no weight at all, which is implausible from one season of data, so
   # every room keeps a base weight and only the QB (and, less so, the DL) is
-  # emphasised. Re-run the backtest when more seasons are on record.
+  # emphasised. Re-run on 2026-2027 (1,170 games with full rosters): the weights
+  # held up when fit on one season and scored on the other, so they stay; only
+  # the home bonus (0.6 -> 0.2, home teams won 57% in 2026 but 52% in 2027) and
+  # the curve scale (9.2 -> 8.7, underdogs were being given too much) moved.
+  # Re-run the backtest when more seasons are on record.
   class Calculator
     ROOM_WEIGHTS = {
       "QB" => 0.25, "DL" => 0.15,
@@ -40,11 +45,11 @@ module WinTotals
 
     # Strength bonus awarded to the home team before computing win
     # probability, in the same points as the room ratings.
-    HOME_FIELD_BONUS = 0.6
+    HOME_FIELD_BONUS = 0.2
 
     # Elo-style logistic scale: a strength difference of this many points
     # works out to roughly a 91% win probability for the stronger team.
-    RATING_SCALE = 9.2
+    RATING_SCALE = 8.7
 
     # Win-probability bands a single game gets sorted into for the schedule
     # preview: anything decisive enough to call outright vs. a real
@@ -81,8 +86,13 @@ module WinTotals
       (pairs.sum { |_overall, strength| strength } - pairs.sum { |overall, _strength| overall }) / pairs.size
     end
 
-    def initialize(overall_offset: DEFAULT_OVERALL_OFFSET)
+    # `coach_carryover` (a CoachCarryover) says how much each coach's track
+    # record is worth on top of their roster. It only shifts game odds
+    # (win_probability); team_strength stays roster-only so the form residuals
+    # and power rankings are measured against the roster.
+    def initialize(overall_offset: DEFAULT_OVERALL_OFFSET, coach_carryover: nil)
       @overall_offset = overall_offset
+      @coach_carryover = coach_carryover
     end
 
     def team_strength(college_season)
@@ -109,7 +119,7 @@ module WinTotals
       return 0.5 if team.nil? || opponent.nil?
 
       bonus = home.nil? ? 0.0 : (home ? HOME_FIELD_BONUS : -HOME_FIELD_BONUS)
-      diff = (team - opponent) + bonus
+      diff = (team - opponent) + coach_edge(team_college_season, opponent_college_season) + bonus
       (1.0 / (1.0 + (10**(-diff / RATING_SCALE)))).clamp(MIN_WIN_PROBABILITY, MAX_WIN_PROBABILITY)
     end
 
@@ -123,14 +133,21 @@ module WinTotals
     end
 
     # `games` is an array of { opponent: college_season_or_nil, home: bool }.
-    # Always lands on a half-point line (e.g. 7.5, not 7 or 8) by flooring
-    # the raw expected-wins total — the same "shade to a hook" trick real
-    # sportsbooks use so nobody can push.
+    # Usually a half-point line (e.g. 7.5) so nobody can push, the "hook" real
+    # sportsbooks shade to. A win total is lumpy though (the likeliest finish
+    # is usually a whole number), so a hook half a win off the middle can turn
+    # the line into a 40/60 bet. When the nearest whole number splits over and
+    # under more evenly (pushes set aside), the line is that whole number and
+    # landing exactly on it is a push, as in a real sportsbook.
     def vegas_win_total(college_season, games)
       return nil if games.empty?
 
-      expected_wins = games.sum { |g| win_probability(college_season, g[:opponent], home: g[:home]) }
-      expected_wins.floor + 0.5
+      probabilities = games.map { |g| win_probability(college_season, g[:opponent], home: g[:home]) }
+      expected_wins = probabilities.sum
+      distribution = win_distribution(probabilities)
+      hook = expected_wins.floor + 0.5
+      whole = expected_wins.round.to_f
+      imbalance(distribution, whole) < imbalance(distribution, hook) ? whole : hook
     end
 
     # The chance of every possible win total, given each game's win
@@ -154,6 +171,23 @@ module WinTotals
     end
 
     private
+
+    # How far a line is from a 50/50 over/under, ignoring pushes.
+    def imbalance(distribution, line)
+      over = distribution.each_with_index.sum { |chance, wins| wins > line ? chance : 0.0 }
+      under = distribution.each_with_index.sum { |chance, wins| wins < line ? chance : 0.0 }
+      return Float::INFINITY if (over + under).zero?
+
+      ((over / (over + under)) - 0.5).abs
+    end
+
+    # The coaches' track records (and any earlier meetings) in rating points,
+    # from the first team's side.
+    def coach_edge(college_season, opponent_college_season)
+      return 0.0 unless @coach_carryover
+
+      @coach_carryover.matchup_rating_points(college_season&.coach_id, opponent_college_season&.coach_id)
+    end
 
     # { "QB" => 78.0, ... } for every room with at least one rated player.
     def room_averages(college_season)

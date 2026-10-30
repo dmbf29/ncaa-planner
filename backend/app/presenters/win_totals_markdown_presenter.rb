@@ -27,6 +27,25 @@ class WinTotalsMarkdownPresenter
     "Then close the team's segment with the Hot Seat Check on its head coach (see the hot seat rules below)."
   ].freeze
 
+  # The line is the payoff of each team's segment, so the opening can't give it away, and the way it's spoken
+  # matters: a win total is a number Vegas sets, not a record the team has earned.
+  WIN_TOTAL_RULES = [
+    "DO NOT reveal any team's Vegas win total before that team's own segment. The cold open, the show setup and " \
+    "every handoff may name the teams and tease storylines, but must not say any team's number, not even " \
+    "approximately (no \"nine and a half\", no \"double-digit wins\", no \"a big number\" that gives it away). " \
+    "Each team's line is revealed once, at the top of that team's segment, so the listener waits for it.",
+    "Most lines end in .5, so one side always wins. When a team's header says WHOLE-NUMBER LINE, finishing " \
+    "with exactly that many wins is a push: the bet is refunded and nobody wins. Say so once in that team's " \
+    "segment, treat \"lands right on the number\" as its own outcome, and use the push chance in the Outlook.",
+    "Talk about the line as what Vegas has set, never as wins the team already has. Say \"Vegas has them at seven " \
+    "and a half\", \"the number is seven and a half\", \"the over/under is seven and a half\", or \"oddsmakers " \
+    "set the line at seven and a half.\" NEVER say a team is \"sitting at\", \"sitting on\", or \"has\" some " \
+    "number of wins, or has wins \"on the board\", \"in the bank\" or \"posted\": no games have been played, " \
+    "and that language makes a projection sound like a record.",
+    "The line only shows up outside a team's own segment in 'Around the' conference sections and the closing " \
+    "predictions, where it is fine to state it as Vegas's number."
+  ].freeze
+
   NEW_CONFERENCE_RULES = [
     "A team tagged NEW CONFERENCE is playing its first season in its current league. Mention it when you open the " \
     "team, and remember its last-season and conference records came against a different set of opponents, so " \
@@ -110,7 +129,8 @@ class WinTotalsMarkdownPresenter
     "PRODUCER NOTE: This is a schedule preview, not a big-picture team overview — for each team, read the full " \
       "schedule game by game. Every game is pre-tagged LIKELY WIN, LIKELY LOSS, or COIN FLIP by the house. Called " \
       "games get a quick line, coin flips get a real debate — see the tone notes above before you write a word " \
-      "of script. The Vegas win total itself is shaded to a half-point so there's always a clean over/under, and " \
+      "of script. The Vegas win total is usually a half-point so there's a clean over/under, but a team whose " \
+      "line is a whole number (marked in its header) pushes if it lands exactly on it, and " \
       "each team closes with a Hot Seat Check on its head coach. No " \
       "games have been played yet — this is pure preseason projection. Last season's record is included " \
       "wherever we have one (won't show up for a program's first season on the show, but will from year two onward)."
@@ -118,7 +138,7 @@ class WinTotalsMarkdownPresenter
 
   def debate_format_lines
     lines = [ "## 🥊 DEBATE FORMAT (PRODUCER NOTE, DO NOT READ ALOUD)", "" ]
-    (DEBATE_RULES + NEW_CONFERENCE_RULES).each { |rule| lines << "- #{rule}" }
+    (DEBATE_RULES + WIN_TOTAL_RULES + NEW_CONFERENCE_RULES).each { |rule| lines << "- #{rule}" }
     lines << ""
     lines
   end
@@ -140,7 +160,7 @@ class WinTotalsMarkdownPresenter
   def segments
     team_segments = @data[:teams].map do |t|
       coin_flips = t[:schedule_summary][:coin_flips]
-      "#{t[:college][:name]} — Schedule Read + #{pluralize(coin_flips, 'Coin-Flip Debate')} + Hot Seat Check (Line: #{format_line(t[:vegas_win_total])})"
+      "#{t[:college][:name]} — Schedule Read + #{pluralize(coin_flips, 'Coin-Flip Debate')} + Hot Seat Check"
     end
     team_segments + [ "Around the Conference: Other Win Totals", "Conference Champion Predictions" ]
   end
@@ -150,6 +170,9 @@ class WinTotalsMarkdownPresenter
     lines << "---"
     lines << ""
     lines << "## 🎯 #{team[:college][:name]} (Coach: #{team[:coach][:name]}) — VEGAS LINE: #{format_line(team[:vegas_win_total])}"
+    if whole_line?(team[:vegas_win_total])
+      lines << "**WHOLE-NUMBER LINE:** exactly #{team[:vegas_win_total].to_i} wins is a push (bets refunded), not an over or an under."
+    end
     lines << "**Conference:** #{team[:college][:conference]}" if team[:college][:conference]
     if team[:new_conference_from]
       lines << "**🆕 NEW CONFERENCE:** First season in the #{team[:college][:conference]}, after #{team[:new_conference_from]}. " \
@@ -194,16 +217,41 @@ class WinTotalsMarkdownPresenter
       stops = coach[:seasons].map { |s| "#{s[:year]} #{s[:college]} #{record_line(s)}" }.join("; ")
       lines << "**Coach's Record in Our League:** #{stops}"
     end
+    lines.concat(track_record_lines(team[:coach_track_record]))
     lines
+  end
+
+  # Below this many points a game, a coach's history vs. their rosters is noise
+  # the hosts needn't mention (the line already reflects it either way).
+  TRACK_RECORD_NOTABLE_POINTS = 4.0
+
+  def track_record_lines(record)
+    return [] if record.nil? || record[:points_vs_roster].abs < TRACK_RECORD_NOTABLE_POINTS
+
+    verdict = record[:points_vs_roster].positive? ? "has beaten what the rosters say they should" : "has fallen short of what the rosters say they should"
+    [ "**Coach vs. the Roster (already priced into the line):** In our league this coach #{verdict}, over #{record[:games]} games. " \
+      "Treat it as the coach, not the roster: it's why this line sits #{record[:margin_adjustment].positive? ? 'above' : 'below'} what the " \
+      "players alone would suggest (backstage: #{record[:points_vs_roster].positive? ? '+' : ''}#{record[:points_vs_roster]} points a " \
+      "game vs. expectation)" ]
   end
 
   def outlook_line(outlook)
     return nil unless outlook
 
-    "#{likelihood(outlook[:chance_over])} to go over the line, #{likelihood(outlook[:chance_bowl_eligible])} to reach " \
-      "bowl eligibility (6 wins), #{likelihood(outlook[:chance_losing_season])} to finish with a losing record " \
+    "#{likelihood(outlook[:chance_over])} to go over the line, #{push_phrase(outlook)}#{likelihood(outlook[:chance_bowl_eligible])} " \
+      "to reach bowl eligibility (6 wins), #{likelihood(outlook[:chance_losing_season])} to finish with a losing record " \
       "(backstage: about #{outlook[:expected_wins]} expected wins)"
   end
+
+  # Only a whole-number line can push; worth saying when it's a real possibility.
+  def push_phrase(outlook)
+    return "" unless outlook[:chance_push].to_f >= PUSH_WORTH_MENTIONING
+
+    "#{outlook[:chance_push] >= PUSH_REAL_CHANCE ? 'a real chance' : 'a small chance'} of a push by landing exactly on it, "
+  end
+
+  PUSH_WORTH_MENTIONING = 0.1
+  PUSH_REAL_CHANCE = 0.25
 
   # Plain-English odds for the hosts; the exact percentage stays backstage.
   def likelihood(chance)
@@ -429,7 +477,9 @@ class WinTotalsMarkdownPresenter
 
     lines = [ "---", "", "## 🏆 CONFERENCE CHAMPION PREDICTIONS", "" ]
     lines << "For each conference, name the two teams that meet in the championship game, then say who the " \
-             "favorite is and how big a favorite (see below). The title-game teams are the two strongest in the conference."
+             "favorite is and how big a favorite (see below). The title-game teams are the two strongest in the conference, " \
+             "except in a conference with divisions, where they are the two division winners: for those, name each division's " \
+             "predicted winner out loud (with the other contenders it has to beat) before the matchup."
     lines << ""
     @data[:champion_predictions].each { |prediction| lines.concat(champion_prediction_bullets(prediction)) }
     lines
@@ -444,12 +494,14 @@ class WinTotalsMarkdownPresenter
   # Each conference gets a championship game: the two strongest teams, then
   # who the hosts should call the favorite.
   def champion_prediction_bullets(prediction)
-    lines = [ "**#{prediction[:conference]} Championship Game:**" ]
+    lines = [ "**#{prediction[:conference]} Championship Game#{' (division winners)' if prediction[:divided]}:**" ]
+    lines.concat(division_race_lines(prediction[:division_races])) if prediction[:divided]
     game = prediction[:championship_game]
 
     if game
       first, second = game[:teams]
-      lines << "- The matchup: #{first[:college][:name]} vs. #{second[:college][:name]}"
+      lines << "- The matchup: #{first[:college][:name]}#{" (#{first[:division]} champion)" if first[:division] && prediction[:divided]} vs. " \
+               "#{second[:college][:name]}#{" (#{second[:division]} champion)" if second[:division] && prediction[:divided]}"
       game[:teams].each { |team| lines << "  - #{finalist_line(team)}" }
       favorite = game[:favorite][:college][:name]
       lines << "- **Favorite: #{favorite}** — #{EDGE_WORDS.fetch(game[:edge])} over #{game[:underdog][:college][:name]} " \
@@ -460,12 +512,23 @@ class WinTotalsMarkdownPresenter
     if shot
       last_season = record_line(shot[:previous_season_record])
       last_season_note = last_season ? ", last season #{last_season}" : ""
+      scope = prediction[:divided] && shot[:division] ? "the #{shot[:division]} division" : "the conference"
       lines << "- Best of ours, but not in the title game: #{shot[:college][:name]} " \
-               "(#{ordinal(shot[:rank])}-strongest in the conference, #{shot[:team_strength]} power rating#{last_season_note})"
+               "(#{ordinal(shot[:rank])}-strongest in #{scope}, #{shot[:team_strength]} power rating#{last_season_note})"
     end
 
     lines << ""
     lines
+  end
+
+  # The race inside each division: the predicted winner (the strongest team) and the closest challengers.
+  def division_race_lines(races)
+    Array(races).map do |race|
+      winner, *rest = race[:contenders]
+      challengers = rest.map { |team| "#{team[:college][:name]} (#{team[:team_strength]})" }.join(", ")
+      "- #{race[:division]} division: predicted winner #{winner[:college][:name]} (#{winner[:team_strength]} power rating)" \
+        "#{"; chasing: #{challengers}" if rest.any?}"
+    end
   end
 
   def finalist_line(team)
@@ -492,6 +555,10 @@ class WinTotalsMarkdownPresenter
   def format_line(number)
     return "—" unless number
 
-    number % 1 == 0 ? "#{number.to_i}.0" : number.to_s
+    whole_line?(number) ? number.to_i.to_s : number.to_s
+  end
+
+  def whole_line?(number)
+    !number.nil? && number % 1 == 0
   end
 end

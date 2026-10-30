@@ -161,10 +161,12 @@ function TeamAttributesPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [dynastyId, setDynastyId] = useState(null);
+  const [seasons, setSeasons] = useState([]);
+  const [seasonId, setSeasonId] = useState(null);
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
+    const loadDynasty = async () => {
       try {
         const dynasties = await fetchDynasties();
         const dynasty = dynasties[0];
@@ -172,12 +174,14 @@ function TeamAttributesPage() {
           setError("No dynasty found yet.");
           return;
         }
-        const latestSeason = [...(dynasty.seasons || [])].sort((a, b) => b.year - a.year)[0];
-        if (!latestSeason) {
+        const sorted = [...(dynasty.seasons || [])].sort((a, b) => b.year - a.year);
+        if (!sorted.length) {
           setError("This dynasty doesn't have a season yet.");
           return;
         }
-        setData(await fetchTeamAttributes(dynasty.id, latestSeason.id));
+        setDynastyId(dynasty.id);
+        setSeasons(sorted);
+        setSeasonId(sorted[0].id);
       } catch (err) {
         setError(err.message);
         if (err.message?.toLowerCase().includes("unauthorized")) {
@@ -187,8 +191,29 @@ function TeamAttributesPage() {
         setLoading(false);
       }
     };
-    load();
+    loadDynasty();
   }, [navigate]);
+
+  useEffect(() => {
+    if (!dynastyId || !seasonId) return;
+    let cancelled = false;
+    const loadAttributes = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const result = await fetchTeamAttributes(dynastyId, seasonId);
+        if (!cancelled) setData(result);
+      } catch (err) {
+        if (!cancelled) setError(err.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    loadAttributes();
+    return () => {
+      cancelled = true;
+    };
+  }, [dynastyId, seasonId]);
 
   const conferenceOptions = data ? data.conferences.map((c) => c.conference).filter(Boolean) : [];
 
@@ -212,11 +237,27 @@ function TeamAttributesPage() {
 
       {data && (
         <div className="space-y-4 pb-8">
-          <p className="text-sm text-textSecondary">Changes save automatically as you type.</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-sm text-textSecondary">
+              Season
+              <select
+                value={seasonId ?? ""}
+                onChange={(e) => setSeasonId(Number(e.target.value))}
+                className="rounded border border-border bg-white px-2 py-1 text-sm text-textPrimary dark:border-darkborder dark:bg-darksurface dark:text-white"
+              >
+                {seasons.map((season) => (
+                  <option key={season.id} value={season.id}>
+                    {season.year}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="text-sm text-textSecondary">Changes save automatically as you type.</p>
+          </div>
           <div className="grid gap-4 md:grid-cols-2">
             {data.conferences.map((conference) => (
               <ConferenceAttributesTable
-                key={conference.conference}
+                key={`${seasonId}-${conference.conference}`}
                 conference={conference}
                 conferenceOptions={conferenceOptions}
               />

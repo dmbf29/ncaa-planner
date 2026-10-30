@@ -6,6 +6,7 @@ import PodcastEpisodePanel from "../components/PodcastEpisodePanel";
 import { fetchDynasties, fetchSeason } from "../lib/apiClient";
 
 const weekLabel = (week) => {
+  if (week.number === 0) return "Season Opener";
   if (week.conferenceChampionship) return "Conf. Champ";
   if (week.postSeason) return week.name || "Bowl";
   return `Week ${week.number}`;
@@ -84,7 +85,7 @@ function ExportPage() {
 
   const weeks = useMemo(() => {
     const source = season?.teams?.[0]?.weeks || [];
-    return source.filter((w) => w.number !== 0).map((w) => ({ number: w.number, label: weekLabel(w) }));
+    return source.map((w) => ({ number: w.number, label: weekLabel(w) }));
   }, [season]);
 
   return (

@@ -352,16 +352,47 @@ class BigGameBreakdownMarkdownPresenter
   FORM_MIN_GAMES = 3
 
   def form_lines(form)
-    notes = [ form[:away], form[:home] ].compact.filter_map do |team|
-      next if team[:games] < FORM_MIN_GAMES || team[:points_vs_roster].abs < FORM_NOTABLE_POINTS
-
-      verdict = team[:points_vs_roster].positive? ? "playing better than its roster suggests" : "playing worse than its roster suggests"
-      "#{team[:team]} has been #{verdict} over #{team[:games]} game#{'s' unless team[:games] == 1} " \
-        "(backstage: #{team[:points_vs_roster].positive? ? '+' : ''}#{team[:points_vs_roster]} points a game vs. expectation)"
+    notes = [ form[:away], form[:home] ].compact.flat_map do |team|
+      [ season_form_note(team), coach_carryover_note(team) ].compact
     end
+    notes << earlier_meetings_note(form[:earlier_meetings_between_coaches], form)
+    notes.compact!
     return [] if notes.empty?
 
     [ "**Form (already priced into the line):**", *notes.map { |note| "- #{note}" } ]
+  end
+
+  # Two user coaches who have met before: the line leans lightly toward how
+  # those games went (average miss is from the home coach's side).
+  def earlier_meetings_note(meetings, form)
+    return if meetings.nil? || meetings[:average].abs < FORM_NOTABLE_POINTS
+
+    home = form[:home]&.dig(:team)
+    away = form[:away]&.dig(:team)
+    return if home.nil? || away.nil?
+
+    leaning = meetings[:average].positive? ? home : away
+    "These two coaches have met #{meetings[:games]} time#{'s' unless meetings[:games] == 1} before, and the games have " \
+      "gone #{leaning}'s way more than the rosters predicted (backstage: #{meetings[:average].abs} points a game)"
+  end
+
+  def season_form_note(team)
+    return if team[:games] < FORM_MIN_GAMES || team[:points_vs_roster].abs < FORM_NOTABLE_POINTS
+
+    verdict = team[:points_vs_roster].positive? ? "playing better than its roster suggests" : "playing worse than its roster suggests"
+    "#{team[:team]} has been #{verdict} over #{team[:games]} game#{'s' unless team[:games] == 1} " \
+      "(backstage: #{team[:points_vs_roster].positive? ? '+' : ''}#{team[:points_vs_roster]} points a game vs. expectation)"
+  end
+
+  # A coach's results from earlier seasons, which start each new season's line
+  # leaning their way.
+  def coach_carryover_note(team)
+    carried = team[:coach_carryover]
+    return if carried.nil? || carried[:games] < FORM_MIN_GAMES || carried[:average].abs < FORM_NOTABLE_POINTS
+
+    verdict = carried[:average].positive? ? "has historically beaten what the roster says" : "has historically fallen short of what the roster says"
+    "#{team[:team]}'s coach #{verdict} over #{carried[:games]} games in earlier seasons " \
+      "(backstage: #{carried[:average].positive? ? '+' : ''}#{carried[:average]} points a game vs. expectation)"
   end
 
   def confidence_text(line)

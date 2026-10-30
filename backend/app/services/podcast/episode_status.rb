@@ -63,7 +63,7 @@ module Podcast
         kind: @spec.kind, slug: @spec.slug, year: @spec.year, week_number: @spec.week, preview_week: @spec.preview_week, preview_label: @spec.preview_label, recap_label: (@spec.recap_label if @spec.weekly?),
         job: current_job.slice(:name, :state, :message, :error, :started_at),
         steps: {
-          markdown: File.exist?(path(FILES[:markdown])),
+          markdown: File.exist?(path(FILES[:markdown])) || File.exist?(path("preview.md")),
           art: File.exist?(@spec.art_path),
           script: File.exist?(path(FILES[:script])),
           fact_check: File.exist?(path(FILES[:fact_check])),
@@ -71,7 +71,7 @@ module Podcast
           published: published.present?
         },
         audio_stale: audio_stale?,
-        recap_only: recap_only?, scoreboard_only: @spec.scoreboard_only?, championship: @spec.championship?,
+        recap_only: recap_only?, scoreboard_only: @spec.scoreboard_only?, championship: @spec.championship?, opener: @spec.opener?,
         champion: @spec.champion,
         postseason: @spec.weekly? && (@spec.recap_postseason || @spec.preview_postseason) ? true : false,
         script_words: script_words,

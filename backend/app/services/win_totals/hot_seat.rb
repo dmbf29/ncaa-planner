@@ -7,8 +7,9 @@ module WinTotals
   # This is an editorial model, not the game's actual firing logic (which we
   # can't see): every win above or below the number moves job security by
   # WIN_SWING points, and a coach whose security lands under OUT_BELOW is out.
-  # "Hitting the number" means finishing with the fewest wins that clear the
-  # line (7 wins on a 6.5 line) and leaves security where it is. The
+  # "Hitting the number" means finishing with the fewest wins that reach the
+  # line (7 wins on a 6.5 line, or the line itself on a whole-number line,
+  # where it's a push) and leaves security where it is. The
   # thresholds mirror the labels the game shows (see Coach#job_security_label),
   # plus a final "Out" band below the game's lowest one.
   #

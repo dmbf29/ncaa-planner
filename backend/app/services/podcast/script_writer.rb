@@ -75,6 +75,14 @@ module Podcast
       experience and matchup instead, and never compare quarterbacks' numbers unless both sides have a stat line.
     TEXT
 
+    PROVING_RULES = <<~TEXT.freeze
+      THIS PART OF THE SHOW IS "SOMETHING TO PROVE", a quick forward-looking round of the coached teams before the games.
+      Only use numbers, records, scores and rankings written in the source, with the group each was ranked against.
+      Rankings and totals are backstage numbers: say them in plain studio language ("last in the Sun Belt in passing
+      yards a game", "among the lowest-scoring teams in the country") and never a decimal read out digit by digit.
+      Never use the words "model", "algorithm", "data" or "probability".
+    TEXT
+
     POSTSEASON_RULES = <<~TEXT.freeze
       IT IS THE POSTSEASON (bowl games and the College Football Playoff). The regular season and its conference races
       are over: NEVER talk about conference standings, the conference championship race, the poll, rankings, "the
@@ -123,9 +131,11 @@ module Podcast
       - Never invent history beyond the document, and never mention that the document exists.
     TEXT
 
-    def initialize(markdown_path:, year:, week_number:, preview_markdown_path: nil, history_path: nil, scoreboard_only: false, postseason_recap: false, conference_championship_recap: false, postseason_preview: false, championship: false, recap_label: nil,
+    def initialize(year:, week_number:, markdown_path: nil, opener: false, proving_path: nil, preview_markdown_path: nil, history_path: nil, scoreboard_only: false, postseason_recap: false, conference_championship_recap: false, postseason_preview: false, championship: false, recap_label: nil,
                    preview_label: nil, model: nil)
-      @markdown = File.read(markdown_path)
+      @markdown = markdown_path ? File.read(markdown_path) : ""
+      @opener = opener
+      @proving = File.read(proving_path) if proving_path
       @scoreboard_only = scoreboard_only
       @postseason_recap = postseason_recap
       @conference_championship_recap = conference_championship_recap
@@ -164,7 +174,7 @@ module Podcast
 
     private
 
-    attr_reader :markdown, :preview, :history, :year, :week_number, :model
+    attr_reader :markdown, :preview, :proving, :history, :year, :week_number, :model
 
     def combined?
       preview.present?
@@ -186,6 +196,7 @@ module Podcast
       case segment.kind
       when :preview then [ preview_rules, NEUTRAL_SITE_RULES, (POSTSEASON_RULES if @postseason_preview) ].compact.join("\n")
       when :scoreboard then SCOREBOARD_RULES
+      when :proving then PROVING_RULES
       else
         [ REVIEW_RULES, (NEUTRAL_SITE_RULES if @postseason_recap || @conference_championship_recap),
           (POSTSEASON_RULES if @postseason_recap), (CONFERENCE_CHAMPIONSHIP_RULES if @conference_championship_recap) ].compact.join("\n")
@@ -220,7 +231,7 @@ module Podcast
     end
 
     def segments
-      @segments ||= @championship ? championship_segments : regular_segments
+      @segments ||= if @championship then championship_segments elsif @opener then opener_segments else regular_segments end
     end
 
     def regular_segments
@@ -396,6 +407,50 @@ module Podcast
       [ preview_intro_segment ] + game_headings.map { |number, total, title| game_segment(number, total, title) } + [ preview_closing_segment ]
     end
 
+    # The season opener: no recap half (nothing has been played yet), just a welcome, the card, one segment per game
+    # and the sign-off. The first games of the season are previewed from the preview source alone.
+    def opener_segments
+      [ opener_intro_segment, (proving_segment if proving) ].compact + game_headings.map { |number, total, title| game_segment(number, total, title) } + [ preview_closing_segment ]
+    end
+
+    def opener_intro_segment
+      narrator, co_host = PodcastShow::HOSTS
+      Segment.new(
+        label: "Opener: welcome and card", kind: :preview, words: (proving ? 300 : 450),
+        instruction: <<~TEXT
+          This is the first show of the #{year} season and nothing has been played yet. Write the cold open and the top of
+          the show, with these beats in order:
+          1. #{narrator[:name].split.first} opens with a brief, cinematic line about the season finally kicking off, then
+             says: "Welcome back to #{SHOW_NAME}, I'm #{narrator[:name]}..."
+          2. #{co_host[:name].split.first} follows up immediately with: "...and I'm #{co_host[:name]}."
+          3. #{proving ? "One or two lines on what the season opener means, no more: the next segment is \"Something to Prove\", which carries the team-by-team talk." : "A few lines of what the season opener means for these teams (use only the last-season records, new-conference notes and rankings written in the document; the league history is background)."} Do not recap last season game by game and do not talk about games that are not on this card.
+          4. THE CARD: one sentence naming the #{game_headings.size} games on the board, in the document's order. No analysis.
+          #{proving ? "End by turning to \"Something to Prove\"." : "Keep it quick and get to Game 1 fast."} Call the week #{preview_week}.
+        TEXT
+      )
+    end
+
+    # "Something to Prove": the one thing each coached team has to answer this season, from the proving fact sheet.
+    def proving_segment
+      Segment.new(
+        label: "Something to Prove", kind: :proving, words: 400,
+        instruction: <<~TEXT
+          The welcome and the card just ended. With NO new welcome, write the segment "Something to Prove": for each team
+          in the document, in the document's order, the ONE thing it has to prove or fix this season, about twenty-five
+          seconds per team with both hosts weighing in. Name the segment out loud once ("Something to Prove") and tie the
+          last line to Game 1 so the show moves on. Rules for this segment:
+          - Choose the thing from the document's facts; say the ranking with the group it was ranked against, exactly as the
+            document words it ("in the Sun Belt", "among 138 schools"). Never say "nationally" for a Sun Belt-only ranking.
+          - Do not recap last season, do not talk about championships won, and do not read a list of losses: pick the
+            pattern. Sound forward-looking: the question this season has to answer.
+          - A team new to a conference, or that moved to another division, gets its move named once, inside its own beat,
+            along with what the new division means (only the division winners reach the conference championship game).
+          - A departed player is at most one clause, never a roster review.
+          - Do not preview any game or make any pick here; the game segments do that.
+        TEXT
+      )
+    end
+
     # The national championship episode: the title game, then the champion's road to it, then a sign-off. No team
     # round-up, no preview, no bets.
     def championship_segments
@@ -524,7 +579,7 @@ module Podcast
     end
 
     def segment_prompt(segment, summary)
-      source = %i[preview scoreboard].include?(segment.kind) ? preview : markdown
+      source = if segment.kind == :proving then proving elsif %i[preview scoreboard].include?(segment.kind) then preview else markdown end
       <<~PROMPT
         Here is the source document for this part of the show. It is the source of facts#{history ? " (the league history below is background only)" : ""}.
 

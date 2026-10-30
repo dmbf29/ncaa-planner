@@ -349,7 +349,7 @@ function PodcastEpisodePanel({ season, weeks, kind = "weekly" }) {
           <div className="space-y-1.5">
             <p className="text-xs uppercase tracking-wide text-textSecondary">Week to recap</p>
             <p className="text-xs text-textSecondary/80">
-              The week after it is previewed. Run this once the game is advanced, the rosters, poll and lines are updated.
+              The week after it is previewed. Pick Season Opener for a preview-only episode of the first games, with no recap. Run this once the game is advanced, the rosters, poll and lines are updated.
             </p>
             <div className="flex flex-wrap gap-2 pt-1">
               {weeks.map((week) => (
@@ -424,7 +424,7 @@ function PodcastEpisodePanel({ season, weeks, kind = "weekly" }) {
               <ul className="space-y-3">
                 <StepRow
                   state={stepState(steps.markdown, ["prepare", "make"])}
-                  label={weekly ? `Recap and ${episode.previewLabel || `Week ${episode.previewWeek}`} preview from your data` : "Source document from your data"}
+                  label={weekly ? `${episode.opener ? "" : "Recap and "} ${episode.previewLabel || `Week ${episode.previewWeek}`} preview from your data` : "Source document from your data"}
                   detail={activeDetail(["prepare", "make"])}
                 />
                 <StepRow state={steps.art ? "done" : stepState(false, ["prepare", "make", "regenerate_art"])} label="Cover art" />

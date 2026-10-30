@@ -3,10 +3,11 @@ module BigGameBreakdown
   # Win Totals show uses (WinTotals::Calculator) so the two shows agree on who
   # is good.
   #
-  # Spread: a backtest of 403 regular-season games found each point of strength
-  # gap was worth about 2.1 points of final margin, with about a point of
-  # home-field advantage on top. Margins are noisy (a standard deviation near
-  # 18 points), so a spread bet is close to a coin flip, which is the point.
+  # Spread: a backtest of 1,170 regular-season games (2026-2027) found each
+  # point of strength gap was worth about 2.4 points of final margin, with
+  # about a third of a point of home-field advantage on top. Margins are noisy
+  # (a standard deviation near 18 points), so a spread bet is close to a coin
+  # flip, which is the point.
   #
   # Form: the roster rating can't know a team has been losing (or winning)
   # more than its roster says, so `call` also adjusts the spread for results.
@@ -19,7 +20,15 @@ module BigGameBreakdown
   # points, and from 14.8 to 14.2 once both teams had 3+ games), and the
   # spread moves by the home team's adjustment minus the away team's.
   # `spread_for` deliberately does NOT do this: the Win Totals show uses it
-  # for preseason lines, before any results exist, and must stay roster-only.
+  # for preseason lines, before any results exist, so it stays roster-only
+  # unless asked to add coaches' track records.
+  #
+  # Coach carryover: a user coach's results from earlier seasons (see
+  # WinTotals::CoachCarryover) count like games already played, so a coach who
+  # beat their roster by 15 a game last year starts this one with the spread
+  # already leaning their way instead of from zero. CPU teams have no history.
+  # Between two user coaches the carryover is halved and their own earlier
+  # meetings are added (see WinTotals::CoachCarryover).
   #
   # Total: both teams' scoring and points-allowed averages through the weeks
   # already played, blended toward the league average total while the sample
@@ -28,8 +37,11 @@ module BigGameBreakdown
   #
   # Both lines are shaded to a half-point so a bet never pushes.
   class LineMaker
-    POINTS_PER_RATING_POINT = 2.1
-    HOME_FIELD_POINTS = 1.0
+    # Past any real week number: every game played so far.
+    ALL_WEEKS = 1000
+
+    POINTS_PER_RATING_POINT = 2.4
+    HOME_FIELD_POINTS = 0.4
 
     # League average total points across the 403-game backtest; used until
     # the season has results of its own.
@@ -48,9 +60,10 @@ module BigGameBreakdown
     # a team's results get weight n / (n + FORM_PRIOR_GAMES).
     FORM_PRIOR_GAMES = 10
 
-    def initialize(season, calculator: WinTotals::Calculator.new)
+    def initialize(season, calculator: WinTotals::Calculator.new, coach_carryover: nil)
       @season = season
       @calculator = calculator
+      @coach_carryover = coach_carryover || WinTotals::CoachCarryover.new(season)
     end
 
     # `week_number` is the week being previewed; only weeks before it feed the
@@ -61,9 +74,14 @@ module BigGameBreakdown
     #   total:        projected points
     #   total_edge:   unrounded projected total minus the league average
     #   home_win_probability
-    #   form:         { home:, away: } each { games:, average: } (average
-    #                 points per game above/below what the roster predicted;
-    #                 nil average before the team has played), and
+    #   form:         { home:, away:, head_to_head: } each team { games:,
+    #                 average:, carryover: }
+    #                 (average points per game above/below what the roster
+    #                 predicted, nil before the team has played; carryover is
+    #                 the same for the coach's earlier seasons, nil for a team
+    #                 without a coach record), and
+    #                 head_to_head: { games:, average: } from the home coach's
+    #                 side when two user coaches have met before, else nil;
     #                 adjustment: the points the spread moved for results
     #   rated:        false when either team has nothing to rate (no roster),
     #                 in which case the line is a placeholder, not a real line
@@ -72,7 +90,12 @@ module BigGameBreakdown
       away_cs = college_season(game.away_college_id)
       home_form = form(game.home_college_id, week_number)
       away_form = form(game.away_college_id, week_number)
-      adjustment = weighted(home_form) - weighted(away_form)
+      home_coach_id = home_cs&.coach_id
+      away_coach_id = away_cs&.coach_id
+      scale = home_coach_id && away_coach_id ? WinTotals::CoachCarryover::USER_VS_USER_WEIGHT : 1.0
+      head_to_head = home_coach_id && away_coach_id ? @coach_carryover.head_to_head(home_coach_id, away_coach_id) : []
+      adjustment = weighted_form(game.home_college_id, week_number, scale) - weighted_form(game.away_college_id, week_number, scale)
+      adjustment += @coach_carryover.head_to_head_points(home_coach_id, away_coach_id) if head_to_head.any?
       margin = expected_home_margin(home_cs, away_cs) + adjustment
 
       {
@@ -81,7 +104,7 @@ module BigGameBreakdown
         total: nearest_half(projected_total(game, week_number)),
         total_edge: (projected_total(game, week_number) - league_average_total(week_number)).round(1),
         home_win_probability: shifted_probability(@calculator.win_probability(home_cs, away_cs, home: true), adjustment).round(2),
-        form: { home: home_form, away: away_form, adjustment: adjustment.round(1) },
+        form: { home: home_form, away: away_form, adjustment: adjustment.round(1), head_to_head: head_to_head_json(head_to_head) },
         rated: !@calculator.team_strength(home_cs).nil? && !@calculator.team_strength(away_cs).nil?
       }
     end
@@ -89,9 +112,36 @@ module BigGameBreakdown
     # Just the home-side spread for two teams (-6.5 = home favored by 6.5), from
     # roster strength alone, for other shows that want the same line without
     # the totals work or any in-season results (Win Totals, which is preseason).
-    def spread_for(home_cs, away_cs)
+    # `with_coaches` adds each coach's track record from earlier seasons.
+    def spread_for(home_cs, away_cs, with_coaches: false)
       margin = expected_home_margin(home_cs, away_cs)
+      margin += @coach_carryover.matchup_margin(home_cs&.coach_id, away_cs&.coach_id) if with_coaches
       line_for(margin)
+    end
+
+    # Residuals from each side of every game between two user coaches this
+    # season has played: { [coach_id, rival_id] => [residual, ...] }, the
+    # residual measured from the first coach's side.
+    def head_to_head_residuals(week_number = ALL_WEEKS)
+      completed_games(week_number).each_with_object({}) do |game, memo|
+        home_cs = college_season(game[:home_id])
+        away_cs = college_season(game[:away_id])
+        next unless home_cs&.coach_id && away_cs&.coach_id && @calculator.team_strength(home_cs) && @calculator.team_strength(away_cs)
+
+        residual = (game[:home_score] - game[:away_score]) - expected_home_margin(home_cs, away_cs)
+        (memo[[ home_cs.coach_id, away_cs.coach_id ]] ||= []) << residual
+        (memo[[ away_cs.coach_id, home_cs.coach_id ]] ||= []) << -residual
+      end
+    end
+
+    # Every residual (actual margin minus roster-predicted margin, from the
+    # coach's side) by coach for the games this season has played, for
+    # WinTotals::CoachCarryover to carry into later seasons.
+    def residuals_by_coach(week_number = ALL_WEEKS)
+      residuals_by_college(week_number).each_with_object({}) do |(college_id, values), memo|
+        coach_id = college_season(college_id)&.coach_id
+        (memo[coach_id] ||= []).concat(values) if coach_id && values.any?
+      end
     end
 
     private
@@ -121,18 +171,36 @@ module BigGameBreakdown
       margin >= 0 ? -half : half
     end
 
-    # { games:, average: } for a team: its mean residual (actual margin minus
-    # roster-predicted margin, from its own side) over the games already played.
+    # { games:, average:, carryover: } for a team: its mean residual (actual
+    # margin minus roster-predicted margin, from its own side) over the games
+    # already played, and the same for its coach's earlier seasons (nil when
+    # the team has no coach record).
     def form(college_id, week_number)
       residuals = residuals_by_college(week_number)[college_id] || []
-      { games: residuals.size, average: residuals.empty? ? nil : (residuals.sum / residuals.size).round(1) }
+      carried = carried_residuals(college_id)
+      { games: residuals.size, average: average_of(residuals), carryover: carried.empty? ? nil : { games: carried.size, average: average_of(carried) } }
     end
 
-    # The form average shrunk by how many games back it up.
-    def weighted(form)
-      return 0.0 if form[:average].nil?
+    def average_of(residuals)
+      residuals.empty? ? nil : (residuals.sum / residuals.size).round(1)
+    end
 
-      form[:average] * form[:games] / (form[:games] + FORM_PRIOR_GAMES)
+    # This season's results plus the coach's earlier ones, shrunk by how many
+    # games back them up: sum / (n + FORM_PRIOR_GAMES). `carried_scale` damps
+    # only the earlier seasons' share.
+    def weighted_form(college_id, week_number, carried_scale = 1.0)
+      current = residuals_by_college(week_number)[college_id] || []
+      carried = carried_residuals(college_id)
+      (current.sum(0.0) + (carried_scale * carried.sum(0.0))) / (current.size + carried.size + FORM_PRIOR_GAMES)
+    end
+
+    def carried_residuals(college_id)
+      coach_id = college_season(college_id)&.coach_id
+      coach_id ? @coach_carryover.residuals(coach_id) : []
+    end
+
+    def head_to_head_json(residuals)
+      residuals.empty? ? nil : { games: residuals.size, average: average_of(residuals) }
     end
 
     # Nudges a roster-only home win probability by `adjustment` points of

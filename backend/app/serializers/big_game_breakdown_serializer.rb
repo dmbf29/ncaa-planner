@@ -265,14 +265,15 @@ class BigGameBreakdownSerializer
     {
       home: team_form(game.home_college.name, form[:home]),
       away: team_form(game.away_college.name, form[:away]),
-      spread_moved_by: form[:adjustment]
+      spread_moved_by: form[:adjustment],
+      earlier_meetings_between_coaches: form[:head_to_head]
     }
   end
 
   def team_form(name, form)
-    return nil if form[:average].nil?
+    return nil if form[:average].nil? && form[:carryover].nil?
 
-    { team: name, games: form[:games], points_vs_roster: form[:average] }
+    { team: name, games: form[:games], points_vs_roster: form[:average], coach_carryover: form[:carryover] }
   end
 
   # ---- teams -------------------------------------------------------------------

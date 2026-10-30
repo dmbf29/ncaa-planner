@@ -31,7 +31,7 @@ class MidseasonReportCardSerializer
 
   def initialize(season)
     @season = season
-    @calculator = WinTotals::Calculator.new
+    @calculator = WinTotals::Calculator.new(coach_carryover: WinTotals::CoachCarryover.new(season))
   end
 
   def as_json

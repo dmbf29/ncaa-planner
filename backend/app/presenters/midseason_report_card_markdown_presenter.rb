@@ -330,6 +330,6 @@ class MidseasonReportCardMarkdownPresenter
   def format_line(number)
     return "—" unless number
 
-    number % 1 == 0 ? "#{number.to_i}.0" : number.to_s
+    number % 1 == 0 ? number.to_i.to_s : number.to_s
   end
 end

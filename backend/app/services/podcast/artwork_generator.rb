@@ -26,7 +26,9 @@ module Podcast
       Convert the spoken picks ("minus twenty-five and a half") into numerals. Use only what the source states.
     PROMPT
 
-    def initialize(preview_path:, recap_week:, preview_week:, out_path:, preview_label: nil, recap_label: nil, model: nil)
+    def initialize(preview_path:, recap_week:, preview_week:, out_path:, preview_label: nil, recap_label: nil, opener: false, year: nil, model: nil)
+      @opener = opener
+      @year = year
       @preview = File.read(preview_path)
       @recap_week = recap_week
       @preview_week = preview_week
@@ -83,8 +85,8 @@ module Podcast
         host headshots (Arlis Boardingham and Ty Simpson) in "THE PICKS" strip of every panel. Do NOT copy its panel
         count, its games, its teams or any of its text or numbers.
 
-        Headline (large brush lettering, same placement as before): "#{@recap_label.upcase} REACTIONS + #{@preview_label.upcase} PREVIEW".
-        Small tag next to it: "RECAP. PREVIEW. ALL SUN BELT."
+        Headline (large brush lettering, same placement as before): "#{headline}".
+        Small tag next to it: "#{tag}"
 
         There are EXACTLY #{count} game panel#{'s' if count != 1} below: #{layout}. Show those and nothing else: never add,
         invent or imply any other game, team, helmet, spread or pick. If that is fewer panels than the reference cover
@@ -96,6 +98,12 @@ module Podcast
         #{facts}
       PROMPT
     end
+
+    def headline
+      @opener ? "#{@year} SEASON OPENER: #{@preview_label.upcase} PREVIEW" : "#{@recap_label.upcase} REACTIONS + #{@preview_label.upcase} PREVIEW"
+    end
+
+    def tag = @opener ? "PREVIEW. PICKS. ALL SUN BELT." : "RECAP. PREVIEW. ALL SUN BELT."
 
     def request_image(prompt)
       boundary = "----claude#{SecureRandom.hex(8)}"

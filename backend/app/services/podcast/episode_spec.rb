@@ -18,6 +18,12 @@ module Podcast
           quick line and move on. Every COIN FLIP stops for a real debate where one host argues win and the other argues
           loss, citing something concrete, alternating who takes which side. Then both hosts give their over/under call on
           the Vegas line, then the Hot Seat Check on the head coach using the thermometer reading (never the percentage).
+          Never say a team's Vegas win total before that team's own segment: the opening and the handoffs name teams but
+          never numbers. When a team's segment starts, reveal its line as what Vegas set ("Vegas has them at seven and a
+          half", "the over/under is seven and a half"), never as wins the team already has ("sitting at", "wins on the
+          board", "has seven and a half wins").
+          In Conference Champion Predictions, a conference with divisions gets its predicted winner named for EACH division
+          before the title game matchup, and the title game is those two division winners.
         TEXT
       },
       "roster_breakdown" => {
@@ -139,6 +145,9 @@ module Podcast
 
     def weekly? = kind == "weekly"
 
+    # Week 0 has no games, so its episode has no recap: it only previews the season's first games.
+    def opener? = weekly? && week.zero? && preview_week.present?
+
     def slug = weekly? ? "week-#{week}" : kind
 
     def show = SHOWS.fetch(kind)
@@ -161,6 +170,7 @@ module Podcast
     # Title without needing a script (weekly adds the preview unless there is none to preview).
     def title(recap_only: false)
       return show[:title].call(year) unless weekly?
+      return "#{year} Season Opener | #{preview_label} Preview" if opener?
       return "#{year} National Championship Reactions | National Champions: #{champion}" if championship?
 
       parts = [ "#{year} #{recap_label} Reactions" ]

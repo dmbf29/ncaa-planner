@@ -117,7 +117,7 @@ module Podcast
       write_history
       return write_show_markdown unless @spec.weekly?
 
-      unless File.exist?(path("recap.md"))
+      unless @spec.opener? || File.exist?(path("recap.md"))
         log "Building the Week #{@week} recap from the app's data"
         data = SeasonWeeksSerializer.new(@season, [ @week ]).as_json
         File.write(path("recap.md"), SeasonWeeksMarkdownPresenter.new(data).to_markdown)
@@ -126,6 +126,8 @@ module Podcast
       return write_scoreboard if @spec.scoreboard_only?
 
       if @spec.preview_week.nil?
+        raise "No coached team plays after Week #{@week}: there is nothing to preview" if @spec.opener?
+
         log "None of our coached teams plays again: this will be a recap-only episode"
         return FileUtils.touch(path("no_preview"))
       end
@@ -134,10 +136,22 @@ module Podcast
       data = merged_preview_data
       if data[:games].present?
         File.write(path("preview.md"), BigGameBreakdownMarkdownPresenter.new(data).to_markdown)
+        write_proving(data) if @spec.opener?
       else
+        raise "No coached team plays in #{@spec.preview_label}: there is nothing to preview" if @spec.opener?
+
         log "No coached team plays in #{@spec.preview_label}: this will be a recap-only episode"
         FileUtils.touch(path("no_preview"))
       end
+    end
+
+    # The opener's "Something to Prove" fact sheet: last season's losses and rankings for the coached teams on the card.
+    def write_proving(data)
+      return if File.exist?(path("proving.md"))
+
+      coached = data[:games].flat_map { |game| [ game[:away], game[:home] ] }.select { |team| team[:user_coached] }
+      markdown = SomethingToProveMarkdownPresenter.new(SomethingToProveSerializer.new(@season, coached.map { |team| team[:college][:id] }).as_json).to_markdown
+      File.write(path("proving.md"), markdown) if markdown.present?
     end
 
     # The league's earlier seasons as background for the hosts (see DynastyHistorySerializer). A weekly episode only gets
@@ -223,7 +237,7 @@ module Podcast
       end
 
       log "Generating the cover art"
-      ArtworkGenerator.new(preview_path: path("preview.md"), recap_week: @week, preview_week: @spec.preview_week,
+      ArtworkGenerator.new(preview_path: path("preview.md"), recap_week: @week, opener: @spec.opener?, year: @year, preview_week: @spec.preview_week,
                            preview_label: @spec.preview_label, recap_label: @spec.recap_label, out_path: art_path, model: @model).call
     end
 
@@ -232,7 +246,7 @@ module Podcast
 
       log "Writing the script (about 5 minutes)"
       writer = if @spec.weekly?
-        ScriptWriter.new(markdown_path: path("recap.md"),
+        ScriptWriter.new(markdown_path: (path("recap.md") unless @spec.opener?), opener: @spec.opener?, proving_path: (path("proving.md") if @spec.opener? && File.exist?(path("proving.md"))),
                          preview_markdown_path: (path("preview.md") if preview?) || (path("scoreboard.md") if scoreboard?),
                          history_path: history_path,
                          scoreboard_only: scoreboard?, postseason_recap: @spec.recap_postseason, conference_championship_recap: @spec.recap_conference_championship, postseason_preview: @spec.preview_postseason,
@@ -254,7 +268,7 @@ module Podcast
         match = /\A(ARLIS|TY):\s*(.+)\z/.match(line)
         { speaker: match[1], text: match[2] } if match
       end
-      sources = [ path("recap.md"), (path("preview.md") if preview?), (path("scoreboard.md") if scoreboard?), history_path ].compact
+      sources = [ (path("recap.md") unless @spec.opener?), (path("preview.md") if preview?), (path("proving.md") if File.exist?(path("proving.md"))), (path("scoreboard.md") if scoreboard?), history_path ].compact
       checker = FactChecker.new(turns: turns, source_paths: sources, model: @model)
       fixed, corrected = checker.call
       File.write(path("factcheck.md"), FactChecker.report(fixed, turns, checker.needs_review, checker.rejected))

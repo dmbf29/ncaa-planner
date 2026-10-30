@@ -25,14 +25,24 @@ class WinTotalsSerializer
   # Built lazily because the overall-to-room offset is measured from this
   # season's college_seasons (see WinTotals::Calculator.overall_offset_for).
   def calculator
-    @calculator ||= WinTotals::Calculator.new(overall_offset: WinTotals::Calculator.overall_offset_for(all_college_seasons))
+    @calculator ||= WinTotals::Calculator.new(
+      overall_offset: WinTotals::Calculator.overall_offset_for(all_college_seasons),
+      coach_carryover: coach_carryover
+    )
+  end
+
+  # Each user coach's results against their rosters in earlier seasons, which
+  # shift their team's game odds and spreads (see WinTotals::CoachCarryover).
+  def coach_carryover
+    @coach_carryover ||= WinTotals::CoachCarryover.new(@season)
   end
 
   def focus_json
     {
       instructions: "This is a Vegas-style win-totals debate for our #{coached_college_seasons.size} coached " \
                     "teams heading into the #{@season.year} season — no games have been played yet. Each team " \
-                    "has a projected win total ending in .5. One host argues the OVER, the other argues the " \
+                    "has a projected win total, usually ending in .5 but sometimes a whole number (landing exactly on a " \
+                    "whole number is a push). One host argues the OVER, the other argues the " \
                     "UNDER, using strength of schedule, home/away splits, and the opponent-by-opponent detail " \
                     "below as ammunition. Each team ends with a hot seat check on its head coach: how safe his " \
                     "job is if the team hits the number, and what happens if it doesn't."
@@ -150,6 +160,7 @@ class WinTotalsSerializer
       college: college_json(college_season.college, college_season.conference),
       new_conference_from: new_conference_from(college_season),
       coach: { id: college_season.coach.id, name: college_season.coach.name },
+      coach_track_record: coach_track_record_json(college_season.coach),
       ratings: ratings_json(college_season),
       previous_season_record: previous_season_record_json(college_season.college_id),
       program_history: program_history_json(college_season),
@@ -164,6 +175,17 @@ class WinTotalsSerializer
     }
   end
 
+  # How the coach's teams have played against their rosters in earlier seasons
+  # (points per game above or below what the roster predicted), and how many
+  # points of margin that moves each game for this team, already in the odds.
+  # nil for a coach with no earlier games.
+  def coach_track_record_json(coach)
+    record = coach_carryover.record(coach.id)
+    return nil if record[:average].nil?
+
+    { games: record[:games], points_vs_roster: record[:average], margin_adjustment: coach_carryover.margin_points(coach.id).round(1) }
+  end
+
   # The chance of landing on each side of the line, from the per-game odds.
   # `bowl_eligible` is six or more wins; a losing season has more losses than
   # wins.
@@ -175,6 +197,7 @@ class WinTotalsSerializer
       expected_wins: probabilities.sum.round(1),
       chance_over: distribution.each_with_index.sum { |chance, wins| wins > line ? chance : 0.0 }.round(2),
       chance_under: distribution.each_with_index.sum { |chance, wins| wins < line ? chance : 0.0 }.round(2),
+      chance_push: distribution.each_with_index.sum { |chance, wins| wins == line ? chance : 0.0 }.round(2),
       chance_bowl_eligible: distribution.each_with_index.sum { |chance, wins| wins >= 6 ? chance : 0.0 }.round(2),
       chance_losing_season: distribution.each_with_index.sum { |chance, wins| wins * 2 < games ? chance : 0.0 }.round(2)
     }
@@ -272,13 +295,13 @@ class WinTotalsSerializer
 
     home_cs = context[:home] ? context[:college_season] : opponent
     away_cs = context[:home] ? opponent : context[:college_season]
-    home_line = line_maker.spread_for(home_cs, away_cs)
+    home_line = line_maker.spread_for(home_cs, away_cs, with_coaches: true)
     our_margin = context[:home] ? -home_line : home_line
     our_margin.clamp(-MAX_SPREAD, MAX_SPREAD)
   end
 
   def line_maker
-    @line_maker ||= BigGameBreakdown::LineMaker.new(@season, calculator: calculator)
+    @line_maker ||= BigGameBreakdown::LineMaker.new(@season, calculator: calculator, coach_carryover: coach_carryover)
   end
 
   def key_players_json(college_season)
@@ -384,24 +407,39 @@ class WinTotalsSerializer
 
     conferences.map do |conference|
       ranked = strength_ranked.select { |cs, _strength| cs.conference == conference }
-      top = ranked.first
-      our_best_index = ranked.index { |cs, _strength| coached_college_ids.include?(cs.college_id) }
-      our_best = our_best_index && ranked[our_best_index]
+      divisions = ranked.filter_map { |cs, _strength| cs.division.presence }.uniq.sort
+      divided = divisions.size >= 2
+      # A divided conference sends each division's strongest team to the title game (the favorite listed first);
+      # otherwise it is the two strongest overall.
+      finalists = divided ? divisions.map { |name| ranked.find { |cs, _strength| cs.division == name } }.compact.sort_by { |_cs, strength| -strength } : ranked.first(2)
+      our_best = ranked.find { |cs, _strength| coached_college_ids.include?(cs.college_id) }
+      pool = divided && our_best ? ranked.select { |cs, _strength| cs.division == our_best.first.division } : ranked
+      our_best_index = our_best && pool.index(our_best)
 
       {
         conference: conference,
-        championship_game: championship_game_json(ranked.first(2)),
-        # Only worth a mention when none of ours made the title game.
-        our_best_shot: our_best && our_best_index >= CHAMPIONSHIP_GAME_TEAMS ? strength_entry_json(our_best, gap_to: top&.last).merge(rank: our_best_index + 1) : nil
+        divided: divided,
+        championship_game: championship_game_json(finalists),
+        division_races: (divisions.map { |name| division_race_json(name, ranked) } if divided),
+        # Only worth a mention when none of ours made the title game: its rank is within its own division when divided.
+        our_best_shot: our_best && !finalists.include?(our_best) ? strength_entry_json(our_best, gap_to: pool.first&.last).merge(rank: our_best_index + 1) : nil
       }
     end
   end
 
+  DIVISION_CONTENDERS = 3
+
+  # The top few teams in one division by power rating: the race for its spot in the title game.
+  def division_race_json(division, ranked)
+    { division: division,
+      contenders: ranked.select { |cs, _strength| cs.division == division }.first(DIVISION_CONTENDERS).map { |entry| strength_entry_json(entry) } }
+  end
+
   CHAMPIONSHIP_GAME_TEAMS = 2
 
-  # The two strongest teams in the conference meet in the title game (there
-  # are no full conference schedules for the rest of the league, so power
-  # rating stands in for the standings). The favorite is whoever the odds
+  # The title game teams (see champion_predictions_json; there are no full
+  # conference schedules for the rest of the league, so power rating stands in
+  # for the standings). The favorite is whoever the odds
   # favor at a neutral site.
   def championship_game_json(finalists)
     return nil if finalists.size < CHAMPIONSHIP_GAME_TEAMS
@@ -430,6 +468,7 @@ class WinTotalsSerializer
       coach: college_season.coach && { id: college_season.coach.id, name: college_season.coach.name },
       team_strength: strength.round(1),
       coached_by_us: coached_college_ids.include?(college_season.college_id),
+      division: college_season.division.presence,
       previous_season_record: previous_season_record_json(college_season.college_id),
       gap_to_favorite: gap_to && (gap_to - strength).round(1)
     }.compact
