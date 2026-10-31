@@ -38,6 +38,12 @@ module GameStats
       result_for(blob, "table")
     end
 
+    # True if the screenshot was read without an error (even when no table was found on it).
+    def read?(blob, kind = "table")
+      key = [ blob.id, kind ]
+      @results.key?(key) && !(@results[key].is_a?(Hash) && @results[key]["error"])
+    end
+
     private
 
     def result_for(blob, kind)
@@ -65,12 +71,17 @@ module GameStats
         stdout, stderr, status = Timeout.timeout(TIMEOUT) { Open3.capture3(PYTHON, SCRIPT.to_s, jobs_path) }
         unless status.success?
           @error = stderr.lines.last(3).join.strip.presence || "exit #{status.exitstatus}"
+          Rails.logger.warn("[local reader] failed: #{@error}")
           return
         end
-        JSON.parse(stdout).each_with_index { |entry, index| @results[specs[index][:key]] = entry["result"] }
+        JSON.parse(stdout).each_with_index do |entry, index|
+          Rails.logger.warn("[local reader] couldn't read #{File.basename(entry['file'])}: #{entry['result']['error'].to_s.lines.last&.strip}") if entry["result"].is_a?(Hash) && entry["result"]["error"]
+          @results[specs[index][:key]] = entry["result"]
+        end
       end
     rescue StandardError => e
       @error = "#{e.class}: #{e.message}"
+      Rails.logger.warn("[local reader] failed: #{@error}")
       @results = {}
     end
   end

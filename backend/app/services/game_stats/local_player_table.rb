@@ -37,6 +37,19 @@ module GameStats
 
     attr_reader :reason
 
+    # Which stat category a raw table is, from the headers it has ("SOLO" only exists on Defense), or nil.
+    # Lets a screenshot the capture couldn't label skip the AI classifier.
+    def self.category_of(table)
+      return nil unless table.is_a?(Array) && table.any?
+
+      headers = table.first["cells"].keys
+      return "passing" if (headers & %w[RATING COMP%]).any?
+      return "rushing" if headers.include?("CAR")
+      return "receiving" if headers.include?("REC")
+
+      "defense" if headers.include?("SOLO")
+    end
+
     def initialize(category:, roster:, float_fields:)
       @category = category
       @roster = roster

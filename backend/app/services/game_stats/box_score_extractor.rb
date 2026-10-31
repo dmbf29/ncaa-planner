@@ -91,7 +91,10 @@ module GameStats
 
       reader = LocalBoxScore.new(home_college: @home_college, away_college: @away_college)
       entries = reader.call(pages)
-      @warnings << "Box score: the local read didn't check out (#{reader.reason}), so the AI read it." unless entries
+      unless entries
+        @warnings << "Box score: the local read didn't check out (#{reader.reason}), so the AI read it."
+        Rails.logger.info("[local reader] box score: rejected, #{reader.reason}")
+      end
       entries
     end
 

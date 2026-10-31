@@ -69,6 +69,7 @@ module GameStats
 
       grouped = group_by_known_category(blobs, known_categories)
       unknown = blobs - grouped.values.flatten
+      unknown -= categorize_locally(unknown, grouped)
       group_by_category(unknown, ImageClassifier.new(team_name: college.name).call(unknown)).each do |category, group|
         grouped[category].concat(group)
       end
@@ -78,6 +79,24 @@ module GameStats
         rows = extractor.call(grouped[category], extra_blobs: category == "defense" ? grouped[EXTRA_CATEGORY] : [])
         @warnings.concat(extractor.warnings.map { |warning| "#{college.name} #{warning}" })
         rows
+      end
+    end
+
+    # Screenshots the capture couldn't label: the local reader knows a table's category from its headers, so
+    # only the ones it couldn't read at all go to the AI classifier. One it read but found no recognisable table
+    # on is a screen caught mid-navigation (the team menu open over the table, say) and is dropped, as the AI
+    # would have been handed a table with its first columns hidden. Returns the blobs it dealt with.
+    def categorize_locally(blobs, grouped)
+      blobs.select do |blob|
+        next false unless @local.read?(blob)
+
+        category = LocalPlayerTable.category_of(@local.table(blob))
+        if category
+          grouped[category] << blob
+        else
+          @warnings << "A captured screen that didn't show a full stats table was skipped (#{blob.filename})."
+        end
+        true
       end
     end
 
