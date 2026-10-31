@@ -83,8 +83,10 @@ CATEGORIES = [  # column-header words that identify a Player Stats table
 ]
 
 
-# One Rushing row: "J.Smith 12 58 4.8 1 0 2 15 17 1". The first number is CAR (carries), then YARDS and AVG.
-RUSHING_ROW = re.compile(r"^\s*[A-Za-z]\.\s?[A-Za-z'\u2019.\- ]{1,24}?\s+(\d+)\s+-?\d+\s+-?\d+\.\d\b", re.M)
+# One Rushing row: "J.Smith 12 58 4.8 1 0 2 15 17 1" -- the first number is CAR (carries), followed by at least six more
+# values. Only the first number is trusted: OCR garbles the busy middle of a row ("4.1" -> "rr"), and requiring clean
+# decimals made a table with two real runners look like one with only 0-carry players.
+RUSHING_ROW = re.compile(r"^[ \t]*[A-Za-z]\.[ \t]?[A-Za-z'\u2019.\- ]{1,24}?[ \t]+(\d+)(?:[ \t]+\S+){6,}", re.M)
 
 
 def rushing_rows(text):
