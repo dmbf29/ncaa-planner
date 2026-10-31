@@ -17,6 +17,8 @@ module GameCapture
     # Same limit as tools/capture/watch.py: two views further apart than this share too few rows to graft.
     MAX_SHIFT_ROWS = 8
 
+    UPLOAD_POOL = Concurrent::FixedThreadPool.new(6)
+
     Error = Class.new(StandardError)
 
     def initialize(game)
@@ -164,12 +166,20 @@ module GameCapture
       all.select { |s| s[:category] == "defense_extra" && s[:overlap_rows] }.sum { |s| 11 - s[:overlap_rows] }
     end
 
+    # Uploads run side by side: each is a round trip to storage, and a capture has ~20 screenshots.
     def signed_ids(dir, screens)
-      screens.map do |screen|
-        File.open(File.join(dir, screen[:file])) do |io|
-          ActiveStorage::Blob.create_and_upload!(io: io, filename: screen[:file], content_type: "image/png").signed_id
+      uploads = screens.map do |screen|
+        Concurrent::Promises.future_on(UPLOAD_POOL) do
+          ActiveRecord::Base.connection_pool.with_connection do
+            path = File.join(dir, screen[:file])
+            File.open(path) do |io|
+              # local_path lets the local reader open the original instead of downloading it back (GameStats::LocalReader).
+              ActiveStorage::Blob.create_and_upload!(io: io, filename: screen[:file], content_type: "image/png", metadata: { local_path: path }).signed_id
+            end
+          end
         end
       end
+      uploads.map(&:value!)
     end
 
     def screens(dir)

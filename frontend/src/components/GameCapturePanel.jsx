@@ -116,7 +116,9 @@ function GameCapturePanel({ gameId, homeName, awayName, disabled, onFinished, on
       notes.push(`The Defense list scrolled between some left/right captures, so ${partialRows} player row(s) are missing their right-hand stats (FFUMB, FMBREC, ...). Everything else for them was saved.`);
     }
     if (analysis.warnings?.length) notes.push(...analysis.warnings);
-    if (analysis.usage?.calls) {
+    if (analysis.usage?.calls === 0) {
+      notes.push("Read locally, no AI calls.");
+    } else if (analysis.usage?.calls) {
       notes.push(`Analysis used ${analysis.usage.calls} AI calls (${analysis.usage.inputTokens.toLocaleString()} tokens in, ${analysis.usage.outputTokens.toLocaleString()} out), about $${analysis.usage.cost.toFixed(2)}.`);
     }
     setNote(notes.length ? notes.join(" · ") : null);

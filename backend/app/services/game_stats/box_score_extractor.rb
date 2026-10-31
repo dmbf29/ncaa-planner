@@ -54,13 +54,22 @@ module GameStats
       Leave a field unset if it is not visible in any image.
     PROMPT
 
-    def initialize(home_college:, away_college:)
+    # Human-readable notes (a local read that didn't add up and went to the AI); read after #call.
+    attr_reader :warnings
+
+    # local: a LocalReader that has already read these screenshots on this Mac, or nil.
+    def initialize(home_college:, away_college:, local: nil)
       @home_college = home_college
       @away_college = away_college
+      @local = local
+      @warnings = []
     end
 
     def call(image_blobs)
       return [] if image_blobs.blank?
+
+      local_entries = read_locally(image_blobs)
+      return local_entries if local_entries
 
       # Time of possession rides along with the last group rather than getting its own tiny call.
       results = GROUPS.each_with_index.map do |fields, index|
@@ -74,6 +83,17 @@ module GameStats
     end
 
     private
+
+    # The box score read without the AI, or nil if it wasn't read or the numbers don't add up.
+    def read_locally(image_blobs)
+      pages = image_blobs.map { |blob| @local&.box_score(blob) }
+      return nil if pages.none?
+
+      reader = LocalBoxScore.new(home_college: @home_college, away_college: @away_college)
+      entries = reader.call(pages)
+      @warnings << "Box score: the local read didn't check out (#{reader.reason}), so the AI read it." unless entries
+      entries
+    end
 
     def team_names
       [ @home_college.name, @away_college.name ]

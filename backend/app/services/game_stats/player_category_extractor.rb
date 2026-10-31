@@ -138,10 +138,12 @@ module GameStats
     # EXTRA_FIELD_GROUPS); read after #call.
     attr_reader :warnings
 
-    def initialize(category:, college:, roster:)
+    # local: a LocalReader that has already read these screenshots on this Mac, or nil.
+    def initialize(category:, college:, roster:, local: nil)
       @category = category
       @college = college
       @roster = roster
+      @local = local
       @warnings = []
     end
 
@@ -170,8 +172,22 @@ module GameStats
     # array even when the screenshot clearly has players on it. A single
     # retry clears this up almost every time it happens.
     def run_group(image_blobs, fields, extra: false)
+      local_rows = read_locally(image_blobs, fields, extra: extra)
+      return local_rows if local_rows
+
       rows = fetch_group(image_blobs, fields, extra: extra)
       rows = fetch_group(image_blobs, fields, extra: extra) if rows.empty?
+      rows
+    end
+
+    # Rows read with Apple Vision instead of the AI, or nil if they weren't read or don't add up.
+    def read_locally(image_blobs, fields, extra:)
+      tables = image_blobs.map { |blob| @local&.table(blob) }
+      return nil if tables.none?
+
+      reader = LocalPlayerTable.new(category: @category, roster: @roster, float_fields: FLOAT_FIELDS)
+      rows = reader.call(tables, fields: fields, extra: extra)
+      @warnings << "#{extra ? 'scrolled-right ' : ''}#{@category}: the local read didn't check out (#{reader.reason}), so the AI read it." unless rows
       rows
     end
 

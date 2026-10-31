@@ -18,6 +18,9 @@ module GameStats
   # to skip ImageClassifier; only the nil ones are still classified. The
   # special category "defense_extra" marks a name-grafted screenshot of the
   # scrolled-right Defense columns (see PlayerCategoryExtractor::EXTRA_FIELD_GROUPS).
+  #
+  # On the dev machine, every screenshot is first read locally with Apple Vision (LocalReader; no AI
+  # call). The extractors use that when the numbers add up and fall back to the AI for whatever doesn't.
   class ExtractionService
     EXTRA_CATEGORY = "defense_extra".freeze
 
@@ -34,8 +37,11 @@ module GameStats
       home_roster = Roster.for(@game.home_college, season)
       away_roster = Roster.for(@game.away_college, season)
 
-      college_stats = BoxScoreExtractor.new(home_college: @game.home_college, away_college: @game.away_college)
-                                        .call(box_score_blobs)
+      @local = LocalReader.new(box_score_blobs: box_score_blobs, table_blobs: home_blobs + away_blobs)
+
+      box_score_extractor = BoxScoreExtractor.new(home_college: @game.home_college, away_college: @game.away_college, local: @local)
+      college_stats = box_score_extractor.call(box_score_blobs)
+      @warnings.concat(box_score_extractor.warnings)
 
       player_stats = player_stats_for(@game.home_college, home_roster, home_blobs, home_categories) +
                      player_stats_for(@game.away_college, away_roster, away_blobs, away_categories)
@@ -68,7 +74,7 @@ module GameStats
       end
 
       StatFields::CATEGORIES.flat_map do |category|
-        extractor = PlayerCategoryExtractor.new(category: category, college: college, roster: roster)
+        extractor = PlayerCategoryExtractor.new(category: category, college: college, roster: roster, local: @local)
         rows = extractor.call(grouped[category], extra_blobs: category == "defense" ? grouped[EXTRA_CATEGORY] : [])
         @warnings.concat(extractor.warnings.map { |warning| "#{college.name} #{warning}" })
         rows
