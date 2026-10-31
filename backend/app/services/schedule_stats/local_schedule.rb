@@ -37,6 +37,7 @@ module ScheduleStats
 
       merged = merge(readings.flatten(1))
       drop_partial_duplicates(merged)
+      drop_clashing_duplicates(merged)
       resolve_conflicts(merged)
       rows = merged.map { |reading| build_row(reading) }
       warnings = rows.filter_map { |row| row.delete(:issue) }
@@ -154,6 +155,21 @@ module ScheduleStats
         side = reading[:away] ? :away : :home
         (reading[:away].nil? ^ reading[:home].nil?) &&
           readings.any? { |other| !other.equal?(reading) && other[:away] && other[:home] && other[side] == known }
+      end
+    end
+
+    # The same team on the same side, with the same date and kickoff or result, is one game even if the other team
+    # was matched differently ("Texas A&M" read as "Texas" in one frame): keep the reading whose other team's name
+    # is the closest fit. Not for an FCS placeholder, which stands in for a different real team each time.
+    def drop_clashing_duplicates(readings)
+      %i[away home].each do |side|
+        other = side == :away ? :home : :away
+        readings.group_by { |r| [ r[side]&.id, r[:date], r[:result] ] }.each do |(id, *), group|
+          next if id.nil? || group.size < 2 || group.first[side].conference == "FCS"
+
+          best = group.min_by { |r| name_distance(r[:"raw_#{other}"], r[other]) }
+          group.each { |r| readings.delete(r) unless r.equal?(best) }
+        end
       end
     end
 
