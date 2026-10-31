@@ -143,5 +143,7 @@ module PlayersOfTheWeek
           national: national, conference: conference, rows: group_rows }
       end
     end
+
+    public :resolve_week, :group_rows # PlayersOfTheWeek::LocalReader shares them
   end
 end

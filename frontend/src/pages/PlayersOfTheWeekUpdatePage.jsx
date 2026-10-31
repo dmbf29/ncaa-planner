@@ -149,6 +149,7 @@ function PlayersOfTheWeekUpdatePage() {
   const [commitError, setCommitError] = useState(null);
   const [saved, setSaved] = useState(false);
   const [warnings, setWarnings] = useState([]);
+  const [readerWarnings, setReaderWarnings] = useState([]);
 
   useEffect(() => {
     const load = async () => {
@@ -188,6 +189,7 @@ function PlayersOfTheWeekUpdatePage() {
     try {
       const result = await analyzePlayersOfTheWeek(dynastyId, seasonId, files);
       setGroups(result.groups);
+      setReaderWarnings(result.warnings || []);
       setColleges(result.colleges);
     } catch (err) {
       setAnalyzeError(err.message);
@@ -305,6 +307,16 @@ function PlayersOfTheWeekUpdatePage() {
         </div>
       ) : (
         <div className="space-y-4">
+          {readerWarnings.length > 0 && (
+            <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-textPrimary dark:text-white">
+              <p className="font-semibold">Check these before saving:</p>
+              <ul className="mt-1 list-disc pl-5">
+                {readerWarnings.map((warning, index) => (
+                  <li key={index}>{warning}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           {groups.map((group, index) => (
             <GroupCard key={index} group={group} colleges={colleges} weeks={weeks} onChange={(next) => updateGroup(index, next)} />
           ))}
