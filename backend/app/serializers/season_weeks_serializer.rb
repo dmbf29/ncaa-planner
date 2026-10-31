@@ -189,7 +189,7 @@ class SeasonWeeksSerializer
       conference_results: conference_results_for_week(week),
       conference_top_25: conference_top_25_for_week(week),
       conference_heisman_watch: conference_heisman_watch_for_week(week),
-      conference_standings: primary && week.number >= MIN_WEEK_NUMBER_FOR_SEASON_STATS ? conference_standings_json : nil,
+      conference_standings: primary && week.number >= MIN_WEEK_NUMBER_FOR_SEASON_STATS ? conference_standings_json(week) : nil,
       conference_championships: primary ? conference_championships_json(week) : [],
       cfp_games: week.post_season ? cfp_games_json(week) : [],
       championship: week.post_season ? championship_json(week) : nil
@@ -340,14 +340,13 @@ class SeasonWeeksSerializer
 
   # The full standings table (same numbers as the public Conference
   # Standings page) for only the conference(s) our coached teams play in —
-  # not every conference in the league. It's a current snapshot, not
-  # week-specific data (see ConferenceStandings::CommitService), so it's the
-  # same for every week in this response — memoized rather than recomputed
-  # per week.
-  def conference_standings_json
-    @conference_standings_json ||= ConferenceStandingsSerializer.new(@season)
-                                                                  .as_json[:conferences]
-                                                                  .select { |c| coached_conferences.include?(c[:conference]) }
+  # not every conference in the league, worked out from the games played
+  # through the recapped week.
+  def conference_standings_json(week)
+    @conference_standings_json ||= {}
+    @conference_standings_json[week.number] ||= ConferenceStandingsSerializer.new(@season, through_week_number: week.number)
+                                                                             .as_json[:conferences]
+                                                                             .select { |c| coached_conferences.include?(c[:conference]) }
   end
 
   def team_week_json(college_season, week, primary:)
@@ -924,9 +923,7 @@ class SeasonWeeksSerializer
   # with the best conference record right now, tiebroken (in order) by
   # head-to-head, then overall record, then name (see
   # #compare_for_championship_seeding). Only from the Week 11 recap on.
-  # Records are derived from played games, not the
-  # college_season.conference_wins/losses columns, which lag a gameweek
-  # behind (see ConferenceStandings::CommitService).
+  # Records are derived from played games.
   def conference_championships_json(week)
     return [] unless week.number > MIN_WEEK_NUMBER_FOR_CHAMPIONSHIP_PROJECTION
 

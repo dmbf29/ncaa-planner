@@ -52,11 +52,16 @@ def grab(bounds):
         return Image.open(f.name).convert("RGB").copy()
 
 
+SIGNATURE_BOX = (0.0, 0.12, 1.0, 0.90)
+
+
 def signature(img):
     """Small grayscale of the middle of the frame (ignores title bar and the
-    hover-only controller bar at the bottom)."""
+    hover-only controller bar at the bottom). SIGNATURE_BOX narrows it for screens
+    with an animated background or side panel (--signature-box)."""
     w, h = img.size
-    mid = img.crop((0, int(h * 0.12), w, int(h * 0.90)))
+    x0, y0, x1, y1 = SIGNATURE_BOX
+    mid = img.crop((int(w * x0), int(h * y0), int(w * x1), int(h * y1)))
     return np.asarray(mid.convert("L").resize((128, 72)), dtype=np.float32)
 
 
@@ -133,7 +138,7 @@ def header_slug(img, text, teams=()):
             title = re.sub(r"[^A-Za-z0-9]+", "-", line).strip("-")[:30].lower() or "screen"
             break
     # "in", not startswith: OCR sometimes reads the school logo beside the title as a stray letter ("y-box-score")
-    kind = "box_score" if "box-score" in title else "team_stats" if "team-stats" in title else "other"
+    kind = "box_score" if "box-score" in title else "team_stats" if "team-stats" in title else "schedule" if "schedule" in title else "other"
     meta = {"kind": kind, "team": None, "category": None}
     parts = [title]
     if kind == "team_stats":
@@ -254,8 +259,13 @@ def main():
     p.add_argument("--min-change", type=float, default=0.3, help="ignore settled screens this close to the last one handled (near-identical frames only; real repeats are caught by text comparison)")
     p.add_argument("--dup", type=float, default=0.92, help="text similarity above which a screen is a repeat")
     p.add_argument("--teams", default="", help='the game\'s teams, comma-separated, to fix misread names (e.g. "UL Monroe,James Madison")')
+    p.add_argument("--every", type=float, default=0, help="also save a frame this many seconds apart while the screen keeps moving (for a list you scroll by holding the stick, which never holds still); 0 = only when it settles")
+    p.add_argument("--signature-box", default="", help="x0,y0,x1,y1 as fractions of the window: the part of the screen watched for motion and repeats (the Scores/Schedules screen has an animated background and a side panel that never hold still)")
     p.add_argument("--debug", action="store_true", help="print change values every tick (for tuning)")
     args = p.parse_args()
+    if args.signature_box:
+        global SIGNATURE_BOX
+        SIGNATURE_BOX = tuple(float(v) for v in args.signature_box.split(","))
 
     out = Path(args.out) / args.name
     out.mkdir(parents=True, exist_ok=True)
@@ -389,6 +399,7 @@ def main():
     last = last_handled = None
     queued_sigs = []   # pictures already queued this session, so a repeat doesn't beep
     stable_since, handled, moving_since, warned, tick = None, False, None, False, 0
+    last_timed = 0.0
     try:
         while True:
             tick += 1
@@ -401,6 +412,11 @@ def main():
             if args.debug:
                 print("tick %4d  change %.2f" % (tick, d))
 
+            if args.every and time.time() - last_timed >= args.every and not any(delta(sig, earlier) < 1.0 for earlier in queued_sigs):
+                last_timed = time.time()
+                queued_sigs.append(sig)
+                jobs.put(img)
+                handled = True
             if d > args.motion:
                 stable_since, handled = None, False
                 moving_since = moving_since or time.time()

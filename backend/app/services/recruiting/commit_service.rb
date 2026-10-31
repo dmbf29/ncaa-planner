@@ -2,7 +2,7 @@ module Recruiting
   # Persists a (possibly user-edited) national recruiting class rankings
   # table for one season. Purely team-level data — no Student/StudentSeason
   # involved — so each row just finds-or-creates the CollegeSeason (same
-  # reasoning as NilSpend/ConferenceStandings: a freshly-started season
+  # reasoning as NilSpend: a freshly-started season
   # won't have one yet for anything but the coached teams) and overwrites
   # its RecruitingSeason with this upload, since a snapshot upload is meant
   # to be the definitive replacement, not a merge.

@@ -31,7 +31,6 @@ import PlayersOfTheWeekUpdatePage from "./pages/PlayersOfTheWeekUpdatePage";
 import CoachInfoUpdatePage from "./pages/CoachInfoUpdatePage";
 import CoachOutcomesUpdatePage from "./pages/CoachOutcomesUpdatePage";
 import NilSpendUpdatePage from "./pages/NilSpendUpdatePage";
-import ConferenceStandingsUpdatePage from "./pages/ConferenceStandingsUpdatePage";
 import TeamStatsUpdatePage from "./pages/TeamStatsUpdatePage";
 import TeamScheduleUpdatePage from "./pages/TeamScheduleUpdatePage";
 import RecruitingUpdatePage from "./pages/RecruitingUpdatePage";
@@ -84,7 +83,6 @@ function App() {
         <Route path="/dynasty/updates/heisman" element={<HeismanUpdatePage />} />
         <Route path="/dynasty/updates/players-of-the-week" element={<PlayersOfTheWeekUpdatePage />} />
         <Route path="/dynasty/updates/nil-spend" element={<NilSpendUpdatePage />} />
-        <Route path="/dynasty/updates/standings" element={<ConferenceStandingsUpdatePage />} />
         <Route path="/dynasty/updates/team-stats" element={<TeamStatsUpdatePage />} />
         <Route path="/dynasty/updates/team-schedule" element={<TeamScheduleUpdatePage />} />
         <Route path="/dynasty/updates/recruiting" element={<RecruitingUpdatePage />} />

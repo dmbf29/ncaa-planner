@@ -9,7 +9,6 @@ const WEEKLY_UPDATES = [
   { key: "top25", label: "Top 25", icon: "fa-solid fa-arrow-up-right-dots", description: "Upload the weekly AP-style poll screenshots.", to: "/dynasty/updates/top25" },
   { key: "players-of-the-week", label: "Players of the Week", icon: "fa-solid fa-award", description: "Upload the weekly Players of the Week screenshots.", to: "/dynasty/updates/players-of-the-week" },
   { key: "heisman", label: "Heisman Candidates", icon: "fa-solid fa-trophy", description: "Upload the weekly Heisman Watch List screenshot.", to: "/dynasty/updates/heisman" },
-  { key: "standings", label: "Conference Standings", icon: "fa-solid fa-ranking-star", description: "Upload the conference standings screenshots.", to: "/dynasty/updates/standings" },
   { key: "coach-info", label: "Coach Info", icon: "fa-solid fa-user-tie", description: "Enter each user coach's NIL amount and job security.", to: "/dynasty/updates/coach-info" },
   { key: "recruitment-trail", label: "Recruitment Trail", icon: "fa-solid fa-file-signature", description: "Upload a team's weekly recruits.", to: "/dynasty/updates/recruitment-trail" },
   { key: "register-injuries", label: "Register Injuries", icon: "fa-solid fa-user-injured", description: "Log injuries from the conference standings page.", toStandings: true },

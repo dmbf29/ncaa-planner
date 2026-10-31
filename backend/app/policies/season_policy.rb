@@ -19,6 +19,18 @@ class SeasonPolicy < ApplicationPolicy
     owner?
   end
 
+  def capture_schedule_start?
+    owner?
+  end
+
+  def capture_schedule_status?
+    owner?
+  end
+
+  def capture_schedule_stop?
+    owner?
+  end
+
   def analyze_schedule_status?
     owner?
   end
@@ -40,14 +52,6 @@ class SeasonPolicy < ApplicationPolicy
   end
 
   def commit_nil_spend?
-    owner?
-  end
-
-  def analyze_conference_standings?
-    owner?
-  end
-
-  def commit_conference_standings?
     owner?
   end
 

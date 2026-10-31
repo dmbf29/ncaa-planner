@@ -273,3 +273,14 @@ namespace :dynasty do
     puts "#{season.year} chronicle:\n\n#{text}"
   end
 end
+
+namespace :standings do
+  desc "Rewrite every team's stored record and points from the games played: rake standings:refresh[SEASON_ID] (all seasons without an id)"
+  task :refresh, [ :season_id ] => :environment do |_task, args|
+    seasons = args[:season_id] ? Season.where(id: args[:season_id]) : Season.all
+    seasons.find_each do |season|
+      StandingsCalculator.refresh(season, season.college_seasons.pluck(:college_id))
+      puts "Refreshed #{season.year}."
+    end
+  end
+end

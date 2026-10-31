@@ -5,6 +5,7 @@ module Api
       skip_after_action :verify_authorized
       before_action :set_dynasty
       before_action :set_season, except: :create
+      before_action :require_local_capture, only: %i[capture_schedule_start capture_schedule_status capture_schedule_stop]
 
       def show
         authorize @season
@@ -60,6 +61,33 @@ module Api
         render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
       end
 
+      # Local-only recording of the weekly schedule from PS Remote Play (see ScheduleCapture::Session).
+      def capture_schedule_start
+        authorize @season
+        render json: ScheduleCapture::Session.new(@season).start!
+      end
+
+      def capture_schedule_status
+        authorize @season
+        render json: ScheduleCapture::Session.new(@season).status
+      end
+
+      # Stops the watcher and reads what it saved in the background; poll #analyze_schedule_status with the token.
+      def capture_schedule_stop
+        authorize @season
+        result = ScheduleCapture::Session.new(@season).stop!
+        paths = result.delete(:paths)
+        if paths.empty?
+          return render json: { error: "No schedule screens were captured — open Scores/Schedules in Remote Play and scroll the list.", code: "capture_failed" },
+                        status: :unprocessable_entity
+        end
+
+        token = SecureRandom.uuid
+        AnalysisStatus.pending!(token)
+        ScheduleCaptureAnalysisJob.perform_later(token: token, season_id: @season.id, paths: paths)
+        render json: result.merge(token: token), status: :accepted
+      end
+
       def analyze_all_americans
         authorize @season
         result = AllAmericans::Extractor.new.call(Array(params[:images]))
@@ -112,22 +140,6 @@ module Api
       def coach_info
         authorize @season
         render json: ::SeasonCoachInfoSerializer.new(@season).as_json
-      end
-
-      def analyze_conference_standings
-        authorize @season
-        result = ConferenceStandings::Extractor.new.call(Array(params[:images]))
-        render json: result
-      rescue RubyLLM::Error => e
-        render json: { error: "AI extraction failed: #{e.message}", code: "extraction_failed" }, status: :unprocessable_entity
-      end
-
-      def commit_conference_standings
-        authorize @season
-        warnings = ConferenceStandings::CommitService.new(@season).call(commit_rows)
-        render json: { season_id: @season.id, warnings: warnings }
-      rescue ActiveRecord::RecordInvalid => e
-        render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
       end
 
       def analyze_team_stats
@@ -449,6 +461,12 @@ module Api
       end
 
       private
+
+      # The watcher drives the developer's own Mac (screen capture + a process spawn), so it must never be
+      # reachable outside local dev.
+      def require_local_capture
+        render json: { error: "Capture is only available in local development.", code: "not_available" }, status: :not_found unless Rails.env.development?
+      end
 
       def set_dynasty
         @dynasty = policy_scope(Dynasty).find(params[:dynasty_id])

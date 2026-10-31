@@ -336,6 +336,22 @@ export const analyzeSchedule = (dynastyId, seasonId, files) => {
     .then((r) => pollAnalysis(statusPath, r.data.token));
 };
 
+// Local-only recording of the weekly schedule from PS Remote Play (backend ScheduleCapture::Session).
+// => { running, dir, screens: [file names] }
+export const startScheduleCapture = (dynastyId, seasonId) =>
+  api.post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/capture_schedule_start`).then((r) => r.data);
+
+export const fetchScheduleCaptureStatus = (dynastyId, seasonId) =>
+  api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/capture_schedule_status`).then((r) => r.data);
+
+// Stops the watcher and starts reading what it saved => { token, screens }; pass the token to collectScheduleCapture.
+export const stopScheduleCapture = (dynastyId, seasonId) =>
+  api.post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/capture_schedule_stop`).then((r) => r.data);
+
+// Resolves with the same analysis analyzeSchedule does, plus `warnings` (rows the reader couldn't settle).
+export const collectScheduleCapture = (dynastyId, seasonId, token) =>
+  pollAnalysis(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/analyze_schedule_status`, token, { timeoutMs: 10 * 60 * 1000 });
+
 export const commitSchedule = (dynastyId, seasonId, weekId, rows) =>
   api
     .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_schedule`, { weekId, rows })
@@ -409,21 +425,6 @@ export const analyzeNilSpend = (dynastyId, seasonId, files) => {
 export const commitNilSpend = (dynastyId, seasonId, rows) =>
   api
     .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_nil_spend`, { rows })
-    .then((r) => r.data);
-
-export const analyzeConferenceStandings = (dynastyId, seasonId, files) => {
-  const formData = new FormData();
-  files.forEach((file) => formData.append("images[]", file));
-  return api
-    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/analyze_conference_standings`, formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    })
-    .then((r) => r.data);
-};
-
-export const commitConferenceStandings = (dynastyId, seasonId, rows) =>
-  api
-    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_conference_standings`, { rows })
     .then((r) => r.data);
 
 export const analyzeTeamStats = (dynastyId, seasonId, files, statType) => {

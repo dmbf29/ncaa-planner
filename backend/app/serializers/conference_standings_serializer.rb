@@ -3,9 +3,13 @@
 # standings are league-wide context. Sorted by conference win % then
 # overall win % within each conference, matching how a real standings
 # table reads.
+#
+# Records and points come from the games played (StandingsCalculator), not from any uploaded standings;
+# `through_week_number` shows the table as it stood after that week.
 class ConferenceStandingsSerializer
-  def initialize(season)
+  def initialize(season, through_week_number: nil)
     @season = season
+    @calculator = StandingsCalculator.new(season, through_week_number: through_week_number)
   end
 
   def as_json
@@ -47,9 +51,13 @@ class ConferenceStandingsSerializer
   def conference_json(conference, rows)
     {
       conference: conference,
-      teams: rows.sort_by { |cs| [ -win_pct(cs.conference_wins, cs.conference_losses), -win_pct(cs.wins, cs.losses) ] }
+      teams: rows.sort_by { |cs| [ -win_pct(*record_of(cs).values_at(:conference_wins, :conference_losses)), -win_pct(*record_of(cs).values_at(:wins, :losses)) ] }
                  .map { |cs| team_json(cs) }
     }
+  end
+
+  def record_of(college_season)
+    @calculator.record_for(college_season.college_id)
   end
 
   def win_pct(wins, losses)
@@ -60,6 +68,7 @@ class ConferenceStandingsSerializer
   end
 
   def team_json(college_season)
+    record = @calculator.record_for(college_season.college_id)
     {
       id: college_season.id,
       college: { id: college_season.college.id, name: college_season.college.name },
@@ -68,14 +77,8 @@ class ConferenceStandingsSerializer
       coached_by_us: coached_college_ids.include?(college_season.college_id),
       player_count: player_counts.fetch(college_season.id, 0),
       rank: rank_for_college(college_season.college_id),
-      wins: college_season.wins,
-      losses: college_season.losses,
-      conference_wins: college_season.conference_wins,
-      conference_losses: college_season.conference_losses,
-      points_for: college_season.points_for,
-      points_against: college_season.points_against,
-      conference_points_for: college_season.conference_points_for,
-      conference_points_against: college_season.conference_points_against
+      **record.slice(:wins, :losses, :conference_wins, :conference_losses, :points_for, :points_against,
+                     :conference_points_for, :conference_points_against)
     }
   end
 end

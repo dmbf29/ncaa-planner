@@ -79,26 +79,8 @@ module ScheduleStats
       raw["week_label"]
     end
 
-    # Same deterministic label -> Week mapping idea as
-    # TeamSchedule::ScheduleExtractor#resolve_week, adapted to this screen's
-    # header format ("WEEK 5" / "BOWL WEEK 1" / "CONFERENCE CHAMPIONSHIP")
-    # rather than that one's WEEK-column format ("5" / "Bowl Week 1" / "Conf
-    # Champ"). A plain "WEEK N" is only matched against a regular-season
-    # week (not post_season/conference_championship) so it can never
-    # resolve to the same row a "BOWL WEEK N" header would.
     def resolve_week(season, raw_label)
-      return nil if season.nil? || raw_label.blank?
-
-      normalized = raw_label.strip
-      return season.weeks.find_by(conference_championship: true) if normalized.match?(/conf(erence)?\s*champ/i)
-
-      bowl_match = normalized.match(/bowl\s*week\s*(\d+)/i)
-      return season.weeks.find_by(name: "Bowl Week #{bowl_match[1]}") if bowl_match
-
-      number_match = normalized.match(/\d+/)
-      return nil unless number_match
-
-      season.weeks.find_by(number: number_match[0].to_i, post_season: false, conference_championship: false)
+      WeekLabel.resolve(season, raw_label)
     end
 
     def fetch_matchups(images)

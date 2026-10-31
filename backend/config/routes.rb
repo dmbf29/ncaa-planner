@@ -41,12 +41,14 @@ Rails.application.routes.draw do
             post :analyze_schedule
             get :analyze_schedule_status
             post :commit_schedule
+            # Local-only: records schedule screens with tools/capture/watch.py. See ScheduleCapture::Session.
+            post :capture_schedule_start
+            get :capture_schedule_status
+            post :capture_schedule_stop
             post :analyze_all_americans
             post :commit_all_americans
             post :analyze_nil_spend
             post :commit_nil_spend
-            post :analyze_conference_standings
-            post :commit_conference_standings
             post :analyze_team_stats
             post :commit_team_stats
             post :analyze_recruiting

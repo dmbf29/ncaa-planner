@@ -2,7 +2,7 @@ module TeamStats
   # Persists a (possibly user-edited) team offense/defense stats table for
   # one season. Purely team-level data — no Student/StudentSeason involved —
   # so each row just finds-or-creates the CollegeSeason (same reasoning as
-  # ConferenceStandings/NilSpend: a freshly-started season won't have one
+  # NilSpend: a freshly-started season won't have one
   # yet for anything but the coached teams) and overwrites only that stat
   # type's columns with this upload, since it's meant to be the definitive
   # current status, not a merge. Offense and defense are uploaded/committed

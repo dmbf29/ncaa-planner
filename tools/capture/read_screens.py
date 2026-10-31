@@ -3,9 +3,9 @@
 
     backend/tools/roster_video/venv/bin/python tools/capture/read_screens.py jobs.json
 
-jobs.json is [{"file": "/path/shot.png", "kind": "box_score" | "table"}, ...]. Prints a JSON list, one
+jobs.json is [{"file": "/path/shot.png", "kind": "box_score" | "table" | "schedule"}, ...]. Prints a JSON list, one
 entry per job in the same order: {"file": ..., "kind": ..., "result": ...} where result is read_box_score's
-dict or read_table's list of rows, or {"error": "..."} if that image couldn't be read.
+dict, read_table's list of rows or read_schedule's dict, or {"error": "..."} if that image couldn't be read.
 """
 import json
 import os
@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from PIL import Image  # noqa: E402
 
 from read_box_score import read_box_score  # noqa: E402
+from read_schedule import read_schedule  # noqa: E402
 from read_table import read_table  # noqa: E402
 
 
@@ -26,6 +27,8 @@ def read(job):
     img = Image.open(job["file"]).convert("RGB")
     if job["kind"] == "box_score":
         return read_box_score(img)
+    if job["kind"] == "schedule":
+        return read_schedule(img)
     return read_table(img)
 
 

@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import FileDropZone from "../components/FileDropZone";
+import ScheduleCapturePanel from "../components/ScheduleCapturePanel";
 import { fetchDynasties, fetchSeason, analyzeSchedule, commitSchedule } from "../lib/apiClient";
 
 const inputClass =
@@ -96,7 +97,7 @@ function GameRow({ row, colleges, onChange }) {
   );
 }
 
-function ScheduleReview({ weekNumber, detectedWeekLabel, weeks, selectedWeekId, onWeekChange, rows, colleges, onChange, onCommit, committing, error }) {
+function ScheduleReview({ weekNumber, detectedWeekLabel, weeks, selectedWeekId, onWeekChange, rows, colleges, onChange, onCommit, committing, error, readerWarnings }) {
   const updateRow = (index, nextRow) => {
     if (nextRow === null) {
       onChange(rows.filter((_, i) => i !== index));
@@ -113,6 +114,16 @@ function ScheduleReview({ weekNumber, detectedWeekLabel, weeks, selectedWeekId, 
           Detected <strong>{detectedWeekLabel || `Week ${weekNumber ?? "?"}`}</strong> from the screenshots — confirm it below,
           fix any unmatched colleges, then save.
         </p>
+        {readerWarnings.length > 0 && (
+          <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-textPrimary dark:text-white">
+            <p className="font-semibold">Check these before saving:</p>
+            <ul className="mt-1 list-disc pl-5">
+              {readerWarnings.map((warning, index) => (
+                <li key={index}>{warning}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-xs uppercase tracking-wide text-textSecondary">Week</span>
           <select value={selectedWeekId} onChange={(e) => onWeekChange(Number(e.target.value))} className={`${inputClass} max-w-xs`}>
@@ -184,6 +195,7 @@ function ScheduleUpdatePage() {
   const [commitError, setCommitError] = useState(null);
   const [saved, setSaved] = useState(false);
   const [warnings, setWarnings] = useState([]);
+  const [readerWarnings, setReaderWarnings] = useState([]);
 
   useEffect(() => {
     const load = async () => {
@@ -217,26 +229,30 @@ function ScheduleUpdatePage() {
     load();
   }, [navigate]);
 
+  const applyAnalysis = (result) => {
+  setWeekNumber(result.weekNumber);
+  setDetectedWeekLabel(result.weekLabel);
+  setRows(result.rows);
+  setColleges(result.colleges);
+  // result.weekId is resolved server-side against the season's real
+  // Week records (see WeekScheduleExtractor#resolve_week), which is
+  // what correctly tells a "BOWL WEEK 1" header apart from a regular
+  // "WEEK 1" one — both read the digit 1, but only one has week.number
+  // === 1. Only fall back to matching on the bare number (which can't
+  // make that distinction) if the backend couldn't resolve it at all.
+  const matched = result.weekId
+    ? weeks.find((week) => week.id === result.weekId)
+    : weeks.find((week) => week.number === result.weekNumber);
+  const fallback = lastPlayedWeekNumber == null ? weeks[0] : weeks.find((week) => week.number === lastPlayedWeekNumber + 1);
+  setSelectedWeekId(matched?.id || fallback?.id || "");
+  setReaderWarnings(result.warnings || []);
+  };
+
   const handleAnalyze = async () => {
     setAnalyzing(true);
     setAnalyzeError(null);
     try {
-      const result = await analyzeSchedule(dynastyId, seasonId, files);
-      setWeekNumber(result.weekNumber);
-      setDetectedWeekLabel(result.weekLabel);
-      setRows(result.rows);
-      setColleges(result.colleges);
-      // result.weekId is resolved server-side against the season's real
-      // Week records (see WeekScheduleExtractor#resolve_week), which is
-      // what correctly tells a "BOWL WEEK 1" header apart from a regular
-      // "WEEK 1" one — both read the digit 1, but only one has week.number
-      // === 1. Only fall back to matching on the bare number (which can't
-      // make that distinction) if the backend couldn't resolve it at all.
-      const matched = result.weekId
-        ? weeks.find((week) => week.id === result.weekId)
-        : weeks.find((week) => week.number === result.weekNumber);
-      const fallback = lastPlayedWeekNumber == null ? weeks[0] : weeks.find((week) => week.number === lastPlayedWeekNumber + 1);
-      setSelectedWeekId(matched?.id || fallback?.id || "");
+      applyAnalysis(await analyzeSchedule(dynastyId, seasonId, files));
     } catch (err) {
       setAnalyzeError(err.message);
     } finally {
@@ -288,6 +304,8 @@ function ScheduleUpdatePage() {
           </Link>
         }
       />
+
+      {import.meta.env.DEV && !saved && !rows && <ScheduleCapturePanel dynastyId={dynastyId} seasonId={seasonId} onResult={applyAnalysis} />}
 
       {saved ? (
         <Card>
@@ -354,6 +372,7 @@ function ScheduleUpdatePage() {
           onCommit={handleCommit}
           committing={committing}
           error={commitError}
+          readerWarnings={readerWarnings}
         />
       )}
     </div>
