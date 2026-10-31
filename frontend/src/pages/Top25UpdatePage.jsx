@@ -3,8 +3,20 @@ import { Link, useNavigate } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import FileDropZone from "../components/FileDropZone";
+import ScheduleCapturePanel from "../components/ScheduleCapturePanel";
 import Top25Snapshot from "../components/Top25Snapshot";
-import { fetchDynasties, fetchSeason, analyzeTop25Rankings, commitTop25Rankings } from "../lib/apiClient";
+import {
+  fetchDynasties,
+  fetchSeason,
+  analyzeTop25Rankings,
+  commitTop25Rankings,
+  startTop25Capture,
+  fetchTop25CaptureStatus,
+  stopTop25Capture,
+  collectTop25Capture,
+} from "../lib/apiClient";
+
+const top25CaptureApi = { start: startTop25Capture, status: fetchTop25CaptureStatus, stop: stopTop25Capture, collect: collectTop25Capture };
 
 // The week after the most recently-ranked one — that's the poll you'd
 // logically be uploading next. Falls back to the first week if nothing's
@@ -54,8 +66,6 @@ function NumberInput({ value, onChange, className = smallInputClass }) {
 
 function RankingRow({ row, colleges, onChange }) {
   const update = (patch) => onChange({ ...row, ...patch });
-  const updateThisWeek = (patch) => onChange({ ...row, thisWeek: { ...row.thisWeek, ...patch } });
-  const updateLastWeek = (patch) => onChange({ ...row, lastWeek: { ...row.lastWeek, ...patch } });
 
   return (
     <tr className="border-b border-border align-top dark:border-darkborder">
@@ -69,72 +79,11 @@ function RankingRow({ row, colleges, onChange }) {
       <td className="p-2">
         <NumberInput value={row.lwRanking} onChange={(lwRanking) => update({ lwRanking })} />
       </td>
-      <td className="p-2">
-        <div className="flex items-center gap-1">
-          <NumberInput value={row.wins} onChange={(wins) => update({ wins })} />
-          <span className="text-textSecondary">-</span>
-          <NumberInput value={row.losses} onChange={(losses) => update({ losses })} />
-        </div>
-      </td>
-      <td className="p-2">
-        <div className="space-y-1">
-          <CollegeSelect
-            value={row.thisWeek?.opponentCollegeId}
-            onChange={(opponentCollegeId) => updateThisWeek({ opponentCollegeId })}
-            colleges={colleges}
-          />
-          {row.thisWeek?.opponentName && !row.thisWeek?.opponentCollegeId && (
-            <p className="text-xs text-danger">Unmatched: &ldquo;{row.thisWeek.opponentName}&rdquo;</p>
-          )}
-          <label className="flex items-center gap-1 text-xs text-textSecondary">
-            <input
-              type="checkbox"
-              checked={Boolean(row.thisWeek?.isAway)}
-              onChange={(e) => updateThisWeek({ isAway: e.target.checked })}
-            />
-            Away game
-          </label>
-        </div>
-      </td>
-      <td className="p-2">
-        <div className="space-y-1">
-          <CollegeSelect
-            value={row.lastWeek?.opponentCollegeId}
-            onChange={(opponentCollegeId) => updateLastWeek({ opponentCollegeId })}
-            colleges={colleges}
-          />
-          {row.lastWeek?.opponentName && !row.lastWeek?.opponentCollegeId && (
-            <p className="text-xs text-danger">Unmatched: &ldquo;{row.lastWeek.opponentName}&rdquo;</p>
-          )}
-          <label className="flex items-center gap-1 text-xs text-textSecondary">
-            <input
-              type="checkbox"
-              checked={Boolean(row.lastWeek?.isAway)}
-              onChange={(e) => updateLastWeek({ isAway: e.target.checked })}
-            />
-            Away game
-          </label>
-          <select
-            value={row.lastWeek?.result ?? ""}
-            onChange={(e) => updateLastWeek({ result: e.target.value || null })}
-            className={inputClass}
-          >
-            <option value="">— result —</option>
-            <option value="win">Win</option>
-            <option value="loss">Loss</option>
-          </select>
-          <div className="flex items-center gap-1">
-            <NumberInput value={row.lastWeek?.teamScore} onChange={(teamScore) => updateLastWeek({ teamScore })} />
-            <span className="text-textSecondary">-</span>
-            <NumberInput value={row.lastWeek?.opponentScore} onChange={(opponentScore) => updateLastWeek({ opponentScore })} />
-          </div>
-        </div>
-      </td>
     </tr>
   );
 }
 
-function RankingsReview({ rows, colleges, onChange, onCommit, committing, error }) {
+function RankingsReview({ rows, colleges, onChange, onCommit, committing, error, readerWarnings, weeks, selectedWeekId, onWeekChange }) {
   const updateRow = (index, nextRow) => onChange(rows.map((row, i) => (i === index ? nextRow : row)));
 
   return (
@@ -142,18 +91,35 @@ function RankingsReview({ rows, colleges, onChange, onCommit, committing, error 
       <div className="p-5 space-y-4">
         <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">Review Rankings</h3>
         <p className="text-sm text-textSecondary">
-          Fix any unmatched colleges below, then save. Leave a college dropdown on &ldquo;— none —&rdquo; to skip that row.
+          Pick the week these rankings belong to, fix any unmatched colleges below, then save. Only the rankings are saved. Leave a college dropdown on &ldquo;— none —&rdquo; to skip that row.
         </p>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-xs uppercase tracking-wide text-textSecondary">Week</span>
+          <select value={selectedWeekId} onChange={(e) => onWeekChange(Number(e.target.value))} className={`${inputClass} max-w-xs`}>
+            {weeks.map((week) => (
+              <option key={week.id} value={week.id}>
+                {weekLabel(week)}
+              </option>
+            ))}
+          </select>
+        </label>
+        {readerWarnings.length > 0 && (
+          <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-textPrimary dark:text-white">
+            <p className="font-semibold">Check these before saving:</p>
+            <ul className="mt-1 list-disc pl-5">
+              {readerWarnings.map((warning, index) => (
+                <li key={index}>{warning}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] border-collapse text-left">
+          <table className="w-full min-w-[420px] border-collapse text-left">
             <thead>
               <tr className="border-b border-border text-xs uppercase tracking-wide text-textSecondary dark:border-darkborder">
                 <th className="p-2">Rank</th>
                 <th className="p-2">College</th>
                 <th className="p-2">LW</th>
-                <th className="p-2">W-L</th>
-                <th className="p-2">This Week</th>
-                <th className="p-2">Last Week</th>
               </tr>
             </thead>
             <tbody>
@@ -200,6 +166,7 @@ function Top25UpdatePage() {
   const [commitError, setCommitError] = useState(null);
   const [saved, setSaved] = useState(false);
   const [warnings, setWarnings] = useState([]);
+  const [readerWarnings, setReaderWarnings] = useState([]);
 
   useEffect(() => {
     const load = async () => {
@@ -234,6 +201,12 @@ function Top25UpdatePage() {
     };
     load();
   }, [navigate]);
+
+  const applyCapture = (result) => {
+    setRows(result.rows);
+    setColleges(result.colleges);
+    setReaderWarnings(result.warnings || []);
+  };
 
   const handleAnalyze = async () => {
     setAnalyzing(true);
@@ -297,7 +270,7 @@ function Top25UpdatePage() {
       {saved ? (
         <Card>
           <div className="p-5 space-y-2">
-            <p className="text-sm font-semibold text-success">Saved! Rankings, records, and games have been updated.</p>
+            <p className="text-sm font-semibold text-success">Saved! The rankings have been updated.</p>
             {warnings.length > 0 && (
               <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-textPrimary dark:text-white">
                 <p className="font-semibold">{warnings.length} row{warnings.length === 1 ? "" : "s"} couldn&rsquo;t be saved:</p>
@@ -317,6 +290,16 @@ function Top25UpdatePage() {
         </Card>
       ) : !rows ? (
         <div className="space-y-4">
+          {import.meta.env.DEV && (
+            <ScheduleCapturePanel
+              dynastyId={dynastyId}
+              seasonId={seasonId}
+              onResult={applyCapture}
+              api={top25CaptureApi}
+              title="Capture the Top 25 from Remote Play"
+              instructions="Click Capture, open the Top 25 in Remote Play and scroll all the way to the bottom. Click Stop and the rankings are read for you to review (no AI)."
+            />
+          )}
           <Card>
             <div className="p-5 space-y-4">
               <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">Upload Screenshots</h3>
@@ -373,6 +356,10 @@ function Top25UpdatePage() {
           onCommit={handleCommit}
           committing={committing}
           error={commitError}
+          readerWarnings={readerWarnings}
+          weeks={weeks}
+          selectedWeekId={selectedWeekId}
+          onWeekChange={setSelectedWeekId}
         />
       )}
     </div>

@@ -5,7 +5,7 @@ module Api
       skip_after_action :verify_authorized
       before_action :set_dynasty
       before_action :set_season, except: :create
-      before_action :require_local_capture, only: %i[capture_schedule_start capture_schedule_status capture_schedule_stop]
+      before_action :require_local_capture, only: %i[capture_schedule_start capture_schedule_status capture_schedule_stop capture_top25_start capture_top25_status capture_top25_stop]
 
       def show
         authorize @season
@@ -85,6 +85,34 @@ module Api
         token = SecureRandom.uuid
         AnalysisStatus.pending!(token)
         ScheduleCaptureAnalysisJob.perform_later(token: token, season_id: @season.id, paths: paths)
+        render json: result.merge(token: token), status: :accepted
+      end
+
+      # Local-only recording of the Top 25 poll from PS Remote Play (see Top25Capture::Session). Reading it needs no
+      # week: the review screen asks which week the poll belongs to.
+      def capture_top25_start
+        authorize @season
+        render json: Top25Capture::Session.new(@season).start!
+      end
+
+      def capture_top25_status
+        authorize @season
+        render json: Top25Capture::Session.new(@season).status
+      end
+
+      # Stops the watcher and reads what it saved in the background; poll #analyze_schedule_status with the token.
+      def capture_top25_stop
+        authorize @season
+        result = Top25Capture::Session.new(@season).stop!
+        paths = result.delete(:paths)
+        if paths.empty?
+          return render json: { error: "No screens were captured — open the Top 25 in Remote Play and scroll the list.", code: "capture_failed" },
+                        status: :unprocessable_entity
+        end
+
+        token = SecureRandom.uuid
+        AnalysisStatus.pending!(token)
+        Top25CaptureAnalysisJob.perform_later(token: token, paths: paths)
         render json: result.merge(token: token), status: :accepted
       end
 

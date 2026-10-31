@@ -352,6 +352,19 @@ export const stopScheduleCapture = (dynastyId, seasonId) =>
 export const collectScheduleCapture = (dynastyId, seasonId, token) =>
   pollAnalysis(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/analyze_schedule_status`, token, { timeoutMs: 10 * 60 * 1000 });
 
+// The same local-only recording for the Top 25 poll (backend Top25Capture::Session). The analysis resolves to
+// { rows, colleges, warnings } for the Top 25 review screen.
+export const startTop25Capture = (dynastyId, seasonId) =>
+  api.post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/capture_top25_start`).then((r) => r.data);
+
+export const fetchTop25CaptureStatus = (dynastyId, seasonId) =>
+  api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/capture_top25_status`).then((r) => r.data);
+
+export const stopTop25Capture = (dynastyId, seasonId) =>
+  api.post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/capture_top25_stop`).then((r) => r.data);
+
+export const collectTop25Capture = collectScheduleCapture;
+
 export const commitSchedule = (dynastyId, seasonId, weekId, rows) =>
   api
     .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_schedule`, { weekId, rows })

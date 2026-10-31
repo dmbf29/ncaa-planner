@@ -23,8 +23,10 @@ module Api
 
       def analyze_heisman_candidates
         authorize @week
-        result = HeismanCandidates::Extractor.new.call(Array(params[:images]))
-        render json: result
+        images = Array(params[:images])
+        # Read on this Mac first (dev only); the AI only gets what the local reader couldn't settle.
+        result = HeismanCandidates::LocalReader.new.call(images.map { |image| image.tempfile.path }) if images.all? { |image| image.respond_to?(:tempfile) }
+        render json: result || HeismanCandidates::Extractor.new.call(images)
       rescue RubyLLM::Error => e
         render json: { error: "AI extraction failed: #{e.message}", code: "extraction_failed" }, status: :unprocessable_entity
       end

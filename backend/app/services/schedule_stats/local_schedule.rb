@@ -95,6 +95,8 @@ module ScheduleStats
       near_match(normalized)
     end
 
+    public :match_college # RankingStats::LocalTop25 matches its team names the same way
+
     # A name one letter off ("Unio State" for "Ohio State"), once the rank and any logo letters in front are
     # dropped. Only when a single college is that close, and never for short names, where one letter is a different team.
     def near_match(normalized)

@@ -79,7 +79,7 @@ function CandidateRow({ row, colleges, onChange }) {
   );
 }
 
-function CandidatesReview({ rows, colleges, onChange, onCommit, committing, error }) {
+function CandidatesReview({ rows, colleges, onChange, onCommit, committing, error, readerWarnings }) {
   const updateRow = (index, nextRow) => {
     const next = nextRow === null ? rows.filter((_, i) => i !== index) : rows.map((row, i) => (i === index ? nextRow : row));
     onChange(next);
@@ -90,6 +90,16 @@ function CandidatesReview({ rows, colleges, onChange, onCommit, committing, erro
       <div className="p-5 space-y-4">
         <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">Review Candidates</h3>
         <p className="text-sm text-textSecondary">Fix any unmatched colleges below, then save.</p>
+        {readerWarnings.length > 0 && (
+          <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-textPrimary dark:text-white">
+            <p className="font-semibold">Check these before saving:</p>
+            <ul className="mt-1 list-disc pl-5">
+              {readerWarnings.map((warning, index) => (
+                <li key={index}>{warning}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full min-w-[700px] border-collapse text-left">
             <thead>
@@ -144,6 +154,7 @@ function HeismanUpdatePage() {
   const [commitError, setCommitError] = useState(null);
   const [saved, setSaved] = useState(false);
   const [warnings, setWarnings] = useState([]);
+  const [readerWarnings, setReaderWarnings] = useState([]);
 
   useEffect(() => {
     const load = async () => {
@@ -183,6 +194,7 @@ function HeismanUpdatePage() {
     try {
       const result = await analyzeHeismanCandidates(selectedWeekId, files);
       setRows(result.rows);
+      setReaderWarnings(result.warnings || []);
       setColleges(result.colleges);
     } catch (err) {
       setAnalyzeError(err.message);
@@ -264,7 +276,7 @@ function HeismanUpdatePage() {
               <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">Upload Screenshot</h3>
               <p className="text-sm text-textSecondary">
                 Pick the week this watch list belongs to (it isn&rsquo;t visible on screen), then upload the screenshot.
-                The AI reads it and proposes the table below for you to review before anything is saved.
+                It is read on this Mac when possible (the AI only steps in if that fails) and proposes the table below for you to review before anything is saved.
               </p>
               <label className="flex flex-col gap-1 text-sm">
                 <span className="text-xs uppercase tracking-wide text-textSecondary">Week</span>
@@ -311,6 +323,7 @@ function HeismanUpdatePage() {
         </div>
       ) : (
         <CandidatesReview
+          readerWarnings={readerWarnings}
           rows={rows}
           colleges={colleges}
           onChange={setRows}

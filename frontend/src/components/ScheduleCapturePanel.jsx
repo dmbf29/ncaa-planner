@@ -4,11 +4,13 @@ import { collectScheduleCapture, fetchScheduleCaptureStatus, startScheduleCaptur
 
 const POLL_MS = 1500;
 
+const defaultApi = { start: startScheduleCapture, status: fetchScheduleCaptureStatus, stop: stopScheduleCapture, collect: collectScheduleCapture };
+
 // Local-only: starts tools/capture/watch.py via the Rails server, which screenshots the PS Remote Play window each
 // time you pause on a new screen (or every half second while the list scrolls) with a controller. Stopping reads the
 // screens on this Mac (no AI) and hands the games to onResult for review. Rendered only in dev; the backend refuses
 // otherwise.
-function ScheduleCapturePanel({ dynastyId, seasonId, onResult }) {
+function ScheduleCapturePanel({ dynastyId, seasonId, onResult, api = defaultApi, title = "Capture from Remote Play", instructions = "Click Capture, then scroll down the schedule in Remote Play, pausing on each screen. Click Stop when you reach the bottom and the games are read for you to review." }) {
   const [status, setStatus] = useState({ running: false, dir: null, screens: [] });
   const [busy, setBusy] = useState(false);
   const [reading, setReading] = useState(false);
@@ -18,7 +20,7 @@ function ScheduleCapturePanel({ dynastyId, seasonId, onResult }) {
     if (!dynastyId || !seasonId) return undefined;
     let cancelled = false;
     const load = () =>
-      fetchScheduleCaptureStatus(dynastyId, seasonId)
+      api.status(dynastyId, seasonId)
         .then((s) => !cancelled && setStatus(s))
         .catch(() => {});
     load();
@@ -27,7 +29,7 @@ function ScheduleCapturePanel({ dynastyId, seasonId, onResult }) {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [dynastyId, seasonId, status.running]);
+  }, [api, dynastyId, seasonId, status.running]);
 
   const run = async (action) => {
     setBusy(true);
@@ -45,10 +47,10 @@ function ScheduleCapturePanel({ dynastyId, seasonId, onResult }) {
     setBusy(true);
     setError(null);
     try {
-      const stopped = await stopScheduleCapture(dynastyId, seasonId);
+      const stopped = await api.stop(dynastyId, seasonId);
       setStatus({ running: false, dir: stopped.dir, screens: stopped.screens });
       setReading(true);
-      onResult(await collectScheduleCapture(dynastyId, seasonId, stopped.token));
+      onResult(await api.collect(dynastyId, seasonId, stopped.token));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -62,10 +64,8 @@ function ScheduleCapturePanel({ dynastyId, seasonId, onResult }) {
   return (
     <Card>
       <div className="p-5 space-y-3">
-        <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">Capture from Remote Play</h3>
-        <p className="text-sm text-textSecondary">
-          Click Capture, then scroll down the schedule in Remote Play, pausing on each screen. Click Stop when you reach the bottom and the games are read for you to review.
-        </p>
+        <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">{title}</h3>
+        <p className="text-sm text-textSecondary">{instructions}</p>
         {status.running ? (
           <button
             type="button"
@@ -78,7 +78,7 @@ function ScheduleCapturePanel({ dynastyId, seasonId, onResult }) {
         ) : (
           <button
             type="button"
-            onClick={() => run(startScheduleCapture)}
+            onClick={() => run(api.start)}
             disabled={busy}
             className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:opacity-60"
           >

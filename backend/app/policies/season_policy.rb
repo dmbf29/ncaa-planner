@@ -31,6 +31,18 @@ class SeasonPolicy < ApplicationPolicy
     owner?
   end
 
+  def capture_top25_start?
+    owner?
+  end
+
+  def capture_top25_status?
+    owner?
+  end
+
+  def capture_top25_stop?
+    owner?
+  end
+
   def analyze_schedule_status?
     owner?
   end

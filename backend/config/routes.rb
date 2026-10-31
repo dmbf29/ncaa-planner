@@ -45,6 +45,10 @@ Rails.application.routes.draw do
             post :capture_schedule_start
             get :capture_schedule_status
             post :capture_schedule_stop
+            # Local-only: records the Top 25 poll the same way. See Top25Capture::Session.
+            post :capture_top25_start
+            get :capture_top25_status
+            post :capture_top25_stop
             post :analyze_all_americans
             post :commit_all_americans
             post :analyze_nil_spend

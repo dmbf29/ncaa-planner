@@ -16,10 +16,15 @@ module ScheduleCapture
       @season = season
     end
 
+    # Subclasses record a different screen with the same watcher (see Top25Capture::Session).
+    def label = "schedule"
+    def signature_box = SIGNATURE_BOX
+    def paths_kind = "schedule"
+
     def start!
       return status if running?
 
-      name = "schedule-#{@season.year}-#{Time.current.strftime('%Y%m%d-%H%M%S')}"
+      name = "#{label}-#{@season.year}-#{Time.current.strftime('%Y%m%d-%H%M%S')}"
       dir = CAPTURES_DIR.join(name)
       FileUtils.mkdir_p(dir)
 
@@ -28,7 +33,7 @@ module ScheduleCapture
         # Watch only the game list: the red animated background and the side panel never hold still. Scrolling a
         # row at a time leaves the page 90% identical, so only a near-exact text match counts as a repeat. Holding the
         # stick scrolls without ever stopping, so a frame is also taken every half second.
-        "--signature-box", SIGNATURE_BOX, "--dup", "0.995", "--every", "0.5",
+        "--signature-box", signature_box, "--dup", "0.995", "--every", "0.5",
         out: dir.join("watcher.log").to_s, err: %i[child out], pgroup: true
       )
       Process.detach(pid)
@@ -73,7 +78,7 @@ module ScheduleCapture
       manifest = File.join(dir.to_s, "manifest.json")
       return [] unless File.exist?(manifest)
 
-      JSON.parse(File.read(manifest)).select { |entry| entry["kind"] == "schedule" && !entry["ignore"] }.map { |entry| File.join(dir, entry["file"]) }
+      JSON.parse(File.read(manifest)).select { |entry| (paths_kind.nil? || entry["kind"] == paths_kind) && !entry["ignore"] }.map { |entry| File.join(dir, entry["file"]) }
     rescue JSON::ParserError
       []
     end
@@ -99,7 +104,7 @@ module ScheduleCapture
     end
 
     def state_path
-      Rails.root.join("tmp/schedule_capture_#{@season.id}.json")
+      Rails.root.join("tmp/#{label}_capture_#{@season.id}.json")
     end
 
     def read_state
