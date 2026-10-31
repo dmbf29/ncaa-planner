@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Card from "./Card";
-import { cancelGameCapture, fetchGameCaptureStatus, finishGameCapture, startGameCapture } from "../lib/apiClient";
+import { cancelGameCapture, fetchGameCaptureStatus, finishGameCapture, resumeGameAnalysis, startGameCapture } from "../lib/apiClient";
 
 const POLL_MS = 1500;
 
@@ -52,7 +52,15 @@ function GameCapturePanel({ gameId, homeName, awayName, disabled, onFinished, on
     let cancelled = false;
     fetchGameCaptureStatus(gameId)
       .then((s) => {
-        if (cancelled || (!s.running && s.screens.length === 0)) return;
+        if (cancelled) return;
+        // An analysis is under way (or finished) that this page isn't tracking: collect it.
+        if (s.analysis?.token) {
+          phaseBeforeAnalyze.current = "idle";
+          setPhase("analyzing");
+          resumeGameAnalysis(gameId, s.analysis).then(completeAnalysis).catch(failAnalysis);
+          return;
+        }
+        if (!s.running && s.screens.length === 0) return;
         setScreens(s.screens);
         setUnpaired(s.unpaired || []);
         setSkipped(s.skipped || []);
@@ -63,6 +71,7 @@ function GameCapturePanel({ gameId, homeName, awayName, disabled, onFinished, on
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameId]);
 
   useEffect(() => {
@@ -95,35 +104,43 @@ function GameCapturePanel({ gameId, homeName, awayName, disabled, onFinished, on
     }
   };
 
+  const completeAnalysis = async ({ analysis, unassigned, unpaired: leftUnpaired, partialRows }) => {
+    const notes = [];
+    if (unassigned?.length) {
+      notes.push(`${unassigned.length} captured screen(s) couldn't be matched to either team and were skipped: ${unassigned.join(", ")}`);
+    }
+    if (leftUnpaired > 0) {
+      notes.push(`${leftUnpaired} Defense screen(s) never got their matching left/right view, so the right-hand Defense stats for those pages were skipped.`);
+    }
+    if (partialRows > 0) {
+      notes.push(`The Defense list scrolled between some left/right captures, so ${partialRows} player row(s) are missing their right-hand stats (FFUMB, FMBREC, ...). Everything else for them was saved.`);
+    }
+    if (analysis.warnings?.length) notes.push(...analysis.warnings);
+    if (analysis.usage?.calls) {
+      notes.push(`Analysis used ${analysis.usage.calls} AI calls (${analysis.usage.inputTokens.toLocaleString()} tokens in, ${analysis.usage.outputTokens.toLocaleString()} out), about $${analysis.usage.cost.toFixed(2)}.`);
+    }
+    setNote(notes.length ? notes.join(" · ") : null);
+    await onFinished(analysis);
+    cancelGameCapture(gameId).catch(() => {}); // the result is in the form now; forget the ticket
+    setScreens([]);
+    setUnpaired([]);
+    setPhase("idle");
+  };
+
+  const failAnalysis = (err) => {
+    setError(`${err.response?.data?.error || err.message} Reload the page to try collecting the result again.`);
+    setPhase(phaseBeforeAnalyze.current);
+  };
+
   const phaseBeforeAnalyze = useRef("running");
   const handleFinish = async () => {
     setError(null);
     phaseBeforeAnalyze.current = phase;
     setPhase("analyzing");
     try {
-      const { analysis, unassigned, unpaired: leftUnpaired, partialRows } = await finishGameCapture(gameId);
-      const notes = [];
-      if (unassigned?.length) {
-        notes.push(`${unassigned.length} captured screen(s) couldn't be matched to either team and were skipped: ${unassigned.join(", ")}`);
-      }
-      if (leftUnpaired > 0) {
-        notes.push(`${leftUnpaired} Defense screen(s) never got their matching left/right view, so the right-hand Defense stats for those pages were skipped.`);
-      }
-      if (partialRows > 0) {
-        notes.push(`The Defense list scrolled between some left/right captures, so ${partialRows} player row(s) are missing their right-hand stats (FFUMB, FMBREC, ...). Everything else for them was saved.`);
-      }
-      if (analysis.warnings?.length) notes.push(...analysis.warnings);
-      if (analysis.usage?.calls) {
-        notes.push(`Analysis used ${analysis.usage.calls} AI calls (${analysis.usage.inputTokens.toLocaleString()} tokens in, ${analysis.usage.outputTokens.toLocaleString()} out), about $${analysis.usage.cost.toFixed(2)}.`);
-      }
-      setNote(notes.length ? notes.join(" · ") : null);
-      await onFinished(analysis);
-      setScreens([]);
-      setUnpaired([]);
-      setPhase("idle");
+      await completeAnalysis(await finishGameCapture(gameId));
     } catch (err) {
-      setError(err.response?.data?.error || err.message);
-      setPhase(phaseBeforeAnalyze.current);
+      failAnalysis(err);
     }
   };
 

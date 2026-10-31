@@ -568,11 +568,24 @@ export const cancelGameCapture = (id) => api.post(`/api/v1/games/${id}/capture_c
 
 // Stops the watcher, then resolves with the analysis like analyzeGameStats
 // does, plus `unassigned` (captured screens that couldn't be tied to a team).
+// A full analysis is ~14 sequential AI calls and can take well over the default 5 minutes
+// when the API is slow, so wait up to 15 (the result is kept server-side for 15).
+const GAME_ANALYSIS_TIMEOUT_MS = 15 * 60 * 1000;
+
 export const finishGameCapture = (id, { onProgress } = {}) =>
   api.post(`/api/v1/games/${id}/capture_finish`).then(async (r) => {
-    const analysis = await pollAnalysis(`/api/v1/games/${id}/analyze_status`, r.data.token, { onProgress });
+    const analysis = await pollAnalysis(`/api/v1/games/${id}/analyze_status`, r.data.token, { onProgress, timeoutMs: GAME_ANALYSIS_TIMEOUT_MS });
     return { analysis, unassigned: r.data.unassigned, unpaired: r.data.unpaired, partialRows: r.data.partialRows };
   });
+
+// Collects the result of an analysis already under way (the status endpoint reports its token), for a
+// page that was reloaded or gave up waiting. Same shape as finishGameCapture.
+export const resumeGameAnalysis = async (id, { token, unassigned, unpaired, partialRows }) => ({
+  analysis: await pollAnalysis(`/api/v1/games/${id}/analyze_status`, token, { timeoutMs: GAME_ANALYSIS_TIMEOUT_MS }),
+  unassigned,
+  unpaired,
+  partialRows,
+});
 
 export const commitGameStats = (id, analysis) =>
   api.post(`/api/v1/games/${id}/commit`, { analysis }).then((r) => r.data);

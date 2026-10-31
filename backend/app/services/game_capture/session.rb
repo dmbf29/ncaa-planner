@@ -55,11 +55,11 @@ module GameCapture
 
     def status
       state = read_state
-      return { running: false, screens: [] } unless state
+      return { running: false, screens: [], analysis: pending_analysis } unless state
 
       all = screens(state[:dir])
       { running: alive?(state[:pid]), screens: all.map { |s| s.except(:grafted_from) }, unpaired: unpaired_views(all).map { |s| s.slice(:file, :team, :hscroll) },
-        skipped: skipped_screens(state[:dir]) }
+        skipped: skipped_screens(state[:dir]), analysis: pending_analysis }
     end
 
     def running?
@@ -91,13 +91,18 @@ module GameCapture
         replace_screenshots: true
       )
       clear_state
-      { token: token, unassigned: buckets[:unassigned].map { |s| s[:file] }, unpaired: unpaired_views(all).size, partial_rows: partial_rows(all) }
+      result = { token: token, unassigned: buckets[:unassigned].map { |s| s[:file] }, unpaired: unpaired_views(all).size, partial_rows: partial_rows(all) }
+      # The analysis takes minutes and its result only lives ANALYSIS_TTL in the cache. Remember the
+      # ticket so a page that timed out or was reloaded can still collect the result.
+      File.write(analysis_path, result.merge(started_at: Time.current.to_i).to_json)
+      result
     end
 
     def cancel!
       state = read_state
       stop_watcher(state[:pid]) if state
       clear_state
+      FileUtils.rm_f(analysis_path)
     end
 
     private
@@ -196,6 +201,22 @@ module GameCapture
       true
     rescue Errno::ESRCH
       false
+    end
+
+    # AnalysisStatus keeps a result for 15 minutes; stop offering the ticket a minute before.
+    ANALYSIS_TTL = 14 * 60
+
+    def analysis_path
+      Rails.root.join("tmp/game_capture_#{@game.id}_analysis.json")
+    end
+
+    def pending_analysis
+      return nil unless File.exist?(analysis_path)
+
+      data = JSON.parse(File.read(analysis_path), symbolize_names: true)
+      Time.current.to_i - data[:started_at].to_i < ANALYSIS_TTL ? data.except(:started_at) : nil
+    rescue JSON::ParserError
+      nil
     end
 
     def state_path
