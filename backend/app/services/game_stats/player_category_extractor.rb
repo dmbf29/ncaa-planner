@@ -191,6 +191,7 @@ module GameStats
         @warnings << "#{extra ? 'scrolled-right ' : ''}#{@category}: the local read didn't check out (#{reader.reason}), so the AI read it."
         Rails.logger.info("[local reader] #{@college.name} #{@category}#{' (scrolled right)' if extra}: rejected, #{reader.reason}; files #{image_blobs.map { |blob| blob.metadata['local_path'] || blob.filename.to_s }.join(', ')}")
       end
+      @warnings.concat(reader.warnings) if rows
       rows
     end
 

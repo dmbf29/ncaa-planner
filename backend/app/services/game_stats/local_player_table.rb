@@ -35,7 +35,7 @@ module GameStats
     # How far an average may sit from yards / count (the game rounds to one decimal).
     AVERAGE_TOLERANCE = 0.06
 
-    attr_reader :reason
+    attr_reader :reason, :warnings
 
     # Which stat category a raw table is, from the headers it has ("SOLO" only exists on Defense), or nil.
     # Lets a screenshot the capture couldn't label skip the AI classifier.
@@ -54,6 +54,7 @@ module GameStats
       @category = category
       @roster = roster
       @float_fields = float_fields
+      @warnings = []
     end
 
     # tables: one raw read_table result per screenshot. fields: the fields wanted (the caller's group).
@@ -140,6 +141,10 @@ module GameStats
       hits = @roster.select do |player|
         first, roster_last = Student.split_full_name(player[:name])
         squash(roster_last) == squash(last) && (initial.blank? || squash(first.to_s[0]) == squash(initial))
+      end
+      if hits.size > 1
+        names = hits.map { |player| "#{player[:name]} (#{player[:position]})" }.to_sentence(last_word_connector: " or ")
+        @warnings << "#{display_name} could be #{names}; pick the right player in the review, or both lines get saved to one new player." unless @warnings.any? { |w| w.start_with?("#{display_name} could be") }
       end
       hits.one? ? hits.first[:id] : nil
     end
