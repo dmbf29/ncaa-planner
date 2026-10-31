@@ -36,6 +36,7 @@ module ScheduleStats
       readings = frames.map { |frame| Array(frame["rows"]).filter_map { |row| read_row(row) } }
 
       merged = merge(readings.flatten(1))
+      drop_partial_duplicates(merged)
       resolve_conflicts(merged)
       rows = merged.map { |reading| build_row(reading) }
       warnings = rows.filter_map { |row| row.delete(:issue) }
@@ -90,7 +91,17 @@ module ScheduleStats
       name_keys.each do |key, college|
         return college if normalized.match?(/(?<![[:alnum:]])#{Regexp.escape(key)}(?![[:alnum:]])/)
       end
-      nil
+      near_match(normalized)
+    end
+
+    # A name one letter off ("Unio State" for "Ohio State"), once the rank and any logo letters in front are
+    # dropped. Only when a single college is that close, and never for short names, where one letter is a different team.
+    def near_match(normalized)
+      candidates = [ normalized.sub(/\A[^a-z]*/, "") ] + normalized.split.each_index.map { |i| normalized.split.drop(i).join(" ") }
+      close = name_keys.select do |key, _college|
+        key.length >= 6 && candidates.uniq.any? { |text| DidYouMean::Levenshtein.distance(text, key) <= 1 }
+      end.map(&:last).uniq
+      close.first if close.size == 1
     end
 
     # Vision reads the capital I of "Iowa" as a lowercase L, often drops the apostrophe in "Hawai'i" and reads "A&M"
@@ -133,6 +144,16 @@ module ScheduleStats
       readings.group_by { |reading| game_key(reading) }.values.map do |group|
         group.group_by { |reading| [ reading[:result], reading[:date] ] }.max_by { |_value, votes| votes.size }.last.first
               .merge(away: group.filter_map { |r| r[:away] }.first, home: group.filter_map { |r| r[:home] }.first)
+      end
+    end
+
+    # A game read once with a team's name unreadable and once in full is one game: keep the full reading.
+    def drop_partial_duplicates(readings)
+      readings.reject! do |reading|
+        known = reading[:away] || reading[:home]
+        side = reading[:away] ? :away : :home
+        (reading[:away].nil? ^ reading[:home].nil?) &&
+          readings.any? { |other| !other.equal?(reading) && other[:away] && other[:home] && other[side] == known }
       end
     end
 
