@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Card from "./Card";
-import { cancelGameCapture, fetchGameCaptureStatus, finishGameCapture, resumeGameAnalysis, startGameCapture } from "../lib/apiClient";
+import { cancelGameCapture, fetchGameCaptureStatus, finishGameCapture, resumeGameAnalysis, setGameCaptureMuted, startGameCapture } from "../lib/apiClient";
 
 const POLL_MS = 1500;
 
@@ -44,6 +44,7 @@ function GameCapturePanel({ gameId, homeName, awayName, disabled, onFinished, on
   const [skipped, setSkipped] = useState([]);
   const [error, setError] = useState(null);
   const [note, setNote] = useState(null);
+  const [muted, setMuted] = useState(false);
   const onBusyRef = useRef(onBusyChange);
   onBusyRef.current = onBusyChange;
 
@@ -53,6 +54,7 @@ function GameCapturePanel({ gameId, homeName, awayName, disabled, onFinished, on
     fetchGameCaptureStatus(gameId)
       .then((s) => {
         if (cancelled) return;
+        setMuted(Boolean(s.muted));
         // An analysis is under way (or finished) that this page isn't tracking: collect it.
         if (s.analysis?.token) {
           phaseBeforeAnalyze.current = "idle";
@@ -91,6 +93,17 @@ function GameCapturePanel({ gameId, homeName, awayName, disabled, onFinished, on
   useEffect(() => {
     onBusyRef.current?.(phase === "analyzing");
   }, [phase]);
+
+  const handleToggleMute = async () => {
+    const next = !muted;
+    setMuted(next);
+    try {
+      setMuted((await setGameCaptureMuted(gameId, next)).muted);
+    } catch (err) {
+      setMuted(!next);
+      setError(err.response?.data?.error || err.message);
+    }
+  };
 
   const handleStart = async () => {
     setError(null);
@@ -169,12 +182,23 @@ function GameCapturePanel({ gameId, homeName, awayName, disabled, onFinished, on
             <p className="mt-0.5 text-xs text-textSecondary">
               {phase === "idle" &&
                 "Local only. Start, then page through the box score and each team's player stats with your controller, pausing on each screen until you hear a Tink."}
-              {phase === "running" && "Capturing. Pause about a second on each screen until you hear the Tink. For Defense: page 1, scroll right, scroll down, scroll left."}
+              {phase === "running" && "Capturing. Pause about a second on each screen until you hear the Tink. For Defense: page 1, scroll right, scroll down, scroll left. If two players share a name (two J.Browns), rest the cursor on each for a second so the watcher sees whose card it is."}
               {phase === "saved" && `A capture with ${screens.length} saved screens is waiting. Analyze it, or discard it to start over.`}
               {phase === "analyzing" && "Wrapping up the last captures and running the analysis..."}
             </p>
           </div>
 
+          {phase !== "analyzing" && (
+            <button
+              type="button"
+              onClick={handleToggleMute}
+              aria-pressed={muted}
+              title={muted ? "The watcher is silent. Click to turn the beeps back on." : "Turn the watcher's beeps off."}
+              className="rounded-md border border-border px-3 py-1.5 text-xs text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+            >
+              {muted ? "Unmute beeps" : "Mute beeps"}
+            </button>
+          )}
           {phase === "idle" && (
             <button
               type="button"

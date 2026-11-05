@@ -26,8 +26,16 @@ module GameStats
 
     def initialize(box_score_blobs: [], table_blobs: [])
       @results = {}
+      @cursors = []
       jobs = box_score_blobs.map { |blob| [ blob, "box_score" ] } + table_blobs.map { |blob| [ blob, "table" ] }
-      read(jobs) if jobs.any? && self.class.available?
+      @cursor_files = cursor_files(table_blobs)
+      read(jobs) if (jobs.any? || @cursor_files.any?) && self.class.available?
+    end
+
+    # What the player card showed while the cursor sat on a row of this team's tables, from the pictures the
+    # capture watcher saved (see tools/capture/watch.py): [{ card_name:, position:, number:, numbers: [...] }].
+    def cursors(team_name)
+      @cursors.select { |entry| entry[:team] == team_name }
     end
 
     def box_score(blob)
@@ -45,6 +53,22 @@ module GameStats
     end
 
     private
+
+    # The cursor pictures listed in cursor.json next to the captured screens, as [{ path:, team:, category: }].
+    def cursor_files(blobs)
+      dirs = blobs.filter_map { |blob| original_path(blob) }.map { |path| File.dirname(path) }.uniq
+      dirs.flat_map do |dir|
+        log = File.join(dir, "cursor.json")
+        next [] unless File.file?(log)
+
+        JSON.parse(File.read(log)).filter_map do |entry|
+          path = File.join(dir, entry["file"])
+          { path: path, team: entry["team"], category: entry["category"] } if File.file?(path)
+        end
+      rescue JSON::ParserError
+        []
+      end
+    end
 
     def result_for(blob, kind)
       result = @results[[ blob.id, kind ]]
@@ -65,8 +89,9 @@ module GameStats
           File.binwrite(path, blob.download) unless original_path(blob)
           { file: path, kind: kind, key: [ blob.id, kind ] }
         end
+        cursor_specs = @cursor_files.map { |entry| { file: entry[:path], kind: "cursor", key: [ :cursor, entry[:path] ] } }
         jobs_path = File.join(dir, "jobs.json")
-        File.write(jobs_path, specs.map { |spec| spec.slice(:file, :kind) }.to_json)
+        File.write(jobs_path, (specs + cursor_specs).map { |spec| spec.slice(:file, :kind) }.to_json)
 
         stdout, stderr, status = Timeout.timeout(TIMEOUT) { Open3.capture3(PYTHON, SCRIPT.to_s, jobs_path) }
         unless status.success?
@@ -74,15 +99,24 @@ module GameStats
           Rails.logger.warn("[local reader] failed: #{@error}")
           return
         end
+        all_specs = specs + cursor_specs
         JSON.parse(stdout).each_with_index do |entry, index|
-          Rails.logger.warn("[local reader] couldn't read #{File.basename(entry['file'])}: #{entry['result']['error'].to_s.lines.last&.strip}") if entry["result"].is_a?(Hash) && entry["result"]["error"]
-          @results[specs[index][:key]] = entry["result"]
+          result = entry["result"]
+          if result.is_a?(Hash) && result["error"]
+            Rails.logger.warn("[local reader] couldn't read #{File.basename(entry['file'])}: #{result['error'].to_s.lines.last&.strip}")
+          elsif all_specs[index][:kind] == "cursor"
+            source = @cursor_files.find { |cursor| cursor[:path] == all_specs[index][:file] }
+            @cursors << { team: source[:team], category: source[:category], card_name: result["card_name"], position: result["position"],
+                          number: result["number"], numbers: Array(result["numbers"]) }
+          end
+          @results[all_specs[index][:key]] = result
         end
       end
     rescue StandardError => e
       @error = "#{e.class}: #{e.message}"
       Rails.logger.warn("[local reader] failed: #{@error}")
       @results = {}
+      @cursors = []
     end
   end
 end

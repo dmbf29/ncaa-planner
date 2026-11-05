@@ -1,23 +1,13 @@
 module GameStats
   # Persists a (possibly user-edited) confirmed extraction: attaches the
   # already-uploaded screenshots, updates the Game's narrative fields, and
-  # upserts CollegeGameStat / StudentGameStat rows. A player who appears in
+  # upserts CollegeGameStat / StudentGameStat rows (player lines only for players already on a roster). A player who appears in
   # multiple category rows (e.g. a rushing QB) naturally merges onto one
   # StudentGameStat record since each row only touches the columns it has
   # values for.
   class CommitService
-    # Rough fallback when a newly-created player's position can't be known
-    # from a stat screenshot alone — the category at least narrows it down.
-    # Purely a starting point: position is free text, so the user can
-    # correct it in the review form before saving.
-    DEFAULT_POSITION_BY_CATEGORY = { "passing" => "QB", "rushing" => "HB", "receiving" => "WR", "defense" => "MLB" }.freeze
-
     def initialize(game)
       @game = game
-      # Dedupes a player who shows up unmatched in more than one category
-      # row within the same commit (e.g. a rushing QB's passing + rushing
-      # rows) so they land on one StudentSeason instead of two.
-      @created_student_seasons = {}
     end
 
     # replace_screenshot_sections ("box_score" / "home" / "away"): for those sections the newly
@@ -79,9 +69,8 @@ module GameStats
     def upsert_player_stats(rows)
       Array(rows).each do |row|
         fields = row[:fields].slice(*StatFields::PLAYER_FIELDS)
-        # An all-zero line for someone with no saved stats yet isn't worth recording (or
-        # creating a player for). If they already have a line, still apply it so a wrong
-        # value can be corrected back down to 0.
+        # An all-zero line for someone with no saved stats yet isn't worth recording. If they
+        # already have a line, still apply it so a wrong value can be corrected back down to 0.
         next if StatFields.empty_line?(fields) && !saved_stat?(row)
 
         student_season = resolve_student_season(row)
@@ -97,53 +86,10 @@ module GameStats
       row[:student_season_id].present? && StudentGameStat.exists?(game: @game, student_season_id: row[:student_season_id])
     end
 
+    # Rosters are imported at the start of the season, so a line only lands on an existing player. A row
+    # nobody was picked for in the review is skipped rather than creating a new player.
     def resolve_student_season(row)
-      return StudentSeason.find_by(id: row[:student_season_id]) if row[:student_season_id].present?
-
-      create_or_reuse_student_season(row)
-    end
-
-    # A player the AI couldn't confidently match to the existing roster —
-    # rather than discard their stats, create the Student/StudentSeason so
-    # the data isn't lost. Reuses Student.find_or_create_for_college (the
-    # same dedupe-by-name-within-college helper ScrapeStudentsJob uses) so
-    # this player is found instead of re-created next time they show up.
-    def create_or_reuse_student_season(row)
-      name = row[:display_name].to_s.strip
-      team = row[:team]
-      return nil if name.blank? || team.blank?
-
-      college = resolve_college(team)
-      return nil unless college
-
-      first_name, last_name = split_display_name(name)
-      return nil if last_name.blank?
-
-      cache_key = [ college.id, "#{first_name} #{last_name}".downcase ]
-      return @created_student_seasons[cache_key] if @created_student_seasons.key?(cache_key)
-
-      college_season = CollegeSeason.find_or_create_by!(college: college, season: @game.week.season)
-      student = Student.find_or_create_for_college(first_name: first_name, last_name: last_name, college: college)
-      student_season = student.student_seasons.find_or_initialize_by(college_season: college_season)
-      if student_season.new_record?
-        student_season.position = row[:position].presence || DEFAULT_POSITION_BY_CATEGORY[row[:category]] || "HB"
-        student_season.class_year = row[:class_year].presence || "FR"
-        student_season.save!
-      end
-
-      @created_student_seasons[cache_key] = student_season
-    end
-
-    # AI-extracted names come as "H.Crandall" (first-initial + last name,
-    # per PlayerCategoryExtractor's prompt) unless the user edited the
-    # review field to a full name — handle both. Full-name splitting uses
-    # Student.split_full_name so the same person resolves to the same
-    # Student regardless of which path produced their record.
-    def split_display_name(name)
-      match = name.match(/\A([A-Za-z])\.\s*(.+)\z/)
-      return [ match[1], match[2].strip ] if match
-
-      Student.split_full_name(name)
+      StudentSeason.find_by(id: row[:student_season_id]) if row[:student_season_id].present?
     end
 
     def resolve_college(team_name)

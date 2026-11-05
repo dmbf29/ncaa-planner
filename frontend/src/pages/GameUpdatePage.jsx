@@ -20,9 +20,6 @@ import {
   FIELD_LABELS,
   CATEGORY_FIELDS,
   PLAYER_FIELD_LABELS,
-  POSITIONS,
-  CLASS_YEARS,
-  DEFAULT_POSITION_BY_CATEGORY,
   normalizeCollegeStats,
 } from "../lib/gameStatFields";
 
@@ -74,21 +71,6 @@ const mergeCollegeStats = (existingRows, freshRows) =>
     return { ...existingRow, fields: mergedFields };
   });
 
-// A row the AI couldn't confidently match to the roster now gets a new
-// Student/StudentSeason created on save instead of being silently
-// dropped — pre-fill a reasonable starting position/class year so the
-// review form isn't blank, since both are required fields on save.
-const withUnmatchedDefaults = (playerStats) =>
-  (playerStats || []).map((row) =>
-    row.studentSeasonId
-      ? row
-      : {
-          ...row,
-          position: row.position || DEFAULT_POSITION_BY_CATEGORY[row.category] || POSITIONS[0],
-          classYear: row.classYear || "FR",
-        },
-  );
-
 // A screenshot re-analyzed to catch a player the first pass missed (or
 // just re-uploaded by habit) re-extracts everyone else in it too, and the
 // AI re-matches them against the roster independently each time — so the
@@ -130,7 +112,7 @@ const mergeAnalysis = (existing, fresh, awayCollege, homeCollege) => ({
   homeScreenshotSignedIds: [...(existing.homeScreenshotSignedIds || []), ...(fresh.homeScreenshotSignedIds || [])],
   awayScreenshotSignedIds: [...(existing.awayScreenshotSignedIds || []), ...(fresh.awayScreenshotSignedIds || [])],
   collegeStats: mergeCollegeStats(existing.collegeStats, normalizeCollegeStats(fresh.collegeStats, awayCollege, homeCollege)),
-  playerStats: mergePlayerStats(existing.playerStats, withUnmatchedDefaults(fresh.playerStats || [])),
+  playerStats: mergePlayerStats(existing.playerStats, fresh.playerStats || []),
   homeRoster: existing.homeRoster?.length ? existing.homeRoster : fresh.homeRoster,
   awayRoster: existing.awayRoster?.length ? existing.awayRoster : fresh.awayRoster,
 });
@@ -440,7 +422,7 @@ function PlayerStatRowEditor({ row, index, roster, updateRow, updateField, remov
           onChange={(e) => updateRow(index, { studentSeasonId: e.target.value ? Number(e.target.value) : null })}
           className="rounded-md border border-border bg-white px-2 py-1.5 text-xs dark:border-darkborder dark:bg-darksurface"
         >
-          <option value="">New player (will be created)</option>
+          <option value="">Pick a roster player…</option>
           {sortRosterByLastName(roster).map((p) => (
             <option key={p.id} value={p.id}>
               {p.name} ({p.position})
@@ -452,31 +434,9 @@ function PlayerStatRowEditor({ row, index, roster, updateRow, updateField, remov
         </button>
       </div>
       {!row.studentSeasonId && (
-        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-burnt/5 p-2 text-xs">
-          <span className="text-textSecondary">Not on the roster yet — will be created as:</span>
-          <select
-            value={row.position || ""}
-            onChange={(e) => updateRow(index, { position: e.target.value })}
-            className="rounded-md border border-border bg-white px-2 py-1 text-xs dark:border-darkborder dark:bg-darksurface"
-          >
-            {POSITIONS.map((position) => (
-              <option key={position} value={position}>
-                {position}
-              </option>
-            ))}
-          </select>
-          <select
-            value={row.classYear || ""}
-            onChange={(e) => updateRow(index, { classYear: e.target.value })}
-            className="rounded-md border border-border bg-white px-2 py-1 text-xs dark:border-darkborder dark:bg-darksurface"
-          >
-            {CLASS_YEARS.map((classYear) => (
-              <option key={classYear} value={classYear}>
-                {classYear}
-              </option>
-            ))}
-          </select>
-        </div>
+        <p className="mt-1 rounded-md bg-burnt/5 p-2 text-xs text-burnt">
+          Not matched to a roster player. Pick one above, or this line won&rsquo;t be saved.
+        </p>
       )}
       <div className="mt-1 grid grid-cols-3 gap-2 sm:grid-cols-9">
         {(CATEGORY_FIELDS[row.category] || []).map((field) => (
@@ -508,8 +468,6 @@ function TeamPlayerStatsBody({ team, playerStats, onChange, roster }) {
         category,
         displayName: "",
         studentSeasonId: null,
-        position: DEFAULT_POSITION_BY_CATEGORY[category] || POSITIONS[0],
-        classYear: "FR",
         fields: {},
       },
     ]);
@@ -819,7 +777,7 @@ function GameUpdatePage() {
             ...result,
             narrative: EMPTY_NARRATIVE,
             collegeStats: normalizeCollegeStats(result.collegeStats, game.awayCollege, game.homeCollege),
-            playerStats: withUnmatchedDefaults(result.playerStats),
+            playerStats: result.playerStats,
           },
     );
 
@@ -866,7 +824,7 @@ function GameUpdatePage() {
               ...freshStats,
               narrative: EMPTY_NARRATIVE,
               collegeStats: normalizeCollegeStats(freshStats.collegeStats, game.awayCollege, game.homeCollege),
-              playerStats: withUnmatchedDefaults(freshStats.playerStats),
+              playerStats: freshStats.playerStats,
             },
       );
       setSectionStatus((prev) => ({ ...prev, [sectionKey]: { analyzing: false, error: null } }));
@@ -925,6 +883,10 @@ function GameUpdatePage() {
           : prev,
       );
       setSaved(true);
+      const skipped = (analysisToSave.playerStats || []).filter((row) => !row.studentSeasonId && Object.values(row.fields || {}).some((v) => Number(v)));
+      if (skipped.length) {
+        setCommitError(`Saved, but ${skipped.length} player line(s) weren't, because no roster player is picked: ${skipped.map((row) => row.displayName).join(", ")}.`);
+      }
     } catch (err) {
       setCommitError(auto ? `Auto-save failed: ${err.message} — your review is intact, use Save to retry.` : err.message);
     } finally {

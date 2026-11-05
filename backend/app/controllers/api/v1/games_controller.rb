@@ -5,7 +5,7 @@ module Api
       skip_after_action :verify_authorized
       skip_before_action :authenticate_user!, only: :show
       before_action :set_game
-      before_action :require_local_capture, only: %i[capture_start capture_status capture_finish capture_cancel]
+      before_action :require_local_capture, only: %i[capture_start capture_status capture_finish capture_cancel capture_mute]
 
       SECTION_ATTACHMENTS = {
         "box_score" => :box_score_screenshots,
@@ -159,6 +159,13 @@ module Api
         authorize @game
         GameCapture::Session.new(@game).cancel!
         head :no_content
+      end
+
+      # Turns the watcher's beeps off or on; shared by every game since there's one watcher at a time.
+      def capture_mute
+        authorize @game
+        GameCapture::Session.muted = ActiveModel::Type::Boolean.new.cast(params[:muted])
+        render json: { muted: GameCapture::Session.muted? }
       end
 
       private

@@ -13,7 +13,7 @@ header text, and the full OCR text of each capture, for routing/classifying late
 Needs, for the app that runs it (Terminal): Screen Recording (to capture) and
 Accessibility (to find the window; without it the whole screen is used).
 Keep Remote Play frontmost -- the capture is the screen region, not the window.
-Ctrl+C to stop.
+Ctrl+C to stop. `touch backend/tmp/capture_muted` mutes the beeps, `rm` unmutes (checked on every beep).
 """
 import argparse
 import difflib
@@ -32,6 +32,13 @@ from PIL import Image, ImageOps
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TINK = "/System/Library/Sounds/Tink.aiff"
+MUTE_FILE = REPO_ROOT / "backend" / "tmp" / "capture_muted"
+
+
+def beep(sound):
+    """Silent while the mute file exists (started from the game page, nobody types in this process)."""
+    if not MUTE_FILE.exists():
+        subprocess.Popen(["afplay", sound])
 
 
 def window_bounds():
@@ -82,7 +89,8 @@ CATEGORIES = [  # column-header words that identify a Player Stats table
     ("defense", [r"\bFFUMB\b", r"\bFMBREC\b"]),   # same table scrolled right
     ("rushing", [r"\bCAR\b", r"\b(BTK|BIK|FUMB)\b"]),
     ("receiving", [r"\bREC\b", r"\b(YAC|RAC|DROPS)\b"]),
-    ("passing", [r"\bCOMP\b", r"\bATT\b"]),
+    # Tesseract reads the pill's PASSING as "RASSING" and ATT as "AIT", so any two of these headers will do.
+    ("passing", [r"\bCOMP\b", r"\bA[IT1l]T\b", r"\bSACKS\b", r"\bRATING\b", r"\bYPC\b"]),
     ("kicking", [r"\bFGM\b", r"\bXPM\b"]),
     ("punting", [r"\bPUNT"]),
 ]
@@ -154,6 +162,8 @@ def header_slug(img, text, teams=()):
                 parts.append(re.sub(r"[^a-z0-9]+", "-", raw.lower()).strip("-"))
         up = text.upper()
         literal = re.search(r"\b(RUSHING|RECEIVING|PASSING|DEFENSE|KICKING|PUNTING)\b", up)
+        if not literal and re.search(r"\b[PR]ASSING\b", up):
+            literal = re.search(r"(PASSING)", "PASSING")
         if literal:
             meta["category"] = literal.group(1).lower()
         else:
@@ -245,6 +255,41 @@ def graft_names(left_img, right_img, shift=0):
     return out
 
 
+# --- Which player the cursor is on. Two roster players can share an on-screen name ("J.Brown"), but the player
+# card beside the table shows the highlighted row's full name and position. Whenever a Player Stats screen settles,
+# the highlighted row's stats and that card are saved as one small picture (cursor/NNN.png, listed in cursor.json)
+# for the analysis to use, even when the screen itself is a repeat of one already saved.
+CURSOR_ROW_Y0 = TABLE_Y[0] + HEADER_HEIGHT   # top of the first row, as a fraction of window height
+CURSOR_STRIP_X = (0.02, 0.73)                # name + stat columns
+CURSOR_CARD = (0.76, 0.33, 1.0, 0.465)       # name, position and number on the player card
+
+
+def cursor_row(img):
+    """Index (0-10) of the highlighted row of a Player Stats table, or None. The highlight is a pale bar; the other rows are dark."""
+    w, h = img.size
+    best = None
+    for i in range(ROWS_VISIBLE):
+        yc = (CURSOR_ROW_Y0 + (i + 0.5) * ROW_PITCH) * h
+        bar = img.crop((int(w * 0.03), int(yc - h * 0.01), int(w * 0.15), int(yc + h * 0.01))).convert("L")
+        level = float(np.asarray(bar).mean())
+        if level > 140 and (best is None or level > best[1]):
+            best = (i, level)
+    return best[0] if best else None
+
+
+def cursor_picture(img, row):
+    """The highlighted row's strip stacked over the player card, as one image."""
+    w, h = img.size
+    yc = (CURSOR_ROW_Y0 + (row + 0.5) * ROW_PITCH) * h
+    half = ROW_PITCH * h * 0.5
+    strip = img.crop((int(w * CURSOR_STRIP_X[0]), int(yc - half), int(w * CURSOR_STRIP_X[1]), int(yc + half)))
+    card = img.crop((int(w * CURSOR_CARD[0]), int(h * CURSOR_CARD[1]), int(w * CURSOR_CARD[2]), int(h * CURSOR_CARD[3])))
+    out = Image.new("RGB", (strip.width, strip.height + card.height + 20), (0, 0, 0))
+    out.paste(strip, (0, 0))
+    out.paste(card, (0, strip.height + 20))
+    return out
+
+
 def fingerprint(text):
     return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
 
@@ -277,6 +322,26 @@ def main():
     composite_of = {}    # view file name -> the grafted composite it's currently part of
 
     counter = [0]
+    cursor_log, last_cursor = [], [None]
+
+    def record_cursor(img, meta):
+        """Remember who the cursor is on, if this is a Player Stats table with a highlighted row (and it's not the same spot as last time)."""
+        if meta.get("kind") != "team_stats" or not meta.get("team") or not meta.get("category"):
+            return
+        row = cursor_row(img)
+        if row is None:
+            return
+        picture = cursor_picture(img, row)
+        small = np.asarray(picture.resize((96, 48)).convert("L"), dtype=np.int16)
+        if last_cursor[0] is not None and np.abs(small - last_cursor[0]).mean() < 1.0:
+            return
+        last_cursor[0] = small
+        (out / "cursor").mkdir(exist_ok=True)
+        name = "cursor/%03d.png" % (len(cursor_log) + 1)
+        picture.save(out / name)
+        cursor_log.append({"file": name, "team": meta["team"], "category": meta["category"], "row": row, "at": datetime.now().isoformat(timespec="seconds")})
+        (out / "cursor.json").write_text(json.dumps(cursor_log, indent=2))
+        print("  cursor %s %s row %d" % (meta["team"], meta["category"], row + 1))
 
     def save(img, slug, header, meta, text):
         counter[0] += 1
@@ -332,7 +397,7 @@ def main():
         composite_of[entry["file"]] = composite_of[mate["file"]] = grafted
         if shift:
             note = "  [list drifted %d rows: only %d of %d rows matched -- re-capture the other side at the same spot to fix]" % (abs(shift), overlap, ROWS_VISIBLE)
-            subprocess.Popen(["afplay", "/System/Library/Sounds/Funk.aiff"])
+            beep("/System/Library/Sounds/Funk.aiff")
         else:
             note = ""
         print("  paired %s + %s -> %s%s" % (left["file"], right["file"], grafted["file"], note))
@@ -343,9 +408,18 @@ def main():
             img = jobs.get()
             if img is None:
                 return
+            only_cursor = isinstance(img, tuple)   # ("cursor", frame): a repeat screen, only note where the cursor is
+            if only_cursor:
+                img = img[1]
             try:
                 text = ocr(img)
                 slug, header, meta = header_slug(img, text, teams)
+                try:
+                    record_cursor(img, meta)
+                except Exception as e:  # never let the cursor log cost a screen
+                    print("  cursor error  %s" % e)
+                if only_cursor:
+                    continue
                 meta.update(hscroll=None, vtop=None, vlen=None)
                 key = None
                 if meta["category"] == "defense":
@@ -379,13 +453,13 @@ def main():
                         (out / "manifest.json").write_text(json.dumps(manifest, indent=2))
                         seen.pop()
                         print("  WARN   %s rushing shows only 0-carry players -- sort by CAR (most carries first), then pause again. Not counted." % (meta.get("team") or "?"))
-                        subprocess.Popen(["afplay", "/System/Library/Sounds/Basso.aiff"])
+                        beep("/System/Library/Sounds/Basso.aiff")
                         continue
                 if key is not None:
                     pair_and_graft(entry)
             except Exception as e:  # keep watching no matter what
                 print("  error  %s" % e)
-                subprocess.Popen(["afplay", "/System/Library/Sounds/Basso.aiff"])
+                beep("/System/Library/Sounds/Basso.aiff")
             finally:
                 jobs.task_done()
 
@@ -430,13 +504,15 @@ def main():
                     handled = True
                     if last_handled is not None and delta(sig, last_handled) < args.min_change:
                         print("  same   (settled, but identical to the last screen)")
+                        jobs.put(("cursor", img))
                     elif any(delta(sig, earlier) < 1.0 for earlier in queued_sigs):
                         print("  same   (a screen you already captured -- no beep)")
+                        jobs.put(("cursor", img))
                     else:
                         last_handled = sig
                         queued_sigs.append(sig)
                         jobs.put(img)
-                        subprocess.Popen(["afplay", TINK])  # new picture queued -- safe to move on; labeling happens in the background
+                        beep(TINK)  # new picture queued -- safe to move on; labeling happens in the background
             time.sleep(args.interval)
     except KeyboardInterrupt:
         print("\nfinishing %d queued screen(s)..." % jobs.unfinished_tasks)

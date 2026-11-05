@@ -144,14 +144,15 @@ module GameStats
       end
       if hits.size > 1
         names = hits.map { |player| "#{player[:name]} (#{player[:position]})" }.to_sentence(last_word_connector: " or ")
-        @warnings << "#{display_name} could be #{names}; pick the right player in the review, or both lines get saved to one new player." unless @warnings.any? { |w| w.start_with?("#{display_name} could be") }
+        @warnings << "#{display_name} could be #{names}; pick the right player in the review, or the line won't be saved." unless @warnings.any? { |w| w.start_with?("#{display_name} could be") }
       end
       hits.one? ? hits.first[:id] : nil
     end
 
     def display_parts(name)
-      match = name.match(/\A([A-Za-z]?)\.\s*(.+)\z/)
-      match ? [ match[1], match[2] ] : [ nil, nil ]
+      match = name.match(/\A([A-Za-z0-9]?)\.\s*(.+)\z/)
+      # A digit where the initial should be ("1.Ackerman" for J.Ackerman) is a misread: match on the last name alone.
+      match ? [ match[1].match?(/\d/) ? nil : match[1], match[2] ] : [ nil, nil ]
     end
 
     # Vision's look-alikes (capital I / lowercase l / 1, O / 0) must not keep a name from matching.

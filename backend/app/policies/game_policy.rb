@@ -43,6 +43,10 @@ class GamePolicy < ApplicationPolicy
     owner?
   end
 
+  def capture_mute?
+    owner?
+  end
+
   def owner?
     record.week.season.dynasty.user == user
   end

@@ -17,9 +17,20 @@ module GameCapture
     # Same limit as tools/capture/watch.py: two views further apart than this share too few rows to graft.
     MAX_SHIFT_ROWS = 8
 
+    # While this file exists the watcher stays silent (tools/capture/watch.py checks it before every beep).
+    MUTE_FILE = Rails.root.join("tmp/capture_muted")
+
     UPLOAD_POOL = Concurrent::FixedThreadPool.new(6)
 
     Error = Class.new(StandardError)
+
+    def self.muted?
+      MUTE_FILE.exist?
+    end
+
+    def self.muted=(muted)
+      muted ? FileUtils.touch(MUTE_FILE) : FileUtils.rm_f(MUTE_FILE)
+    end
 
     def initialize(game)
       @game = game
@@ -57,11 +68,11 @@ module GameCapture
 
     def status
       state = read_state
-      return { running: false, screens: [], analysis: pending_analysis } unless state
+      return { running: false, screens: [], analysis: pending_analysis, muted: self.class.muted? } unless state
 
       all = screens(state[:dir])
       { running: alive?(state[:pid]), screens: all.map { |s| s.except(:grafted_from) }, unpaired: unpaired_views(all).map { |s| s.slice(:file, :team, :hscroll) },
-        skipped: skipped_screens(state[:dir]), analysis: pending_analysis }
+        skipped: skipped_screens(state[:dir]), analysis: pending_analysis, muted: self.class.muted? }
     end
 
     def running?

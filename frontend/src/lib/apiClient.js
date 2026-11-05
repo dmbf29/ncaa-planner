@@ -578,6 +578,8 @@ export const startGameCapture = (id) => api.post(`/api/v1/games/${id}/capture_st
 // => { running, screens: [{ file, kind, team, category, hscroll }], unpaired: [{ file, team, hscroll }] }
 export const fetchGameCaptureStatus = (id) => api.get(`/api/v1/games/${id}/capture_status`).then((r) => r.data);
 
+export const setGameCaptureMuted = (id, muted) => api.post(`/api/v1/games/${id}/capture_mute`, { muted }).then((r) => r.data);
+
 export const cancelGameCapture = (id) => api.post(`/api/v1/games/${id}/capture_cancel`);
 
 // Stops the watcher, then resolves with the analysis like analyzeGameStats

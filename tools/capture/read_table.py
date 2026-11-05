@@ -156,7 +156,20 @@ def read_row_strip(img, y, pitch, left_x, right_x):
 CELL_CROPS = [(1.0, 1.0, 1), (2.0, 1.0, 1), (3.0, 1.4, 1), (1.5, 2.0, 1), (2.0, 1.4, 2), (3.0, 1.0, 2), (1.0, 1.0, 3)]
 
 
+# Whether Vision sees a lone digit can hinge on a pixel of crop size, so a cell it still can't find is retried
+# with the crop nudged and resized: (height multiple, vertical shift in cell heights).
+CELL_RETRIES = [(1.0, 0.0), (1.15, 0.0), (0.9, 0.0), (1.0, 0.12), (1.0, -0.12), (1.3, 0.0)]
+
+
 def read_cell(img, cx, cy, half_width, half_height):
+    for tall, shift in CELL_RETRIES:
+        value = read_cell_once(img, cx, cy + shift * half_height, half_width, half_height * tall)
+        if value is not None:
+            return value
+    return None
+
+
+def read_cell_once(img, cx, cy, half_width, half_height):
     """Last resort for one cell: read crops of several sizes around it and take the first number Vision finds
     near its centre, then tesseract (digits only) on a padded crop."""
     from ocrmac import ocrmac

@@ -117,6 +117,7 @@ Rails.application.routes.draw do
           get :capture_status
           post :capture_finish
           post :capture_cancel
+          post :capture_mute
         end
       end
 

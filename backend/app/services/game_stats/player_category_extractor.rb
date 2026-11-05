@@ -157,11 +157,69 @@ module GameStats
       extra_results = extra_blobs.blank? ? [] : EXTRA_FIELD_GROUPS.fetch(@category, []).map { |fields| run_group(extra_blobs, fields, extra: true) }
 
       rows = merge(results, extra_results)
+      resolve_by_cursor(rows)
       rows.each { |row| verify_extra(row) } if extra_results.any?
       rows.map { |row| build_entry(row) }.reject { |entry| StatFields.empty_line?(entry[:fields]) }
     end
 
     private
+
+    # Two roster players can share an on-screen name ("J.Brown"), which the matcher leaves unresolved. While the
+    # capture ran, the watcher noted the player card (full name) shown whenever the cursor sat on a row, so a row
+    # whose name fits several players takes the one whose card was seen, checked against the row's own numbers
+    # when the card came from this same table. Left alone if that doesn't point to exactly one player.
+    def resolve_by_cursor(rows)
+      cursors = @local&.cursors(@college.name)
+      return if cursors.blank?
+
+      taken = rows.filter_map { |row| row["student_season_id"] }.to_set
+      rows.group_by { |row| row["player_display_name"].to_s.strip }.each do |name, same_name|
+        unresolved = same_name.select { |row| row["student_season_id"].blank? }
+        hits = roster_hits(name)
+        next if unresolved.empty? || hits.size < 2
+
+        seen = cursors.filter_map do |cursor|
+          player = hits.find { |candidate| same_person?(candidate[:name], cursor[:card_name]) }
+          [ cursor, player ] if player
+        end
+        unresolved.each do |row|
+          candidates = seen.select { |cursor, _player| cursor[:category] != @category || numbers_fit?(cursor[:numbers], row) }.map(&:last).uniq
+          next unless candidates.one? && taken.exclude?(candidates.first[:id])
+
+          row["student_season_id"] = candidates.first[:id]
+          taken << candidates.first[:id]
+        end
+        @warnings.reject! { |warning| warning.start_with?("#{name} could be") } if same_name.none? { |row| row["student_season_id"].blank? }
+      end
+    end
+
+    def roster_hits(display_name)
+      initial, last = display_name.match(/\A([A-Za-z0-9]?)\.\s*(.+)\z/)&.captures
+      return [] if last.blank?
+
+      @roster.select do |player|
+        first, roster_last = Student.split_full_name(player[:name])
+        squash_name(roster_last) == squash_name(last) && (initial.blank? || initial.match?(/\d/) || squash_name(first.to_s[0]) == squash_name(initial))
+      end
+    end
+
+    def same_person?(roster_name, card_name)
+      return true if squash_name(roster_name) == squash_name(card_name)
+
+      first, last = Student.split_full_name(roster_name)
+      card_first, card_last = Student.split_full_name(card_name.to_s)
+      squash_name(first) == squash_name(card_first) && squash_name(last) == squash_name(card_last)
+    end
+
+    def squash_name(text)
+      text.to_s.downcase.gsub(/[^a-z0-9]/, "").tr("l1", "ii").tr("0", "o")
+    end
+
+    # Every non-zero number the cursor's row showed is one of this row's values.
+    def numbers_fit?(numbers, row)
+      values = row.except("player_display_name", "student_season_id").values.filter_map { |value| value.to_f if value.is_a?(Numeric) && value.to_f.nonzero? }
+      Array(numbers).all? { |number| (index = values.index(number.to_f)) && values.delete_at(index) }
+    end
 
     def field_groups
       groups = FIELD_GROUPS.fetch(@category)
@@ -271,7 +329,8 @@ module GameStats
     end
 
     def player_key(row)
-      row["player_display_name"].to_s.strip.downcase
+      # Vision reads the same name as "K. Johnson" on one screen and "K.Johnson" on another.
+      row["player_display_name"].to_s.downcase.gsub(/\s+/, "")
     end
 
     # One merged row per (name, nth time that name appears in a sub-call).
