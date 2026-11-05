@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.ncaaplanner.scout</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/dougberks/code/dmbf29/ncaa-planner/backend/tools/roster_video/venv/bin/python</string>
+    <string>/Users/dougberks/code/dmbf29/ncaa-planner/tools/scouting/scout_watch.py</string>
+  </array>
+  <key>EnvironmentVariables</key><dict><key>PATH</key><string>/opt/homebrew/bin:/usr/bin:/bin</string></dict>
+  <key>StartInterval</key><integer>600</integer>
+  <key>Nice</key><integer>10</integer>
+  <key>StandardOutPath</key><string>/tmp/ncaa-scout.log</string>
+  <key>StandardErrorPath</key><string>/tmp/ncaa-scout.log</string>
+</dict>
+</plist>
