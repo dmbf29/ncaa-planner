@@ -35,7 +35,8 @@ BOARD_CROP = (250, 612, 1030, 685)
 WINDOW_GAP = 6  # seconds without a play-call screen that ends a window
 CARD_X = (50, 460, 870)
 OFFENSE_FORMATION = re.compile(r"^(GUN|PISTOL|UNDER CENTER|SINGLEBACK|I FORM|I-FORM|EMPTY|GOAL LINE|WILDCAT|SHOTGUN|FULL HOUSE|SPLIT BACK|TRIPS|BUNCH|SPECIAL TEAMS)", re.I)
-SCREEN_WORDS = re.compile(r"play|concept|formation|coach sugg|personnel", re.I)
+# low-resolution streams (480p) turn "SELECT A PLAY" into "SeLECIAt", so "sel...c" counts too
+SCREEN_WORDS = re.compile(r"play|concept|formation|coach sugg|personnel|sel[a-z]*c", re.I)
 
 
 def ocr(img, level):
@@ -45,7 +46,7 @@ def ocr(img, level):
 
 def extract_frames(path, out_dir):
     subprocess.run(
-        ["ffmpeg", "-v", "error", "-i", path, "-vf", "fps=1,scale=1280:720", "-q:v", "3", os.path.join(out_dir, "%05d.jpg")],
+        ["ffmpeg", "-nostdin", "-v", "error", "-i", path, "-vf", "fps=1,scale=1280:720:flags=lanczos", "-q:v", "3", os.path.join(out_dir, "%05d.jpg")],
         check=True, stderr=subprocess.DEVNULL,
     )
     return sorted(int(f[:-4]) for f in os.listdir(out_dir) if f.endswith(".jpg"))
@@ -92,9 +93,13 @@ def parse_board(items):
         s["left_score"] = int(left[-1]["t"])
     if right:
         s["right_score"] = int(right[0]["t"])
-    names = [i for i in b if re.fullmatch(r"[A-Z][A-Z .&']{3,}", i["t"]) and not re.search(r"SPORTS|SOUTHER|GEORG", i["t"]) or i["t"].startswith("GA ")]
-    left_name = [i["t"] for i in names if 350 < i["x"] < 480]
-    right_name = [i["t"] for i in names if 780 < i["x"] < 900]
+    # a ranked team prints as "22 GA SOUTHERN"; the rank is dropped
+    def team(lo, hi):
+        found = [re.sub(r"^\d{1,2}\s+", "", i["t"].strip()) for i in b if lo < i["x"] < hi]
+        return next((n for n in found if re.fullmatch(r"[A-Z][A-Z .&']{3,}", n) and not re.search(r"SPORTS|SOUTHER[NM]?$|GEORG|SUN BELT|^SEC|^ACC", n) or n.startswith("GA ")), None)
+    left_name = [team(350, 480)]
+    right_name = [team(740, 900)]
+    left_name, right_name = [n for n in left_name if n], [n for n in right_name if n]
     if left_name:
         s["left_team"] = left_name[0]
     if right_name:
@@ -115,10 +120,11 @@ def read_scoreboards(frames_dir, seconds, step=2):
 
 
 def side_changes(boards, key, confirm=2):
-    """[(second, old, new)]: a score counts once `confirm` consecutive readings agree and the jump is a real scoring
-    play: 3 (field goal), 6-8 (touchdown, with or without the conversion), 2 (safety or conversion) or 1 (extra point,
-    only within 90s of a touchdown). That drops single misreads (63, 88) and a stray "1". A missing reading is
-    skipped, and the game starts 0-0 (Vision skips a lone 0)."""
+    """[(second, old, new)] for one side's score. A reading counts once enough consecutive readings agree and the jump
+    is a real scoring play: 3 (field goal, 3 readings), 6-8 (touchdown, 2), 1 or 2 within 90s of a touchdown (extra point
+    / conversion, 2) or a bare 2 (safety, 8 readings). That drops single misreads (63, 88) and a stray 1 or 2. If a jump
+    isn't one of those but the new score holds for 8 readings (a missed play in between), it is accepted and split into
+    touchdowns and field goals (`approx`). A missing reading is skipped; the game starts 0-0 (Vision skips a lone 0)."""
     cur, changes, last_td = 0, [], None
     run, run_start = [], None
     for t in sorted(boards):
@@ -129,29 +135,40 @@ def side_changes(boards, key, confirm=2):
             run.append(v)
         else:
             run, run_start = [v], t
-        delta = v - cur
-        if len(run) < confirm or delta not in (1, 2, 3, 6, 7, 8):
+        delta, n = v - cur, len(run)
+        after_td = last_td is not None and run_start - last_td < 90
+        ok = (delta == 3 and n >= 3) or (delta in (6, 7, 8) and n >= confirm) or (delta in (1, 2) and after_td and n >= confirm) or (delta == 2 and n >= 8)
+        if not ok and delta > 0 and n >= 8:
+            changes.append((run_start, cur, v, True))
+            cur = v
             continue
-        if delta == 1 and not (last_td is not None and run_start - last_td < 90):
-            continue
-        changes.append((run_start, cur, v))
-        last_td = run_start if delta >= 6 else last_td
-        cur = v
+        if ok:
+            changes.append((run_start, cur, v, False))
+            last_td = run_start if delta >= 6 else last_td
+            cur = v
     return changes
 
 
 def scoring_plays(boards, teams):
     left = side_changes(boards, "left_score")
     right = side_changes(boards, "right_score")
-    raw = sorted([(t, 0, a, b) for t, a, b in left] + [(t, 1, a, b) for t, a, b in right])
+    raw = sorted([(t, 0, a, b, ap) for t, a, b, ap in left] + [(t, 1, a, b, ap) for t, a, b, ap in right])
     # fill quarter/clock from the boards (quarter carried forward, clock read at the change)
     qtr_at, q = {}, 1
     for t in sorted(boards):
         q = boards[t].get("qtr") or q
         qtr_at[t] = q
     plays = []
-    for t, side, a, b in raw:
+    for t, side, a, b, approx in raw:
         pts = b - a
+        if approx:  # a jump we couldn't see play by play: split it into touchdowns (7) and field goals (3)
+            n7 = next(n for n in range(pts // 7, -1, -1) if (pts - 7 * n) % 3 == 0) if any((pts - 7 * n) % 3 == 0 for n in range(pts // 7 + 1)) else pts // 7
+            kinds = ["Touchdown"] * n7 + ["Field goal"] * ((pts - 7 * n7) // 3) + (["Score"] if (pts - 7 * n7) % 3 else [])
+            for kind in kinds:
+                p = 7 if kind == "Touchdown" else 3 if kind == "Field goal" else pts - 7 * n7 - 3 * kinds.count("Field goal")
+                plays.append({"time": t, "quarter": qtr_at.get(t, 1), "clock": None, "side": side, "team": teams[side] if len(teams) == 2 else None,
+                              "kind": kind, "points": p, "approx": True, "extra": "extra point" if kind == "Touchdown" else None})
+            continue
         near = min((x for x in boards if x >= t and boards[x].get("clock")), default=None, key=lambda x: x - t)
         clock = boards[near]["clock"] if near is not None and near - t < 30 else None
         last = plays[-1] if plays else None
@@ -265,6 +282,8 @@ def analyze(path, keep_frames=None):
             shutil.rmtree(tmp, ignore_errors=True)
     report = build_report(path, len(seconds), build_windows(hits), parsed)
     teams = [collections.Counter(b[k] for b in boards.values() if k in b).most_common(1)[0][0] for k in ("left_team", "right_team") if any(k in b for b in boards.values())]
+    if len(teams) == 2 and teams[0] == teams[1]:  # e.g. Bulls vs Bulls: the broadcast prints the same name for both
+        teams = [f"{teams[0]} (left)", f"{teams[1]} (right)"]
     if len(teams) == 2:
         report["teams"] = teams
     report["scoring"] = scoring_plays(boards, teams)

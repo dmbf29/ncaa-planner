@@ -29,9 +29,10 @@ def started_at(path):
         return None
 
 
-def mark_skip(f, dry):
+def mark_skip(f, dry, covered_by=None):
     if not dry:
-        open(f[:-3] + ".scout.skip", "w").close()
+        with open(f[:-3] + ".scout.skip", "w") as marker:
+            marker.write(f"{os.path.basename(covered_by)[:-3]}.scout.md\n" if covered_by else "")
 
 
 def pending(channel_dir, dry=False):
@@ -47,8 +48,9 @@ def pending(channel_dir, dry=False):
         if done(f) or not idle(f):
             continue
         rivals = [g for g in big if g != f and abs((started_at(g) - started_at(f)).total_seconds()) < CLUSTER_MINUTES * 60]
-        if any((os.path.getsize(g), g) > (os.path.getsize(f), f) for g in rivals):
-            mark_skip(f, dry)  # a bigger file covers this session
+        bigger = [g for g in rivals if (os.path.getsize(g), g) > (os.path.getsize(f), f)]
+        if bigger:
+            mark_skip(f, dry, max(bigger, key=lambda g: (os.path.getsize(g), g)))  # a bigger file covers this session
             continue
         todo.append(f)
     return todo
