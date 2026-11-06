@@ -87,8 +87,10 @@ def parse_board(items):
     if clock:
         s["clock"] = clock[0]
     scores = sorted((i for i in b if re.fullmatch(r"\d{1,2}", i["t"]) and i["h"] > 14), key=lambda i: i["x"])
-    left = [i for i in scores if i["x"] < 580]
-    right = [i for i in scores if i["x"] > 700]
+    # only the two score boxes: the play clock sits between them and player-card overlays (RUSH 3 / YDS 15) can
+    # reach into the crop, and both would otherwise read as a score
+    left = [i for i in scores if 440 < i["x"] < 565]
+    right = [i for i in scores if 712 < i["x"] < 800]
     if left:
         s["left_score"] = int(left[-1]["t"])
     if right:

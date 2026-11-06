@@ -4,6 +4,7 @@ import PageHeader from "../components/PageHeader";
 import Card from "../components/Card";
 import GameSummary from "../components/GameSummary";
 import GameCapturePanel from "../components/GameCapturePanel";
+import ScoringSummaryPanel from "../components/ScoringSummaryPanel";
 import ScreenshotLightbox from "../components/ScreenshotLightbox";
 import {
   analyzeGameNarrative,
@@ -680,7 +681,7 @@ function GameUpdatePage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
-  const [openSections, setOpenSections] = useState({ recap: true, boxScore: true, home: true, away: true });
+  const [openSections, setOpenSections] = useState({ recap: true, scoring: true, boxScore: true, home: true, away: true });
   const toggleSection = (key) => setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
 
   const [pendingFiles, setPendingFiles] = useState(EMPTY_PENDING_FILES);
@@ -990,6 +991,15 @@ function GameUpdatePage() {
                 write a recap.
               </p>
             )}
+          </AccordionSection>
+
+          <AccordionSection title="Scoring Summary" expanded={openSections.scoring} onToggle={() => toggleSection("scoring")}>
+            <ScoringSummaryPanel
+              gameId={gameId}
+              played={game.played}
+              summary={game.scoringSummary}
+              onChange={(scoringSummary) => setGame((prev) => ({ ...prev, scoringSummary }))}
+            />
           </AccordionSection>
 
           <AccordionSection title="Box Score" expanded={openSections.boxScore} onToggle={() => toggleSection("boxScore")}>

@@ -571,6 +571,15 @@ export const reanalyzeGameStats = (id, section) =>
 export const analyzeGameNarrative = (id, { collegeStats, playerStats, additionalContext }) =>
   api.post(`/api/v1/games/${id}/analyze_narrative`, { analysis: { collegeStats, playerStats, additionalContext } }).then((r) => r.data);
 
+// Scoring summary read from a stream recording (backend GameScoring::Recordings). The list is local-only.
+// => { recordings: [{ id, channel, teams, plays, verified, finalScore }] }
+export const fetchScoringRecordings = (id) => api.get(`/api/v1/games/${id}/scoring_recordings`).then((r) => r.data);
+
+// => { scoringSummary: { source, verified, home, away, plays: [{ quarter, clock, team, kind, points, extra, homeScore, awayScore }] } }
+export const attachScoringSummary = (id, recording) => api.post(`/api/v1/games/${id}/attach_scoring_summary`, { recording }).then((r) => r.data);
+
+export const detachScoringSummary = (id) => api.delete(`/api/v1/games/${id}/detach_scoring_summary`);
+
 // Local-only capture from PS Remote Play (backend GameCapture::Session): the
 // backend runs tools/capture/watch.py while you navigate the game with a controller.
 export const startGameCapture = (id) => api.post(`/api/v1/games/${id}/capture_start`).then((r) => r.data);

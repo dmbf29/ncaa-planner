@@ -118,6 +118,10 @@ Rails.application.routes.draw do
           post :capture_finish
           post :capture_cancel
           post :capture_mute
+          # Local-only list; the summary itself lives on the game (games.scoring_summary). See GameScoring::Recordings.
+          get :scoring_recordings
+          post :attach_scoring_summary
+          delete :detach_scoring_summary
         end
       end
 

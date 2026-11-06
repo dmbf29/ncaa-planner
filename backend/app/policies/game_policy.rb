@@ -47,6 +47,18 @@ class GamePolicy < ApplicationPolicy
     owner?
   end
 
+  def scoring_recordings?
+    owner?
+  end
+
+  def attach_scoring_summary?
+    owner?
+  end
+
+  def detach_scoring_summary?
+    owner?
+  end
+
   def owner?
     record.week.season.dynasty.user == user
   end

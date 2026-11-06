@@ -14,8 +14,8 @@ module GameStats
       @away_college = away_college
     end
 
-    def call(college_stats:, player_stats:, additional_context: nil)
-      raw = chat.ask(prompt(college_stats, player_stats, additional_context)).content
+    def call(college_stats:, player_stats:, additional_context: nil, scoring_summary: nil)
+      raw = chat.ask(prompt(college_stats, player_stats, additional_context, scoring_summary)).content
       offense_ids = ids_for(player_stats) { |row| row[:category].to_s != "defense" }
       defense_ids = ids_for(player_stats) { |row| row[:category].to_s == "defense" }
 
@@ -64,14 +64,14 @@ module GameStats
       end
     end
 
-    def prompt(college_stats, player_stats, additional_context = nil)
+    def prompt(college_stats, player_stats, additional_context = nil, scoring_summary = nil)
       progression = scoring_progression(college_stats)
 
       <<~PROMPT
         #{@home_college.name} (home) vs #{@away_college.name} (away)
 
         #{progression}
-        Team totals:
+        #{scoring_plays_section(scoring_summary)}Team totals:
         #{college_stats.map { |row| team_line(row) }.join("\n")}
 
         Player stat lines:
@@ -84,6 +84,19 @@ module GameStats
         running score line above shows no change for that team across that exact span — check it, don't
         infer it from the final margin.
       PROMPT
+    end
+
+    # Who scored when, read off the broadcast scoreboard from the stream recording (GameScoring). Clock times are
+    # approximate and the plays only say touchdown / field goal / safety — not how the points were scored.
+    def scoring_plays_section(scoring_summary)
+      return "" if scoring_summary.blank? || scoring_summary["plays"].blank?
+
+      <<~SECTION
+        Scoring plays in order (from the game broadcast; clock times are approximate; it says who scored and
+        the kind of score, not how it was scored — don't invent the play behind a score):
+        #{GameScoring::Formatter.text(scoring_summary)}
+
+      SECTION
     end
 
     # The coach's own eyewitness notes (last-play finishes, walk-off kicks, etc.)

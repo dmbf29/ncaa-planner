@@ -5,7 +5,7 @@ module Api
       skip_after_action :verify_authorized
       skip_before_action :authenticate_user!, only: :show
       before_action :set_game
-      before_action :require_local_capture, only: %i[capture_start capture_status capture_finish capture_cancel capture_mute]
+      before_action :require_local_capture, only: %i[capture_start capture_status capture_finish capture_cancel capture_mute scoring_recordings attach_scoring_summary]
 
       SECTION_ATTACHMENTS = {
         "box_score" => :box_score_screenshots,
@@ -110,7 +110,7 @@ module Api
         payload = analysis_params
         narrative = GameStats::NarrativeSynthesizer.new(home_college: @game.home_college, away_college: @game.away_college)
                                                     .call(college_stats: payload[:college_stats] || [], player_stats: payload[:player_stats] || [],
-                                                          additional_context: payload[:additional_context])
+                                                          additional_context: payload[:additional_context], scoring_summary: @game.scoring_summary)
         render json: { narrative: narrative }
       rescue RubyLLM::Error => e
         render json: { error: "AI analysis failed: #{e.message}", code: "narrative_failed" }, status: :unprocessable_entity
@@ -168,6 +168,27 @@ module Api
         render json: { muted: GameCapture::Session.muted? }
       end
 
+      # Local-only: scouted stream recordings (tools/scouting) whose final score matches this game, to pick the
+      # one that becomes the game's scoring summary. See GameScoring::Recordings.
+      def scoring_recordings
+        authorize @game
+        render json: { recordings: GameScoring::Recordings.new(@game).candidates }
+      end
+
+      def attach_scoring_summary
+        authorize @game
+        @game.update!(scoring_summary: GameScoring::Recordings.new(@game).build(params[:recording]))
+        render json: { scoring_summary: @game.scoring_summary }
+      rescue GameScoring::Recordings::Error => e
+        render json: { error: e.message, code: "scoring_summary_failed" }, status: :unprocessable_entity
+      end
+
+      def detach_scoring_summary
+        authorize @game
+        @game.update!(scoring_summary: nil)
+        head :no_content
+      end
+
       private
 
       # The watcher drives the developer's own Mac (screen capture + a
@@ -205,6 +226,7 @@ module Api
           bowl_name: @game.bowl_name,
           cfp_round: @game.cfp_round,
           played: @game.played?,
+          scoring_summary: @game.scoring_summary,
           box_score_screenshots: screenshots_json(@game.box_score_screenshots),
           home_screenshots: screenshots_json(@game.home_stat_screenshots),
           away_screenshots: screenshots_json(@game.away_stat_screenshots),

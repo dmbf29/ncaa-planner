@@ -672,6 +672,16 @@ class SeasonWeeksMarkdownPresenter
       lines << ""
     end
 
+    if team[:game][:scoring_summary]
+      lines << "### 🏈 Scoring Summary"
+      lines << "*Every score in order, read from the game broadcast. Clock times are approximate.*"
+      GameScoring::Formatter.quarters(team[:game][:scoring_summary]).each do |heading, plays|
+        lines << "**#{heading}**"
+        plays.each { |play| lines << "- #{play}" }
+      end
+      lines << ""
+    end
+
     if team[:game][:offensive_player_of_game] || team[:game][:defensive_player_of_game]
       lines << "### 🌟 Player of the Game"
       if team[:game][:offensive_player_of_game]
