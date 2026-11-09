@@ -18,7 +18,7 @@ class SeasonDashboardSerializer
   CACHE_TTL = 3.minutes
 
   def self.cached(season)
-    Rails.cache.fetch([ "season_dashboard", "v1", season.id, season.updated_at.to_i ], expires_in: CACHE_TTL) do
+    Rails.cache.fetch([ "season_dashboard", "v2", season.id, season.updated_at.to_i ], expires_in: CACHE_TTL) do
       new(season).as_json
     end
   end
@@ -43,11 +43,41 @@ class SeasonDashboardSerializer
       last_played_week_number: last_played_week_number,
       signed_recruits_last_week_number: signed_recruits_last_week_number,
       recruits: recruits_json,
-      postseason_recap: postseason_recap_json
+      postseason_recap: postseason_recap_json,
+      reigning_champion: reigning_champion_json
     }
   end
 
   private
+
+  # The national champion going into this season: this season's own title
+  # game once it has been played, otherwise last season's. Nil in a
+  # dynasty's first season (before its title game).
+  def reigning_champion_json
+    [ @season, @season.previous_season ].compact.each do |season|
+      final = Game.joins(:week)
+                  .where(weeks: { season_id: season.id }, cfp_round: :championship)
+                  .includes(:home_college, :away_college, :college_game_stats)
+                  .first
+      next unless final
+
+      scores = final.college_game_stats.index_by(&:college_id)
+      home = scores[final.home_college_id]&.final_score
+      away = scores[final.away_college_id]&.final_score
+      next if home.nil? || away.nil? || home == away
+
+      winner, loser = home > away ? [ final.home_college, final.away_college ] : [ final.away_college, final.home_college ]
+      return {
+        year: season.year,
+        name: winner.name,
+        runner_up: loser.name,
+        winner_score: [ home, away ].max,
+        loser_score: [ home, away ].min,
+        coached_by_us: coached_college_ids.include?(winner.id)
+      }
+    end
+    nil
+  end
 
   def coached_college_seasons
     @coached_college_seasons ||= @season.college_seasons

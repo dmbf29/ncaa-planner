@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { clsx } from "clsx";
-import SeasonSwitcher from "../components/SeasonSwitcher";
-import PageHeader from "../components/PageHeader";
+import DynastyBanner from "../components/DynastyBanner";
 import TeamDashboardCard from "../components/TeamDashboardCard";
 import Top25Snapshot from "../components/Top25Snapshot";
 import HeismanWatch from "../components/HeismanWatch";
@@ -115,16 +114,16 @@ function DynastyShowPage() {
 
   return (
     <div className="max-w-[1420px] mx-auto md:px-4">
-      <PageHeader
-        title={dashboard ? dashboard.dynasty.name : portal?.name || "Dynasty"}
+      <DynastyBanner
+        name={dashboard ? dashboard.dynasty.name : portal?.name}
+        seasons={portal?.seasons}
+        activeSeasonId={seasonId}
+        dynastyId={dynastyId}
+        dashboard={dashboard}
       />
 
       {loading && <p className="text-sm text-textSecondary">Loading dynasty...</p>}
       {error && <p className="text-sm text-danger">{error}</p>}
-
-      {!loading && !error && portal && (
-        <SeasonSwitcher seasons={portal.seasons} activeSeasonId={seasonId} dynastyId={dynastyId} />
-      )}
 
       {!loading && !error && dashboard && dashboard.teams.length === 0 && (
         <p className="text-sm text-textSecondary">No coached teams yet for this season.</p>
