@@ -67,6 +67,11 @@ module Api
         end
       end
 
+      def rivals
+        dynasty = Dynasty.find(params[:dynasty_id])
+        render json: ::RivalsSerializer.new(dynasty).as_json
+      end
+
       def week_games
         season = set_season
         week = season.weeks.find_by!(number: params[:week_number])
