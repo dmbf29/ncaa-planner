@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { clsx } from "clsx";
 import SeasonSwitcher from "../components/SeasonSwitcher";
 import PageHeader from "../components/PageHeader";
@@ -117,42 +117,6 @@ function DynastyShowPage() {
     <div className="max-w-[1420px] mx-auto md:px-4">
       <PageHeader
         title={dashboard ? dashboard.dynasty.name : portal?.name || "Dynasty"}
-        actions={
-          <>
-            {seasonId && (
-              <Link
-                to={`/dynasty/${dynastyId}/seasons/${seasonId}/team-ratings`}
-                className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
-              >
-                Team Ratings
-              </Link>
-            )}
-            {authed ? (
-            <>
-              <Link
-                to="/dynasty/updates"
-                className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
-              >
-                Dynasty Updates
-              </Link>
-              {seasonId && (
-                <Link
-                  to={`/dynasty/${dynastyId}/seasons/${seasonId}/players`}
-                  className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
-                >
-                  All Players
-                </Link>
-              )}
-              <Link
-                to="/dynasty/export"
-                className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
-              >
-                Export
-              </Link>
-            </>
-            ) : null}
-          </>
-        }
       />
 
       {loading && <p className="text-sm text-textSecondary">Loading dynasty...</p>}
