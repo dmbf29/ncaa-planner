@@ -49,10 +49,10 @@ function RatingTile({ label, value }) {
 
 const STAT_LEADERS = [
   { key: "passing", label: "Passing", unit: "YDS", icon: "fa-football", side: "off" },
-  { key: "rushing", label: "Rushing", unit: "YDS", icon: "fa-person-running", side: "off" },
-  { key: "receiving", label: "Receiving", unit: "YDS", icon: "fa-hand", side: "off" },
   { key: "sacks", label: "Sacks", unit: "SCK", icon: "fa-bolt", side: "def" },
+  { key: "rushing", label: "Rushing", unit: "YDS", icon: "fa-person-running", side: "off" },
   { key: "tackles", label: "Tackles", unit: "TKL", icon: "fa-shield-halved", side: "def" },
+  { key: "receiving", label: "Receiving", unit: "YDS", icon: "fa-hand", side: "off" },
   { key: "interceptions", label: "Interceptions", unit: "INT", icon: "fa-crosshairs", side: "def" },
 ];
 
@@ -238,12 +238,11 @@ function ScheduleTile({ week, isNext }) {
   const opp = week.opponent;
   const result = week.result;
 
-  const tone = result
-    ? result.won
-      ? "border-success/30 bg-success/10"
-      : "border-danger/30 bg-danger/10"
-    : isNext
-      ? "border-burnt bg-burnt/10 ring-1 ring-burnt"
+  // Results stay quiet: wins are neutral (the green score says it), losses get a faint tint.
+  const tone = isNext && !result
+    ? "border-burnt bg-burnt/10 ring-1 ring-burnt"
+    : result && !result.won
+      ? "border-danger/20 bg-danger/[0.04]"
       : opp
         ? "border-border bg-charcoal/[0.03] dark:border-darkborder dark:bg-white/5"
         : "border-dashed border-border dark:border-darkborder";
@@ -279,7 +278,7 @@ function ScheduleTile({ week, isNext }) {
           <p
             className={clsx(
               "mt-0.5 text-center font-varsity text-[11px] leading-tight",
-              result ? (result.won ? "text-success" : "text-danger") : isNext ? "text-burnt" : "text-textSecondary/50",
+              result ? (result.won ? "text-success/70" : "text-danger/80") : isNext ? "text-burnt" : "text-textSecondary/50",
             )}
           >
             {result ? `${result.won ? "W" : "L"} ${result.teamScore}-${result.opponentScore}` : isNext ? "NEXT" : "—"}
@@ -489,7 +488,7 @@ function TeamDashboardCard({ team, dynastyId, seasonId }) {
 
       <NextGamePanel team={team} />
 
-      <div className="space-y-3 px-4 py-4">
+      <div className="space-y-3 px-4 py-3">
         <PerGameGroup teamStats={team.teamStats} />
         <ScheduleGrid weeks={weeks} nextWeekNumber={team.nextGame?.week.number} />
         {team.statLeaders ? (
