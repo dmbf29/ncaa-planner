@@ -485,7 +485,7 @@ function RivalsPage() {
             <StatTile label="Avg away score" value={summary.avgAwayScore} />
             <StatTile label="Avg margin" value={summary.avgMargin} />
             <StatTile label="Avg INTs / game" value={summary.avgInterceptions} />
-            <StatTile label="Overtime games" value={summary.overtimeGames} />
+            <StatTile label="CFP games" value={summary.cfpGames} />
           </div>
 
           <SectionTitle sub="Records in games against other user coaches only">All-time standings</SectionTitle>

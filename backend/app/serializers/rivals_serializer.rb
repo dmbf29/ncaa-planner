@@ -452,6 +452,7 @@ class RivalsSerializer
       avg_away_score: average(games.map { |g| g[:away][:score] }),
       avg_interceptions: average(games.map { |g| [ g[:home], g[:away] ].sum { |side| side[:stat].interceptions_thrown.to_i } }),
       overtime_games: games.count { |g| g[:overtime] },
+      cfp_games: games.count { |g| g[:cfp_round] },
       ranked_matchups: games.count { |g| g[:both_ranked] },
       postseason_games: games.count { |g| g[:label] },
       upsets: games.count { |g| g[:upset] }
