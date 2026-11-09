@@ -18,7 +18,7 @@ class SeasonDashboardSerializer
   CACHE_TTL = 3.minutes
 
   def self.cached(season)
-    Rails.cache.fetch([ "season_dashboard", "v1", season.id, season.updated_at.to_i ], expires_in: CACHE_TTL) do
+    Rails.cache.fetch([ "season_dashboard", "v4", season.id, season.updated_at.to_i ], expires_in: CACHE_TTL) do
       new(season).as_json
     end
   end
@@ -43,15 +43,45 @@ class SeasonDashboardSerializer
       last_played_week_number: last_played_week_number,
       signed_recruits_last_week_number: signed_recruits_last_week_number,
       recruits: recruits_json,
-      postseason_recap: postseason_recap_json
+      postseason_recap: postseason_recap_json,
+      reigning_champion: reigning_champion_json
     }
   end
 
   private
 
+  # The national champion going into this season: this season's own title
+  # game once it has been played, otherwise last season's. Nil in a
+  # dynasty's first season (before its title game).
+  def reigning_champion_json
+    [ @season, @season.previous_season ].compact.each do |season|
+      final = Game.joins(:week)
+                  .where(weeks: { season_id: season.id }, cfp_round: :championship)
+                  .includes(:home_college, :away_college, :college_game_stats)
+                  .first
+      next unless final
+
+      scores = final.college_game_stats.index_by(&:college_id)
+      home = scores[final.home_college_id]&.final_score
+      away = scores[final.away_college_id]&.final_score
+      next if home.nil? || away.nil? || home == away
+
+      winner, loser = home > away ? [ final.home_college, final.away_college ] : [ final.away_college, final.home_college ]
+      return {
+        year: season.year,
+        name: winner.name,
+        runner_up: loser.name,
+        winner_score: [ home, away ].max,
+        loser_score: [ home, away ].min,
+        coached_by_us: coached_college_ids.include?(winner.id)
+      }
+    end
+    nil
+  end
+
   def coached_college_seasons
     @coached_college_seasons ||= @season.college_seasons
-                                        .includes(:college, :coach, :student_seasons, :recruiting_season,
+                                        .includes({ college: { logo_attachment: :blob } }, :coach, :student_seasons, :recruiting_season,
                                                   signed_recruits: :week)
                                         .where.not(coach_id: nil)
                                         .joins(:college)
@@ -570,7 +600,8 @@ class SeasonDashboardSerializer
         id: college_season.college.id,
         name: college_season.college.name,
         alternate_name: college_season.college.alternate_name,
-        conference: college_season.conference
+        conference: college_season.conference,
+        logo_url: (college_season.college.logo.url if college_season.college.logo.attached?)
       },
       coach: {
         id: college_season.coach.id,
@@ -698,6 +729,18 @@ class SeasonDashboardSerializer
   # hasn't been played yet — what a coach checks the dashboard for mid-week.
   # Uses Game#played? (rather than duplicating its "2 stat rows" logic in
   # SQL) since the number of games per team per season is small.
+  # The house line the Big Game Breakdown locked for this game, from this
+  # team's side (-3.5 = favored by 3.5). Read-only: nil until that show has
+  # requested the game's week, since this serializer must never lock picks.
+  def locked_spread(game, college_id)
+    @locked_spreads ||= GamePick.where(game_id: season_games_by_college_id.values.flatten.map(&:id))
+                                .group(:game_id).minimum(:spread_line)
+    line = @locked_spreads[game.id]
+    return nil if line.nil?
+
+    (game.home_college_id == college_id ? line : -line).to_f
+  end
+
   def next_game_json(college_season)
     upcoming = season_games_by_college_id[college_season.college_id]
                .sort_by { |g| g.week.number }
@@ -712,6 +755,7 @@ class SeasonDashboardSerializer
       opponent: opponent_json(upcoming, college_season.college_id),
       active_injury_count: active_injury_count(college_season, upcoming.week),
       opponent_overall: opponent_season&.overall,
+      spread: locked_spread(upcoming, college_season.college_id),
       opponent_record: opponent_season && effective_record(
         opponent_season,
         TeamSeasonStats.new(opponent_season, games: season_games_by_college_id[opponent_season.college_id]).played_games

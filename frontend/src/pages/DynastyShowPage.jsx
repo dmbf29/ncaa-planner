@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { clsx } from "clsx";
-import SeasonSwitcher from "../components/SeasonSwitcher";
-import PageHeader from "../components/PageHeader";
+import DynastyBanner from "../components/DynastyBanner";
 import TeamDashboardCard from "../components/TeamDashboardCard";
 import Top25Snapshot from "../components/Top25Snapshot";
 import HeismanWatch from "../components/HeismanWatch";
@@ -20,20 +19,27 @@ function TeamTabs({ teams, activeTeamId, onSelect }) {
   if (teams.length < 2) return null;
 
   return (
-    <div className="mb-4 flex gap-1.5 overflow-x-auto lg:hidden">
+    <div className="mb-4 flex gap-1.5 lg:hidden justify-center">
       {teams.map((team) => (
         <button
           key={team.id}
           type="button"
           onClick={() => onSelect(team.id)}
+          title={team.college.name}
+          aria-label={team.college.name}
+          aria-pressed={team.id === activeTeamId}
           className={clsx(
-            "shrink-0 rounded-md px-3 py-1.5 text-sm font-semibold transition",
+            "flex h-11 min-w-11 items-center justify-center rounded-md px-2 text-sm font-semibold transition",
             team.id === activeTeamId
               ? "bg-charcoal text-white dark:bg-white/10"
               : "border border-border text-textSecondary hover:bg-border/30 dark:border-darkborder dark:hover:bg-white/10",
           )}
         >
-          {team.college.name}
+          {team.college.logoUrl ? (
+            <img src={team.college.logoUrl} alt="" className="h-8 w-8 object-contain" />
+          ) : (
+            team.college.name
+          )}
         </button>
       ))}
     </div>
@@ -115,52 +121,16 @@ function DynastyShowPage() {
 
   return (
     <div className="max-w-[1420px] mx-auto md:px-4">
-      <PageHeader
-        title={dashboard ? dashboard.dynasty.name : portal?.name || "Dynasty"}
-        actions={
-          <>
-            {seasonId && (
-              <Link
-                to={`/dynasty/${dynastyId}/seasons/${seasonId}/team-ratings`}
-                className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
-              >
-                Team Ratings
-              </Link>
-            )}
-            {authed ? (
-            <>
-              <Link
-                to="/dynasty/updates"
-                className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
-              >
-                Dynasty Updates
-              </Link>
-              {seasonId && (
-                <Link
-                  to={`/dynasty/${dynastyId}/seasons/${seasonId}/players`}
-                  className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
-                >
-                  All Players
-                </Link>
-              )}
-              <Link
-                to="/dynasty/export"
-                className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
-              >
-                Export
-              </Link>
-            </>
-            ) : null}
-          </>
-        }
+      <DynastyBanner
+        name={dashboard ? dashboard.dynasty.name : portal?.name}
+        seasons={portal?.seasons}
+        activeSeasonId={seasonId}
+        dynastyId={dynastyId}
+        dashboard={dashboard}
       />
 
       {loading && <p className="text-sm text-textSecondary">Loading dynasty...</p>}
       {error && <p className="text-sm text-danger">{error}</p>}
-
-      {!loading && !error && portal && (
-        <SeasonSwitcher seasons={portal.seasons} activeSeasonId={seasonId} dynastyId={dynastyId} />
-      )}
 
       {!loading && !error && dashboard && dashboard.teams.length === 0 && (
         <p className="text-sm text-textSecondary">No coached teams yet for this season.</p>
