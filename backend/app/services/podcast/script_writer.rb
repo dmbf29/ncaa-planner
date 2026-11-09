@@ -235,10 +235,31 @@ module Podcast
     end
 
     def regular_segments
-      list = [ opening_segment ] + game_segments
+      list = [ opening_segment ] + game_segments + side_segments
       list << (combined? ? review_wrap_segment : closing_segment)
       list.concat(@scoreboard_only ? scoreboard_segments : preview_segments) if combined?
       list
+    end
+
+    # The run-of-show lines the document adds only when there is fresh material: "Injury Report" and "Recruitment
+    # Trail", each with its own guidance. They get a real segment (the teams' sections only mention them in passing),
+    # so the opening can tease them without promising something the show never delivers.
+    SIDE_SEGMENTS = { "Injury Report" => 300, "Recruitment Trail" => 150 }.freeze
+
+    def side_segments
+      SIDE_SEGMENTS.filter_map do |name, words|
+        guidance = markdown[/^- \*\*Segment \d+:\*\* #{name} — (.+)$/, 1]
+        next unless guidance
+
+        Segment.new(
+          label: name, kind: :review, words: words,
+          instruction: <<~TEXT
+            Write the "#{name}" segment, a short stop after the team segments. The document's guidance: #{guidance}
+            Use ONLY what the teams' "#{name == 'Injury Report' ? '🚑 Injury Report' : '🖊️ Recruitment Trail'}" sections list, with their real names and numbers; invent nothing.
+            End with a natural handoff, not a goodbye.
+          TEXT
+        )
+      end
     end
 
     # One segment per game, not per team: a game between two of our coaches shows up in both teams' sections, and
@@ -298,7 +319,7 @@ module Podcast
              "Welcome back to #{SHOW_NAME}, I'm #{narrator[:name]}..."
           2. #{co_host[:name].split.first} follows up immediately with: "...and I'm #{co_host[:name]}."
           Then do a quick tour of the week: use "This Week at a Glance" and the CFP rankings and bowl projections to
-          set the national stakes and tease what's coming (the recap first, then a look ahead at next week's games). Don't recap any game in detail; the team segments do that.
+          set the national stakes and tease what's coming (the recap first, then a look ahead at next week's games).#{side_segments.empty? ? '' : " After the team recaps the show also has: " + side_segments.map(&:label).join(' and ') + ". You may tease those."} Tease NOTHING else beyond the games and segments in the plan. Don't recap any game in detail; the team segments do that.
         TEXT
       )
     end
