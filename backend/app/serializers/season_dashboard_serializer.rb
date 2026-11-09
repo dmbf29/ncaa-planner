@@ -18,7 +18,7 @@ class SeasonDashboardSerializer
   CACHE_TTL = 3.minutes
 
   def self.cached(season)
-    Rails.cache.fetch([ "season_dashboard", "v3", season.id, season.updated_at.to_i ], expires_in: CACHE_TTL) do
+    Rails.cache.fetch([ "season_dashboard", "v4", season.id, season.updated_at.to_i ], expires_in: CACHE_TTL) do
       new(season).as_json
     end
   end
@@ -729,6 +729,18 @@ class SeasonDashboardSerializer
   # hasn't been played yet — what a coach checks the dashboard for mid-week.
   # Uses Game#played? (rather than duplicating its "2 stat rows" logic in
   # SQL) since the number of games per team per season is small.
+  # The house line the Big Game Breakdown locked for this game, from this
+  # team's side (-3.5 = favored by 3.5). Read-only: nil until that show has
+  # requested the game's week, since this serializer must never lock picks.
+  def locked_spread(game, college_id)
+    @locked_spreads ||= GamePick.where(game_id: season_games_by_college_id.values.flatten.map(&:id))
+                                .group(:game_id).minimum(:spread_line)
+    line = @locked_spreads[game.id]
+    return nil if line.nil?
+
+    (game.home_college_id == college_id ? line : -line).to_f
+  end
+
   def next_game_json(college_season)
     upcoming = season_games_by_college_id[college_season.college_id]
                .sort_by { |g| g.week.number }
@@ -743,6 +755,7 @@ class SeasonDashboardSerializer
       opponent: opponent_json(upcoming, college_season.college_id),
       active_injury_count: active_injury_count(college_season, upcoming.week),
       opponent_overall: opponent_season&.overall,
+      spread: locked_spread(upcoming, college_season.college_id),
       opponent_record: opponent_season && effective_record(
         opponent_season,
         TeamSeasonStats.new(opponent_season, games: season_games_by_college_id[opponent_season.college_id]).played_games
