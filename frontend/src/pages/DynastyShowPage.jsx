@@ -19,20 +19,27 @@ function TeamTabs({ teams, activeTeamId, onSelect }) {
   if (teams.length < 2) return null;
 
   return (
-    <div className="mb-4 flex gap-1.5 overflow-x-auto lg:hidden">
+    <div className="mb-4 flex gap-1.5 lg:hidden justify-center">
       {teams.map((team) => (
         <button
           key={team.id}
           type="button"
           onClick={() => onSelect(team.id)}
+          title={team.college.name}
+          aria-label={team.college.name}
+          aria-pressed={team.id === activeTeamId}
           className={clsx(
-            "shrink-0 rounded-md px-3 py-1.5 text-sm font-semibold transition",
+            "flex h-11 min-w-11 items-center justify-center rounded-md px-2 text-sm font-semibold transition",
             team.id === activeTeamId
               ? "bg-charcoal text-white dark:bg-white/10"
               : "border border-border text-textSecondary hover:bg-border/30 dark:border-darkborder dark:hover:bg-white/10",
           )}
         >
-          {team.college.name}
+          {team.college.logoUrl ? (
+            <img src={team.college.logoUrl} alt="" className="h-8 w-8 object-contain" />
+          ) : (
+            team.college.name
+          )}
         </button>
       ))}
     </div>

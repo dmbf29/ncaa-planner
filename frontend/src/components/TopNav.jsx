@@ -14,6 +14,7 @@ function TopNav() {
   // Track auth based on presence of JWT in localStorage
   const [authed, setAuthed] = useState(() => Boolean(localStorage.getItem("jwt")));
   const [menuOpen, setMenuOpen] = useState(false);
+  const [linksOpen, setLinksOpen] = useState(false);
   const [myDynastyIds, setMyDynastyIds] = useState([]);
   const [portal, setPortal] = useState(null);
 
@@ -27,6 +28,7 @@ function TopNav() {
   useEffect(() => {
     setAuthed(Boolean(localStorage.getItem("jwt")));
     setMenuOpen(false);
+    setLinksOpen(false);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -102,16 +104,46 @@ function TopNav() {
         >
           {inDynasty ? portal.name : "NCAA Planner"}
         </Link>
-        <nav className="flex items-center gap-1 text-sm sm:gap-3">
+        <nav className="flex items-center gap-2 text-sm sm:gap-3">
           {dynastyLinks.map((link) => (
-            <Link key={link.to} to={link.to} className={navLinkClass(location.pathname === link.to)}>
+            <Link
+              key={link.to}
+              to={link.to}
+              className={clsx("hidden md:block", navLinkClass(location.pathname === link.to))}
+            >
               {link.label}
             </Link>
           ))}
+          {dynastyLinks.length > 0 && (
+            <div className="relative md:hidden">
+              <button
+                onClick={() => {
+                  setLinksOpen((v) => !v);
+                  setMenuOpen(false);
+                }}
+                aria-label="Dynasty menu"
+                className="flex h-8 w-8 items-center justify-center rounded-md text-white/80 hover:bg-white/10"
+              >
+                <i className={clsx("fa-solid", linksOpen ? "fa-xmark" : "fa-bars")} />
+              </button>
+              {linksOpen && (
+                <div className="absolute right-0 z-50 mt-2 w-44 rounded-lg border border-border bg-surface text-charcoal shadow-card dark:border-darkborder dark:bg-darksurface dark:text-white">
+                  {dynastyLinks.map((link) => (
+                    <Link key={link.to} to={link.to} className="block px-4 py-2 text-sm hover:bg-border/50 dark:hover:bg-white/10">
+                      {link.label}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           {authed ? (
             <div className="relative">
               <button
-                onClick={() => setMenuOpen((v) => !v)}
+                onClick={() => {
+                  setMenuOpen((v) => !v);
+                  setLinksOpen(false);
+                }}
                 className="flex items-center gap-2 rounded-full border border-border bg-white/10 text-white hover:bg-white/20"
               >
                 <img src={avatarImg} alt="User avatar" className="h-8 w-8 rounded-full object-cover" />

@@ -18,7 +18,7 @@ class SeasonDashboardSerializer
   CACHE_TTL = 3.minutes
 
   def self.cached(season)
-    Rails.cache.fetch([ "season_dashboard", "v2", season.id, season.updated_at.to_i ], expires_in: CACHE_TTL) do
+    Rails.cache.fetch([ "season_dashboard", "v3", season.id, season.updated_at.to_i ], expires_in: CACHE_TTL) do
       new(season).as_json
     end
   end
@@ -81,7 +81,7 @@ class SeasonDashboardSerializer
 
   def coached_college_seasons
     @coached_college_seasons ||= @season.college_seasons
-                                        .includes(:college, :coach, :student_seasons, :recruiting_season,
+                                        .includes({ college: { logo_attachment: :blob } }, :coach, :student_seasons, :recruiting_season,
                                                   signed_recruits: :week)
                                         .where.not(coach_id: nil)
                                         .joins(:college)
@@ -600,7 +600,8 @@ class SeasonDashboardSerializer
         id: college_season.college.id,
         name: college_season.college.name,
         alternate_name: college_season.college.alternate_name,
-        conference: college_season.conference
+        conference: college_season.conference,
+        logo_url: (college_season.college.logo.url if college_season.college.logo.attached?)
       },
       coach: {
         id: college_season.coach.id,

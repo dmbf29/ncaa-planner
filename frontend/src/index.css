@@ -18,6 +18,18 @@
   color-scheme: dark;
 }
 
+/* Tailwind sizes everything in rem, so this one value scales the whole UI.
+   Phones keep the browser default (16px); desktop runs tighter. */
+html {
+  font-size: 14px;
+}
+
+@media (min-width: 768px) {
+  html {
+    font-size: 13px;
+  }
+}
+
 body {
   font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   background: #e6e3de;
