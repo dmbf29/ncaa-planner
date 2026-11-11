@@ -157,7 +157,7 @@ module Podcast
 
       segments.each_with_index do |segment, index|
         $stderr.puts "[podcast] writing segment #{index + 1}/#{segments.size}: #{segment.label}"
-        raw = chat(segment).ask(segment_prompt(segment, summary)).content
+        raw = chat(segment).ask(segment_prompt(segment, summary, segments[index + 1])).content
         segment_turns = parse(raw)
         raise "Segment '#{segment.label}' produced no dialogue lines" if segment_turns.empty?
 
@@ -599,7 +599,7 @@ module Podcast
       )
     end
 
-    def segment_prompt(segment, summary)
+    def segment_prompt(segment, summary, following = nil)
       source = if segment.kind == :proving then proving elsif %i[preview scoreboard].include?(segment.kind) then preview else markdown end
       <<~PROMPT
         Here is the source document for this part of the show. It is the source of facts#{history ? " (the league history below is background only)" : ""}.
@@ -612,8 +612,17 @@ module Podcast
 
         SEGMENT TO WRITE NOW: #{segment.label}
         #{segment.instruction}
+        #{handoff_note(following)}
         Length: about #{segment.words} words of dialogue. Output only the dialogue lines.
       PROMPT
+    end
+
+    # Segments are written one call at a time, so without this a segment's handoff guesses what comes next (and
+    # lands on the wrong topic). The last segment of the show has nothing after it, so it gets no note.
+    def handoff_note(following)
+      return "" unless following
+
+      "UP NEXT in the show: \"#{following.label}\". If this segment ends with a handoff, point ONLY to that, and do not announce or tease anything else."
     end
 
     SPEAKER_LINE = /\A(ARLIS|TY):\s*(.+)\z/
