@@ -643,23 +643,26 @@ export const analyzeHeismanCandidates = (weekId, files) => {
 export const commitHeismanCandidates = (weekId, rows) =>
   api.post(`/api/v1/weeks/${weekId}/commit_heisman_candidates`, { rows }).then((r) => r.data);
 
-export const analyzeTeamSchedule = (dynastyId, seasonId, files) => {
+export const fetchScheduling = (dynastyId, seasonId) =>
+  api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/scheduling`).then((r) => r.data);
+
+export const updateSchedulingByes = (dynastyId, seasonId, byeWeekNumbers) =>
+  api.patch(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/scheduling`, { byeWeekNumbers }).then((r) => r.data);
+
+// Local-only: the backend reads the screenshots with Apple Vision, so this only works against a dev server.
+export const analyzeSchedulingTeam = (dynastyId, seasonId, files) => {
   const formData = new FormData();
   files.forEach((file) => formData.append("images[]", file));
   return api
-    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/analyze_team_schedule`, formData, {
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/scheduling/analyze_team`, formData, {
       headers: { "Content-Type": "multipart/form-data" },
     })
     .then((r) => r.data);
 };
 
-export const commitTeamSchedule = (dynastyId, seasonId, collegeId, teamStats, rows) =>
+export const commitSchedulingTeam = (dynastyId, seasonId, collegeId, rows) =>
   api
-    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_team_schedule`, {
-      collegeId,
-      teamStats,
-      rows,
-    })
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/scheduling/commit_team`, { collegeId, rows })
     .then((r) => r.data);
 
 export const fetchCoachAssignments = (dynastyId, seasonId) =>

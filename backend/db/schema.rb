@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_06_130000) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_12_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -188,9 +188,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_06_130000) do
     t.float "starter_overall"
     t.float "starter_offense"
     t.float "starter_defense"
+    t.string "schedule_token"
+    t.datetime "schedule_uploaded_at"
+    t.datetime "schedule_confirmed_at"
+    t.jsonb "schedule_locked_week_ids", default: [], null: false
     t.index ["coach_id"], name: "index_college_seasons_on_coach_id"
     t.index ["college_id"], name: "index_college_seasons_on_college_id"
     t.index ["offseason_coach_id"], name: "index_college_seasons_on_offseason_coach_id"
+    t.index ["schedule_token"], name: "index_college_seasons_on_schedule_token", unique: true
     t.index ["season_id"], name: "index_college_seasons_on_season_id"
   end
 
@@ -414,6 +419,20 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_06_130000) do
     t.index ["position_board_id"], name: "index_roster_slots_on_position_board_id"
   end
 
+  create_table "schedule_options", force: :cascade do |t|
+    t.bigint "college_season_id", null: false
+    t.bigint "week_id", null: false
+    t.bigint "opponent_college_id", null: false
+    t.integer "rank"
+    t.boolean "suggested", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["college_season_id", "week_id", "opponent_college_id"], name: "index_schedule_options_uniqueness", unique: true
+    t.index ["college_season_id"], name: "index_schedule_options_on_college_season_id"
+    t.index ["opponent_college_id"], name: "index_schedule_options_on_opponent_college_id"
+    t.index ["week_id"], name: "index_schedule_options_on_week_id"
+  end
+
   create_table "season_awards", force: :cascade do |t|
     t.bigint "season_id", null: false
     t.bigint "award_id", null: false
@@ -436,6 +455,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_06_130000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.text "chronicle"
+    t.jsonb "schedule_bye_week_numbers", default: [], null: false
     t.index ["dynasty_id"], name: "index_seasons_on_dynasty_id"
   end
 
@@ -751,6 +771,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_06_130000) do
   add_foreign_key "recruiting_seasons", "college_seasons"
   add_foreign_key "roster_slots", "players"
   add_foreign_key "roster_slots", "position_boards"
+  add_foreign_key "schedule_options", "college_seasons"
+  add_foreign_key "schedule_options", "colleges", column: "opponent_college_id"
+  add_foreign_key "schedule_options", "weeks"
   add_foreign_key "season_awards", "awards"
   add_foreign_key "season_awards", "coaches"
   add_foreign_key "season_awards", "seasons"

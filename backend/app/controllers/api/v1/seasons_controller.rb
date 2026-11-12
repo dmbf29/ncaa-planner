@@ -253,23 +253,6 @@ module Api
         render json: { season_id: @season.id, warnings: warnings }
       end
 
-      def analyze_team_schedule
-        authorize @season
-        result = TeamSchedule::ScheduleExtractor.new.call(Array(params[:images]), season: @season)
-        render json: result
-      rescue RubyLLM::Error => e
-        render json: { error: "AI extraction failed: #{e.message}", code: "extraction_failed" }, status: :unprocessable_entity
-      end
-
-      def commit_team_schedule
-        authorize @season
-        college_season = @season.college_seasons.find_by!(college_id: params[:college_id])
-        warnings = TeamSchedule::CommitService.new(college_season).call(team_stats_params, commit_rows)
-        render json: { college_season_id: college_season.id, warnings: warnings }
-      rescue ActiveRecord::RecordInvalid => e
-        render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
-      end
-
       def destroy
         authorize @season
         @season.destroy

@@ -32,7 +32,8 @@ import CoachInfoUpdatePage from "./pages/CoachInfoUpdatePage";
 import CoachOutcomesUpdatePage from "./pages/CoachOutcomesUpdatePage";
 import NilSpendUpdatePage from "./pages/NilSpendUpdatePage";
 import TeamStatsUpdatePage from "./pages/TeamStatsUpdatePage";
-import TeamScheduleUpdatePage from "./pages/TeamScheduleUpdatePage";
+import SchedulingPage from "./pages/SchedulingPage";
+import SchedulingTeamPage from "./pages/SchedulingTeamPage";
 import RecruitingUpdatePage from "./pages/RecruitingUpdatePage";
 import RecruitmentTrailUpdatePage from "./pages/RecruitmentTrailUpdatePage";
 import SignedRecruitOverallsPage from "./pages/SignedRecruitOverallsPage";
@@ -86,7 +87,8 @@ function App() {
         <Route path="/dynasty/updates/players-of-the-week" element={<PlayersOfTheWeekUpdatePage />} />
         <Route path="/dynasty/updates/nil-spend" element={<NilSpendUpdatePage />} />
         <Route path="/dynasty/updates/team-stats" element={<TeamStatsUpdatePage />} />
-        <Route path="/dynasty/updates/team-schedule" element={<TeamScheduleUpdatePage />} />
+        <Route path="/dynasty/updates/scheduling" element={<SchedulingPage />} />
+        <Route path="/dynasty/updates/scheduling/:collegeSeasonId" element={<SchedulingTeamPage />} />
         <Route path="/dynasty/updates/recruiting" element={<RecruitingUpdatePage />} />
         <Route path="/dynasty/updates/recruitment-trail" element={<RecruitmentTrailUpdatePage />} />
         <Route path="/dynasty/updates/recruit-overalls" element={<SignedRecruitOverallsPage />} />

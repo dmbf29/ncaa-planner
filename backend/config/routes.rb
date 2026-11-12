@@ -35,6 +35,10 @@ Rails.application.routes.draw do
 
       resources :dynasties, only: %i[index] do
         resources :seasons, only: %i[show create destroy] do
+          resource :scheduling, only: %i[show update] do
+            post :analyze_team
+            post :commit_team
+          end
           member do
             get :team_attributes
             post :calculate_team_ratings
@@ -63,8 +67,6 @@ Rails.application.routes.draw do
             post :commit_signed_recruit_overalls
             post :analyze_players_of_the_week
             post :commit_players_of_the_week
-            post :analyze_team_schedule
-            post :commit_team_schedule
             get :coach_assignments
             get :coach_info
             post :commit_coach_assignments

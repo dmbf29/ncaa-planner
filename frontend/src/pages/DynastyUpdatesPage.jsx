@@ -39,7 +39,7 @@ const OFFSEASON_UPDATES = [
   { key: "season", label: "Start a New Season", icon: "fa-regular fa-calendar", description: "Create the next season for your dynasty." },
   { key: "import-rosters", label: "Import Rosters", icon: "fa-solid fa-file-import", description: "Import rosters for the new season.", toStandings: true },
   { key: "nil-spend", label: "NIL Spend", icon: "fa-solid fa-sack-dollar", description: "Upload the conference NIL spend screenshots.", to: "/dynasty/updates/nil-spend" },
-  { key: "team-schedule", label: "Team Schedule", icon: "fa-regular fa-rectangle-list", description: "Upload a team's full-season schedule screenshots.", to: "/dynasty/updates/team-schedule" },
+  { key: "scheduling", label: "Schedule Setup", icon: "fa-regular fa-rectangle-list", description: "Set bye weeks and load each coached team's non-conference options.", to: "/dynasty/updates/scheduling" },
   { key: "preseason-all-americans", label: "Preseason All-Americans", icon: "fa-solid fa-people-line", description: "Upload the National/Conference All-American screenshots.", to: "/dynasty/updates/all-americans" },
   { key: "team-attributes", label: "Team Attributes", icon: "fa-solid fa-bars-progress", description: "Update overall, offense, defense, and prestige for every team.", to: "/dynasty/updates/team-attributes" },
 ];
