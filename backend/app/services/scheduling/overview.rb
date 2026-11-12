@@ -16,10 +16,16 @@ module Scheduling
       }
     end
 
+    # The same teams without the share tokens, for the public coach page's read-only view of everyone's schedule.
+    def public_teams
+      weeks = @season.weeks.where(number: Rules::WEEK_NUMBERS).order(:number).to_a
+      coached_college_seasons.map { |college_season| team_json(college_season, weeks).except(:schedule_token) }
+    end
+
     private
 
     def coached_college_seasons
-      @season.college_seasons.where.not(coach_id: nil).includes(:college, :coach, :schedule_options).sort_by { |cs| cs.college.name }
+      @season.college_seasons.where.not(coach_id: nil).includes(:college, :coach, :schedule_options, schedule_picks: %i[opponent_college mirrored_from]).sort_by { |cs| cs.college.name }
     end
 
     def team_json(college_season, weeks)
@@ -50,7 +56,10 @@ module Scheduling
       end
 
       options = college_season.schedule_options.select { |option| option.week_id == week.id }
-      { week_id: week.id, week_number: week.number, state: "open", option_count: options.size, ranked_count: options.count(&:ranked) }
+      pick = college_season.schedule_picks.find { |candidate| candidate.week_id == week.id }
+      slot = { week_id: week.id, week_number: week.number, state: "open", option_count: options.size, ranked_count: options.count(&:ranked) }
+      slot[:pick] = { opponent: { id: pick.opponent_college.id, name: pick.opponent_college.name }, is_away: pick.is_away, shared: pick.mirrored? } if pick
+      slot
     end
   end
 end

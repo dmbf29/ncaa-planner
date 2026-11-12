@@ -127,12 +127,20 @@ function SchedulingPage() {
         title="Schedule Setup"
         eyebrow="Dynasty Updates"
         actions={
-          <Link
-            to="/dynasty/updates"
-            className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
-          >
-            Back to Updates
-          </Link>
+          <div className="flex gap-2">
+            <Link
+              to="/dynasty/updates/scheduling/links"
+              className="rounded-md bg-burnt px-3 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5"
+            >
+              Coach links
+            </Link>
+            <Link
+              to="/dynasty/updates"
+              className="rounded-md border border-border px-3 py-2 text-sm text-charcoal transition hover:bg-border/30 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
+            >
+              Back to Updates
+            </Link>
+          </div>
         }
       />
       <ByePicker weeks={overview.weeks} byes={overview.byeWeekNumbers} onChange={saveByes} saving={saving} />

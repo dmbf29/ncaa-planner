@@ -643,6 +643,16 @@ export const analyzeHeismanCandidates = (weekId, files) => {
 export const commitHeismanCandidates = (weekId, rows) =>
   api.post(`/api/v1/weeks/${weekId}/commit_heisman_candidates`, { rows }).then((r) => r.data);
 
+// A coach's own scheduling page, addressed by the share token (no login).
+export const fetchCoachSchedule = (token) => api.get(`/api/v1/schedules/${token}`).then((r) => r.data);
+
+export const pickCoachOpponent = (token, weekId, opponentCollegeId, isAway) =>
+  api.put(`/api/v1/schedules/${token}/weeks/${weekId}`, { opponentCollegeId, isAway }).then((r) => r.data);
+
+export const removeCoachOpponent = (token, weekId) => api.delete(`/api/v1/schedules/${token}/weeks/${weekId}`).then((r) => r.data);
+
+export const confirmCoachSchedule = (token) => api.post(`/api/v1/schedules/${token}/confirm`).then((r) => r.data);
+
 export const fetchScheduling = (dynastyId, seasonId) =>
   api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/scheduling`).then((r) => r.data);
 

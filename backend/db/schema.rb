@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_12_130000) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_12_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -434,6 +434,21 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_12_130000) do
     t.index ["week_id"], name: "index_schedule_options_on_week_id"
   end
 
+  create_table "schedule_picks", force: :cascade do |t|
+    t.bigint "college_season_id", null: false
+    t.bigint "week_id", null: false
+    t.bigint "opponent_college_id", null: false
+    t.boolean "is_away", default: false, null: false
+    t.bigint "mirrored_from_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["college_season_id", "week_id"], name: "index_schedule_picks_on_college_season_id_and_week_id", unique: true
+    t.index ["college_season_id"], name: "index_schedule_picks_on_college_season_id"
+    t.index ["mirrored_from_id"], name: "index_schedule_picks_on_mirrored_from_id"
+    t.index ["opponent_college_id"], name: "index_schedule_picks_on_opponent_college_id"
+    t.index ["week_id"], name: "index_schedule_picks_on_week_id"
+  end
+
   create_table "season_awards", force: :cascade do |t|
     t.bigint "season_id", null: false
     t.bigint "award_id", null: false
@@ -775,6 +790,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_12_130000) do
   add_foreign_key "schedule_options", "college_seasons"
   add_foreign_key "schedule_options", "colleges", column: "opponent_college_id"
   add_foreign_key "schedule_options", "weeks"
+  add_foreign_key "schedule_picks", "college_seasons"
+  add_foreign_key "schedule_picks", "colleges", column: "opponent_college_id"
+  add_foreign_key "schedule_picks", "schedule_picks", column: "mirrored_from_id"
+  add_foreign_key "schedule_picks", "weeks"
   add_foreign_key "season_awards", "awards"
   add_foreign_key "season_awards", "coaches"
   add_foreign_key "season_awards", "seasons"

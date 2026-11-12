@@ -34,6 +34,7 @@ class CollegeSeason < ApplicationRecord
   has_many :portal_statuses, dependent: :destroy
   has_one :recruiting_season, dependent: :destroy
   has_many :schedule_options, dependent: :destroy
+  has_many :schedule_picks, dependent: :destroy
   validates :season, uniqueness: { scope: :college }
   validates :coach_id, uniqueness: { scope: :season_id }, allow_nil: true
   validates :offseason_coach_id, uniqueness: { scope: :season_id }, allow_nil: true

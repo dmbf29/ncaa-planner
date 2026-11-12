@@ -156,6 +156,12 @@ Rails.application.routes.draw do
       get "dynasties/:dynasty_id/seasons/:season_id/portal_preview", to: "season_broadcasts#portal_preview"
       get "dynasties/:dynasty_id/seasons/:season_id/nsd_breakdown", to: "season_broadcasts#nsd_breakdown"
 
+      # A coach's own scheduling page, addressed by the share token on their CollegeSeason (no login).
+      get "schedules/:token", to: "public_schedules#show"
+      put "schedules/:token/weeks/:week_id", to: "public_schedules#pick"
+      delete "schedules/:token/weeks/:week_id", to: "public_schedules#unpick"
+      post "schedules/:token/confirm", to: "public_schedules#confirm"
+
       # Public, unauthenticated dashboard data for the shareable dynasty portal — same
       # no-ownership-check reasoning as the broadcast routes above, but shaped for the frontend UI.
       get "dynasties/:id", to: "dynasty_portals#show"
