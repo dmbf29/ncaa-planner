@@ -51,13 +51,20 @@ class Student < ApplicationRecord
   # last name" split turns "Carlos Del Rio-Wilson" into ("Carlos Del",
   # "Rio-Wilson"), while an LLM asked to split the same string naturally
   # returns ("Carlos", "Del Rio-Wilson"). Both are the same real person.
+  #
+  # Punctuation and spacing are ignored when comparing, because screenshot
+  # OCR drops or swaps them ("Jai'mier" read as "Jai mier").
   def self.find_or_create_for_college(first_name:, last_name:, college:)
-    full_name = "#{first_name} #{last_name}".strip
+    key = match_key("#{first_name} #{last_name}")
 
     existing = joins(student_seasons: :college_season)
                .where(college_seasons: { college_id: college.id })
                .distinct
-               .find { |student| student.name.casecmp?(full_name) }
+               .find { |student| match_key(student.name) == key }
     existing || create!(first_name: first_name, last_name: last_name)
+  end
+
+  def self.match_key(name)
+    name.to_s.downcase.gsub(/[^a-z0-9]/, "")
   end
 end

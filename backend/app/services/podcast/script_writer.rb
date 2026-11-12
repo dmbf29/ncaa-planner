@@ -17,7 +17,9 @@ module Podcast
   class ScriptWriter
     SHOW_NAME = "Rising in the Sun Belt".freeze
 
-    Segment = Struct.new(:label, :kind, :instruction, :words, keyword_init: true)
+    # up_next is how the hosts should refer to this segment when the one before it hands off to it; the label is
+    # a producer's name ("Preview game 2: ...") and not always something a person would say.
+    Segment = Struct.new(:label, :kind, :instruction, :words, :up_next, keyword_init: true)
 
     SYSTEM_PROMPT = <<~PROMPT.freeze
       You are the head writer for a two-host sports audio show. You write the spoken dialogue that will be read
@@ -42,7 +44,9 @@ module Podcast
         records in the conference. Never invent a division name or a team's division; use only those in the document.
       - The show is called "#{SHOW_NAME}" and is one continuous episode. Never say "Big Game Breakdown", never refer to
         the preview as a separate show or episode, and never name or tease any other episode. The look-ahead part of
-        the show is just "the preview", "looking ahead", or "next week's games".
+        the show is just "the preview", "looking ahead", or "next week's games". The only thing the show may say about
+        what comes after it is, in the sign-off when a segment asks for it, that the hosts are back next week to recap
+        how those games played out.
       - Never say a calendar date or the name of a weekday, except "Saturday" for Saturday kickoffs. Say "this week"
         or "this weekend" instead, and "last week" for the week just played.
 
@@ -51,12 +55,22 @@ module Podcast
         markdown, no stage directions, no bracketed tags, no emoji.
       - Spell out numbers the way a person says them: "two hundred thirty-four yards", "twenty to fourteen",
         "four and four", "number ten in the country". Never read tables or lists; talk about them.
+      - Say every number and score correctly the first time. No on-air self-corrections ("wait", "sorry", "let me back
+        up", "I mean"): check which team has which score before saying it.
       - Say positions and school names as people do ("the quarterback", "App State"). Avoid abbreviations a voice
         might mangle, like "TFL", "YAC" or "INT"; say "tackles for loss", "yards after catch", "interception".
       - Turns are short, usually one to four sentences. The hosts react to each other, push back, finish each
         other's thoughts, and trade the lead. Avoid long monologues and avoid back-to-back turns that just agree.
       - Arlis is the narrative voice (stakes, emotion, how the game felt). Ty is the numbers and tactics voice (why
         it happened). Let each lean into that without being a caricature.
+
+      BANTER (stats are welcome; the back-and-forth is what makes them fun)
+      - No more than two or three numbers in one turn. After a turn heavy with stats, the other host reacts to it
+        (surprise, a doubt, a joke, "wait, really?") or says what it means before the next number comes.
+      - Every segment has at least a couple of real exchanges: a friendly disagreement, a teasing jab, a running joke,
+        one host calling the other out, a "hold on, Ty". Keep them good-natured and about the football.
+      - Never restate what the other host just said, and never open two turns in a row with the same words. Vary the
+        stock phrases ("That is a...", "that's not a coincidence", "pin its ears back", "that's the story").
     PROMPT
 
     REVIEW_RULES = <<~TEXT.freeze
@@ -144,6 +158,7 @@ module Podcast
       @recap_label = recap_label
       @preview_label = preview_label
       @preview = File.read(preview_markdown_path) if preview_markdown_path
+      @markdown = scrub_episode_name(@markdown) if @preview
       @history = File.read(history_path).presence if history_path
       @year = year
       @week_number = week_number
@@ -157,8 +172,7 @@ module Podcast
 
       segments.each_with_index do |segment, index|
         $stderr.puts "[podcast] writing segment #{index + 1}/#{segments.size}: #{segment.label}"
-        raw = chat(segment).ask(segment_prompt(segment, summary, segments[index + 1])).content
-        segment_turns = parse(raw)
+        segment_turns = write_segment(segment, segment_prompt(segment, summary, turns.last(3), segments[index + 1]), turns.last(RECENT_TURNS))
         raise "Segment '#{segment.label}' produced no dialogue lines" if segment_turns.empty?
 
         turns.concat(segment_turns)
@@ -178,6 +192,68 @@ module Podcast
 
     def combined?
       preview.present?
+    end
+
+    # In a combined episode there is no separate Big Game Breakdown to send listeners to, but the recap document talks
+    # as if there were (its sign-off, its "Next Episode" section, the "Next Up" notes) and the hosts read that out. So
+    # the recap source is written without it.
+    def scrub_episode_name(text)
+      text.sub(/^- \*\*Segment \d+:\*\* Sign-Off.*\n/, "")
+          .sub(/^## 👋 NEXT EPISODE.*?(?=^## |\z)/m, "")
+          .gsub(/the Big Game Breakdown \(see the sign-off at the bottom\)/i, "the preview later in the show")
+          .gsub(/Big Game Breakdown/i, "the preview later in the show")
+    end
+
+    FORBIDDEN_EPISODE_NAME = /big game breakdown/i
+    REWRITES = 2
+    # How many turns back a new turn is compared with when looking for repeats.
+    RECENT_TURNS = 6
+
+    # One model call per segment, checked before it is accepted: a draft that names the old episode, opens two turns
+    # in a row with the same words, or says a sentence the hosts just said is sent back once or twice to be rewritten.
+    def write_segment(segment, prompt, recent)
+      conversation = chat(segment)
+      segment_turns = parse(conversation.ask(prompt).content)
+      REWRITES.times do
+        problems = draft_problems(segment_turns, recent)
+        break if problems.empty?
+
+        $stderr.puts "[podcast] rewriting '#{segment.label}': #{problems.join('; ')}"
+        segment_turns = parse(conversation.ask("Rewrite the whole segment with these problems fixed: #{problems.join('; ')}. Same length, same facts, dialogue lines only.").content).presence || segment_turns
+      end
+      # Last resort: never let the old episode's name reach the air.
+      segment_turns.each { |turn| turn[:text] = turn[:text].gsub(FORBIDDEN_EPISODE_NAME, "the preview") } if combined?
+      segment_turns
+    end
+
+    def draft_problems(segment_turns, recent)
+      problems = []
+      if combined? && (turn = segment_turns.find { |t| t[:text].match?(FORBIDDEN_EPISODE_NAME) })
+        problems << "a host says \"Big Game Breakdown\" (\"#{turn[:text][0, 60]}...\"); there is no other show or episode, so refer only to the preview or next week's games"
+      end
+      all = recent + segment_turns
+      (recent.size...all.size).each do |index|
+        turn = all[index]
+        if index.positive? && same_opening?(all[index - 1][:text], turn[:text])
+          problems << "two turns in a row open with the same words (\"#{turn[:text][0, 50]}...\"); the second host must not repeat the first"
+        end
+        earlier = all[[ index - RECENT_TURNS, 0 ].max...index]
+        if earlier.any? { |other| (spoken_sentences(other[:text]) & spoken_sentences(turn[:text])).any? }
+          problems << "a turn repeats a sentence a host just said (\"#{turn[:text][0, 50]}...\"); every turn must add something new"
+        end
+      end
+      problems.uniq
+    end
+
+    # The sentences of a turn, lowercased and stripped of punctuation. Short ones ("That's the story.") don't count.
+    def spoken_sentences(text)
+      text.split(/(?<=[.!?])\s+/).map { |sentence| sentence.downcase.scan(/[a-z0-9']+/) }.select { |words| words.size >= 7 }.map { |words| words.join(" ") }
+    end
+
+    # Same first four words, ignoring case and punctuation. Shorter turns are left alone ("Right." "Right.").
+    def same_opening?(first, second)
+      words = [ first, second ].map { |text| text.downcase.scan(/[a-z0-9']+/).first(4) }
+      words.all? { |w| w.size == 4 } && words.first == words.last
     end
 
     def chat(segment)
@@ -235,10 +311,52 @@ module Podcast
     end
 
     def regular_segments
-      list = [ opening_segment ] + game_segments + side_segments
-      list << (combined? ? review_wrap_segment : closing_segment)
+      list = [ opening_segment ] + game_segments + recap_tail_segments
       list.concat(@scoreboard_only ? scoreboard_segments : preview_segments) if combined?
       list
+    end
+
+    # Everything after the game recaps, in the run-of-show's own order: the rest of the conference, the injury and
+    # recruiting stops when there is fresh material, then the poll. The last of them is also what ends the recap half
+    # (it hands off to the preview or scoreboard) or, with no second half, the whole show.
+    def recap_tail_segments
+      if @postseason_recap || @conference_championship_recap
+        side_segments + [ combined? ? review_wrap_segment : closing_segment ]
+      else
+        [ around_conference_segment ] + side_segments + [ poll_watch_segment ]
+      end
+    end
+
+    def around_conference_segment
+      Segment.new(
+        label: "Around the Sun Belt", kind: :review, words: 400, up_next: "a quick lap around the rest of the Sun Belt",
+        instruction: <<~TEXT
+          Write the "Around the Sun Belt" segment: a quick run through the other conference scores (the document's
+          AROUND THE SUN BELT section), then where the Sun Belt standings stand, talking about the division races, and
+          the projected Sun Belt championship if the document has that section. Do not preview next week's games or
+          the matchups between our coaches; the preview later in the show covers those. You own the standings: the game segments only touched on them, so go through the division races properly here, once, without repeating the game segments' lines. Ignore the document's "Next
+          Episode" section completely.
+        TEXT
+      )
+    end
+
+    # The document names it "Top 25 Poll Watch" or "CFP Rankings Watch" depending on the week.
+    POLL_WATCH = /(Top 25 Poll Watch|CFP Rankings Watch) — (.+)$/
+
+    def poll_watch_segment
+      found = markdown.match(/^- \*\*Segment \d+:\*\* #{POLL_WATCH}/)
+      name = found ? found[1] : "Top 25 Poll Watch"
+      guidance = found && found[2]
+      Segment.new(
+        label: name, kind: :review, words: 300, up_next: "a look at the national rankings",
+        instruction: <<~TEXT
+          Write the "#{name}" segment, the last stop of the recap half. #{"The document's guidance: #{guidance}" if guidance}
+          Use the document's rankings (its TOP 25 or CFP rankings section and the "This Week at a Glance" table): where our
+          teams sit, who moved, who fell out or is knocking on the door, and what is at stake nationally. Name only teams
+          and ranks the document lists, and don't read out the poll. Don't go back over the standings or a team's game; you own only the rankings.
+          #{combined? ? '' : "Then give the Next Episode tease from the document as the last thing the hosts say about the future, then a short sign-off. Name the games in the tease and add no analysis, predictions or lines to it."}
+        TEXT
+      )
     end
 
     # The run-of-show lines the document adds only when there is fresh material: "Injury Report" and "Recruitment
@@ -254,9 +372,8 @@ module Podcast
         Segment.new(
           label: name, kind: :review, words: words,
           instruction: <<~TEXT
-            Write the "#{name}" segment, a short stop after the team segments. The document's guidance: #{guidance}
+            Write the "#{name}" segment, a short stop after the game recaps. The document's guidance: #{guidance}
             Use ONLY what the teams' "#{name == 'Injury Report' ? '🚑 Injury Report' : '🖊️ Recruitment Trail'}" sections list, with their real names and numbers; invent nothing.
-            End with a natural handoff, not a goodbye.
           TEXT
         )
       end
@@ -302,10 +419,23 @@ module Podcast
           Storyline the centerpiece if a section lists one; otherwise build to the game's turning points. Cover both
           coaches' perspectives, work in the players of the game and standout performers from BOTH sides by name with
           their real numbers, give each host's own take, and land on what it means for each team's season and the
-          rivalry. #{@scoreboard_only ? "Mention each team's next opponent in one short line only, no analysis or prediction." : "Mention each team's next opponent in one short line only."}
+          rivalry. #{owns_note} #{@scoreboard_only ? "Mention each team's next opponent in one short line only, no analysis or prediction." : "Mention each team's next opponent in one short line only."}
           End the segment with a natural handoff, not a goodbye.
         TEXT
       )
+    end
+
+    # Each topic has one owner, so the hosts don't say the same thing in every segment: the division races and the
+    # conference standings belong to "Around the Sun Belt", poll movement to the poll segment. Postseason and title-game
+    # weeks have no such segments (and no standings talk at all), so they get no note.
+    def owns_note
+      return "" if @postseason_recap || @conference_championship_recap
+
+      "Do NOT go through the division race, conference standings or poll movement here (a team's record and one passing clause is fine): the Around the Sun Belt and #{poll_watch_name} segments later in the show cover those."
+    end
+
+    def poll_watch_name
+      markdown[/^- \*\*Segment \d+:\*\* (Top 25 Poll Watch|CFP Rankings Watch)/, 1] || "Top 25 Poll Watch"
     end
 
     def opening_segment
@@ -319,7 +449,10 @@ module Podcast
              "Welcome back to #{SHOW_NAME}, I'm #{narrator[:name]}..."
           2. #{co_host[:name].split.first} follows up immediately with: "...and I'm #{co_host[:name]}."
           Then do a quick tour of the week: use "This Week at a Glance" and the CFP rankings and bowl projections to
-          set the national stakes and tease what's coming (the recap first, then a look ahead at next week's games).#{side_segments.empty? ? '' : " After the team recaps the show also has: " + side_segments.map(&:label).join(' and ') + ". You may tease those."} Tease NOTHING else beyond the games and segments in the plan. Don't recap any game in detail; the team segments do that.
+          set the national stakes and tease what's coming (the recap first, then a look ahead at next week's games).
+          After the game recaps the show also has, in this order: #{recap_tail_segments.map(&:label).join(', ')}, then the look ahead at next week's games. You may tease those in one short line, in that order. Promise NOTHING else: no "what it means for the division races" or any other segment that is not in this plan.
+          Don't read final scores or stat lines here and don't recap any game: tease the storylines and stakes, because the game segments give the scores.
+          Finish with ONE short handoff line into the first game recap and nothing after it. No "but first", no "let's get into it" lines on top of it.
         TEXT
       )
     end
@@ -341,7 +474,7 @@ module Podcast
           Make the Defining Storyline the centerpiece if the section lists one; otherwise tell how the game unfolded
           from the narrative, scoring by quarter and team stats, build to its biggest turning points, and give each
           host's own take. Work in the player of the game and one or two standout performers by name with their real
-          numbers. Land on what this result means for #{team}'s season and standing. #{next_up}
+          numbers. Land on what this result means for #{team}'s season, in a sentence or two. #{owns_note} #{next_up}
           End the segment with a natural handoff, not a goodbye.
         TEXT
       )
@@ -377,21 +510,10 @@ module Podcast
       )
     end
 
-    # Combined episode: the recap ends here, with no tease and no sign-off, and pivots into the preview.
+    # Combined episode, postseason and championship weeks only (the regular season ends its recap with
+    # poll_watch_segment): the recap ends here, with no tease and no sign-off, and pivots into the second half.
     def review_wrap_segment
-      return postseason_wrap_segment if @postseason_recap
-      return championship_week_wrap_segment if @conference_championship_recap
-
-      Segment.new(
-        label: "Review wrap-up", kind: :review, words: 450,
-        instruction: <<~TEXT
-          Write the end of the recap half: a quick "Around the Sun Belt" run through the other conference scores, a look
-          at where the Sun Belt standings stand, the matchups between our coaches this week and the projected Sun Belt
-          championship if the document has those sections. Ignore the document's "Next Episode" section completely.
-          #{@scoreboard_only ? "Finish with a line that turns to the hosts' own scorecard, e.g. time to see how their bets did. Do NOT preview any games." : "Finish with a line that turns the show toward next week's games, e.g. that it's time to look ahead."} Do NOT
-          sign off, and do not name or tease any upcoming episode.
-        TEXT
-      )
+      @postseason_recap ? postseason_wrap_segment : championship_week_wrap_segment
     end
 
     # Conference championship week: the title games are the whole recap, so no standings and no regular-season round-up.
@@ -525,7 +647,7 @@ module Podcast
     def scoreboard_segments
       [
         Segment.new(
-          label: "Bet scoreboard", kind: :scoreboard, words: 400,
+          label: "Bet scoreboard", kind: :scoreboard, words: 400, up_next: "the hosts' own bet scoreboard (how their bets did; do not preview any games)",
           instruction: <<~TEXT
             The recap half just ended. Write the hosts' bet scoreboard with NO new welcome: use THE SCOREBOARD section of the
             document to review last week's bets game by game, in that order: the game and its final score, each host's bet
@@ -547,10 +669,12 @@ module Podcast
     def preview_intro_segment
       Segment.new(
         label: "Preview: card and scoreboard", kind: :preview, words: 350,
+        up_next: "the look ahead at #{preview_week}'s games, starting with last week's bet scoreboard",
         instruction: <<~TEXT
-          The recap half just ended. Write the transition into the preview of #{preview_week} (call it that on air, never by a week number if it has a name), with
-          NO new introductions or welcome, then these two beats:
-          1. THE CARD: one sentence naming the #{game_headings.size} games on the board, in the document's order. No analysis. A conference
+          The recap half just ended and its last line already turned the show toward the preview, so write NO separate
+          transition and NO new introductions or welcome. Open straight into these two beats:
+          1. THE CARD: one sentence that names the preview of #{preview_week} (call it that on air, never by a week number if it has a name)
+             and the #{game_headings.size} games on the board, in the document's order. No analysis. A conference
              championship game is named with its conference ("the Sun Belt Championship Game"), never just "the conference championship".
           2. THE SCOREBOARD: use the document's "THE SCOREBOARD" section to review last week's bets game by game, in
              that order: the game and its final score, each host's bet and whether it hit or missed, and one short
@@ -565,7 +689,7 @@ module Podcast
       rivals = title.include?("RIVALS SHOWDOWN")
       words = if rivals then 1200 elsif finale then 900 else 500 end
       Segment.new(
-        label: "Preview game #{number}: #{title}", kind: :preview, words: words,
+        label: "Preview game #{number}: #{title}", kind: :preview, words: words, up_next: "Game #{number}: #{title.sub(/ — .*/, '')}",
         instruction: <<~TEXT
           Write the segment for Game #{number} of #{total}: #{title}, using that game's section of the document. Cover, in
           order, THE STAKES, THE FILM ROOM, THE QUARTERBACK DUEL and THE PICK, as the SHOW FORMAT notes describe.
@@ -590,16 +714,21 @@ module Podcast
         "There is no \"Also on the Board\" heads-up this time, so do not make one up or mention other games. Just "
       end
       Segment.new(
-        label: "Preview closing", kind: :preview, words: 300,
+        label: "Preview closing", kind: :preview, words: 300, up_next: "the rest of the board and the sign-off",
         instruction: <<~TEXT
-          Write the end of the whole episode. #{heads_up.squish} a short, warm sign-off in the hosts' voices ending on
-          "see you next week" or similar, and naming the show, "#{SHOW_NAME}". Do NOT name or tease any specific upcoming
-          episode and do not recap the bets.
+          Write the end of the whole episode. #{heads_up.squish} the sign-off, in this order:
+          1. THE TEASE: tell listeners the hosts are back next week to recap how these games played out, naming the one
+             or two biggest games from the card (the Rivals Showdown if there is one). Name the games ONCE, here, and
+             don't list them again in the exit line. Names only: no analysis, no
+             predictions, no lines, and do not recap the bets. Say it as "next week we'll be back to tell you how it
+             all went", never as a separate show or episode.
+          2. THE EXIT: end with a short, warm, fun exit line in the hosts' voices that names the show, "#{SHOW_NAME}".
+             Make it feel like these two, a last jab or joke between them, not a generic "see you next time".
         TEXT
       )
     end
 
-    def segment_prompt(segment, summary, following = nil)
+    def segment_prompt(segment, summary, lead_in = [], following = nil)
       source = if segment.kind == :proving then proving elsif %i[preview scoreboard].include?(segment.kind) then preview else markdown end
       <<~PROMPT
         Here is the source document for this part of the show. It is the source of facts#{history ? " (the league history below is background only)" : ""}.
@@ -608,21 +737,30 @@ module Podcast
         #{source}
         </source>
         #{history_block}
-        #{summary.empty? ? "Nothing has been said yet; this is the first segment." : "Already covered in the show so far (do not repeat these points or re-introduce the hosts):\n- #{summary.join("\n- ")}"}
+        #{summary.empty? ? "Nothing has been said yet; this is the first segment." : "Already covered in the show so far (do not repeat these points, or the stat lines, records and standings already given, and do not re-introduce the hosts; bring a number back only to make a NEW point):\n- #{summary.join("\n- ")}"}
 
         SEGMENT TO WRITE NOW: #{segment.label}
         #{segment.instruction}
-        #{handoff_note(following)}
+        #{seam_notes(lead_in, following)}
         Length: about #{segment.words} words of dialogue. Output only the dialogue lines.
       PROMPT
     end
 
-    # Segments are written one call at a time, so without this a segment's handoff guesses what comes next (and
-    # lands on the wrong topic). The last segment of the show has nothing after it, so it gets no note.
-    def handoff_note(following)
-      return "" unless following
-
-      "UP NEXT in the show: \"#{following.label}\". If this segment ends with a handoff, point ONLY to that, and do not announce or tease anything else."
+    # Segments are written one call at a time, so each one is told what the show just said and what comes next.
+    # Without it a segment's handoff guesses the next topic, and the next segment announces its topic all over again.
+    # The outgoing segment owns the handoff; the incoming one opens straight into content.
+    def seam_notes(lead_in, following)
+      notes = []
+      if lead_in.any?
+        notes << "The show so far just ended on these lines, which already handed off to this segment. Continue straight from " \
+                 "them: do NOT announce or introduce this segment's topic again (no \"let's talk about\", \"next up\", \"now to\"). " \
+                 "Open with a reaction or the first real point.\n#{self.class.to_text(lead_in)}"
+      end
+      if following
+        notes << "UP NEXT in the show: #{following.up_next || "\"#{following.label}\""}. End this segment with ONE short handoff line " \
+                 "(a single sentence from one host) that points only to that. Do not announce or tease anything else, and don't say goodbye."
+      end
+      notes.join("\n")
     end
 
     SPEAKER_LINE = /\A(ARLIS|TY):\s*(.+)\z/
@@ -634,9 +772,10 @@ module Podcast
       end
     end
 
-    # Keeps the running summary cheap: first sentence of the first couple of turns is enough to avoid repeats.
+    # Keeps the running summary cheap: the first sentence of a handful of turns spread across the segment, which is
+    # enough for the segments after it to see what was already said.
     def recap(turns)
-      turns.first(4).map { |turn| turn[:text].split(/(?<=[.!?])\s/).first }.join(" ")
+      turns.each_slice([ turns.size / 6, 1 ].max).map(&:first).first(6).map { |turn| turn[:text].split(/(?<=[.!?])\s/).first }.join(" ")
     end
   end
 end

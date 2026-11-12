@@ -1,19 +1,16 @@
 module PlayersOfTheWeek
   # Persists a (possibly user-edited) set of Player of the Week groups for a
-  # season. Same player-resolution approach as HeismanCandidates::CommitService:
-  # Student.find_or_create_for_college scoped to the specific college, and
-  # StudentSeason found-or-created without overwriting a real entry's
-  # position/class_year. A college and a week are both required for every
-  # row — there's no way to create/attach a Student without a college, and
-  # no way to save an award without a week — so rows missing either are
-  # reported as warnings instead of committed.
+  # season. Never creates players: rosters are imported at the start of the
+  # season, so each row must match a student already on that college's
+  # roster for the season (names compared via Student.match_key). A row with
+  # no match is reported as a warning rather than creating a stray student.
+  # A college and a week are both required for every row, so rows missing
+  # either are reported as warnings instead of committed.
   #
   # Each row upserts by its slot (week, national, conference, side) via
   # find_or_initialize_by, so re-uploading a corrected screenshot updates
   # the existing record rather than duplicating it.
   class CommitService
-    DEFAULT_CLASS_YEAR = "FR".freeze
-
     def initialize(season)
       @season = season
     end
@@ -44,12 +41,8 @@ module PlayersOfTheWeek
       return if college.blank? || row[:first_name].blank? || row[:last_name].blank?
 
       ActiveRecord::Base.transaction do
-        college_season = CollegeSeason.find_or_create_by!(college: college, season: @season)
-        student = Student.find_or_create_for_college(first_name: row[:first_name], last_name: row[:last_name], college: college)
-        student_season = StudentSeason.find_or_create_by!(student: student, college_season: college_season) do |ss|
-          ss.position = row[:position]
-          ss.class_year = row[:class_year].presence || DEFAULT_CLASS_YEAR
-        end
+        student_season = find_student_season(college, row)
+        next { player: player_label(row), error: "not on #{college.name}'s roster this season" } if student_season.blank?
 
         record = PlayerOfTheWeek.find_or_initialize_by(
           week: week, national: group[:national], conference: group[:conference], side: row[:side]
@@ -57,8 +50,15 @@ module PlayersOfTheWeek
         record.student_season = student_season
         record.stat_line = row[:stat_line]
         record.save!
+        nil
       end
-      nil
+    end
+
+    def find_student_season(college, row)
+      key = Student.match_key("#{row[:first_name]} #{row[:last_name]}")
+      @season.college_seasons.find_by(college: college)
+             &.student_seasons&.includes(:student)
+             &.find { |ss| Student.match_key(ss.student.name) == key }
     end
 
     def player_label(row)

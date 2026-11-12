@@ -55,7 +55,7 @@ module Podcast
 
       FIXING
       - FIX is the COMPLETE replacement text for the turn (not a diff), in the same speaker's voice, spoken style,
-        number-words and length. Change as little as possible: correct the fact, or remove the unsupported specific
+        number-words and length. It replaces ONLY that one turn: never copy wording from the turns before or after it. Change as little as possible: correct the fact, or remove the unsupported specific
         and keep the rest of the line. If the whole turn is unsupported, write a short natural line in its place.
       - A fix must never add a new specific of its own (a play, a sequence, a stat, a reason) that the sources don't
         state. Use only wording and numbers the sources support, or generalize ("held scoreless in the fourth").
@@ -114,6 +114,9 @@ module Podcast
       issues = issues.uniq(&:turn)
       confirmed, @rejected = issues.partition { |issue| confirmed?(issue) }
       fixed, @needs_review = confirmed.partition { |issue| AUTO_FIX_TYPES.include?(issue.type) }
+      fixed, copycats = fixed.partition { |issue| own_words?(issue) }
+      copycats.each { |issue| issue.claim = "#{issue.claim} (NOT applied: the proposed fix repeats a neighboring turn's wording)" }
+      @needs_review.concat(copycats)
       [ fixed, apply(fixed) ]
     end
 
@@ -208,6 +211,17 @@ module Podcast
         Issue.new(turn: turn, type: fields["TYPE"], claim: fields["CLAIM"], evidence: fields["SOURCE"],
                   fix: fields["FIX"].sub(/\A(ARLIS|TY):\s*/, "").tr("\n", " "))
       end
+    end
+
+    # A fix replaces one turn, so it must not say what a neighboring turn already says. (A fix once came back as the
+    # next turn's text with a correction added, and the hosts read the same lines twice in a row.)
+    def own_words?(issue)
+      neighbors = turns.each_with_index.select { |_turn, index| (index - (issue.turn - 1)).abs.between?(1, 2) }.map { |turn, _| turn[:text] }
+      (spoken_sentences(issue.fix) & neighbors.flat_map { |text| spoken_sentences(text) }).empty?
+    end
+
+    def spoken_sentences(text)
+      text.split(/(?<=[.!?])\s+/).map { |sentence| sentence.downcase.scan(/[a-z0-9']+/) }.select { |words| words.size >= 7 }.map { |words| words.join(" ") }
     end
 
     def apply(issues)
