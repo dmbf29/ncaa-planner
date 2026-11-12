@@ -660,6 +660,25 @@ export const analyzeSchedulingTeam = (dynastyId, seasonId, files) => {
     .then((r) => r.data);
 };
 
+// Local-only: a recording of the opponent picker, read in the background; poll fetchWeekVideoStatus with the token.
+export const startWeekVideo = (dynastyId, seasonId, video) => {
+  const formData = new FormData();
+  formData.append("video", video);
+  return api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/scheduling/start_week_video`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+    .then((r) => r.data);
+};
+
+export const fetchWeekVideoStatus = (dynastyId, seasonId, token) =>
+  api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/scheduling/week_video_status`, { params: { token } }).then((r) => r.data);
+
+export const commitSchedulingWeek = (dynastyId, seasonId, collegeSeasonId, weekId, cards) =>
+  api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/scheduling/commit_week`, { collegeSeasonId, weekId, cards })
+    .then((r) => r.data);
+
 export const commitSchedulingTeam = (dynastyId, seasonId, collegeId, rows) =>
   api
     .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/scheduling/commit_team`, { collegeId, rows })

@@ -33,6 +33,41 @@ module Api
         paths&.each { |path| FileUtils.rm_f(path) }
       end
 
+      # Local-only, like the roster video: a recording of the opponent picker is read in the background
+      # (OpponentVideoJob); poll #week_video_status with the returned token.
+      def start_week_video
+        return render json: { error: "Reading recordings only works on the local dev server.", code: "dev_only" }, status: :unprocessable_entity unless Rails.env.development?
+
+        video = params[:video]
+        return render json: { error: "No video uploaded", code: "missing_video" }, status: :unprocessable_entity unless video.respond_to?(:tempfile)
+
+        token = SecureRandom.uuid
+        path = OpponentVideoJob.stash_upload(token, video)
+        AnalysisStatus.pending!(token)
+        OpponentVideoJob.perform_later(token: token, path: path.to_s)
+        render json: { token: token, status: "pending" }, status: :accepted
+      end
+
+      def week_video_status
+        status = AnalysisStatus.read(params[:token])
+        case status[:status]
+        when "completed"
+          render json: { status: "completed", analysis: Scheduling::OpponentCards.new(@season).call(status[:result]["cards"]) }
+        when "failed"
+          render json: { status: "failed", error: status[:error], code: "extraction_failed" }, status: :unprocessable_entity
+        when "not_found"
+          render json: { status: "failed", error: "Video job expired or not found — try again.", code: "extraction_failed" }, status: :unprocessable_entity
+        else
+          render json: { status: "pending", progress: status[:progress] }
+        end
+      end
+
+      def commit_week
+        college_season = @season.college_seasons.find(params[:college_season_id])
+        week = @season.weeks.find(params[:week_id])
+        render json: Scheduling::OpponentCommit.new(college_season, week).call(params.require(:cards).map { |card| card.to_unsafe_h })
+      end
+
       def commit_team
         college_season = @season.college_seasons.find_by!(college_id: params[:college_id])
         warnings = Scheduling::TeamCommit.new(college_season).call(params.require(:rows).map { |row| row.to_unsafe_h })

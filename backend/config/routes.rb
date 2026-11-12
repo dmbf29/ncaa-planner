@@ -38,6 +38,9 @@ Rails.application.routes.draw do
           resource :scheduling, only: %i[show update] do
             post :analyze_team
             post :commit_team
+            post :start_week_video
+            get :week_video_status
+            post :commit_week
           end
           member do
             get :team_attributes

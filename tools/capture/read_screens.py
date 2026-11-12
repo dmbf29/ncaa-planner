@@ -3,7 +3,7 @@
 
     backend/tools/roster_video/venv/bin/python tools/capture/read_screens.py jobs.json
 
-jobs.json is [{"file": "/path/shot.png", "kind": "box_score" | "table" | "schedule" | "team_schedule" | "top25" | "heisman" | "potw" | "cursor"}, ...]. Prints a JSON list, one
+jobs.json is [{"file": "/path/shot.png", "kind": "box_score" | "table" | "schedule" | "team_schedule" | "team_card" | "top25" | "heisman" | "potw" | "cursor"}, ...]. Prints a JSON list, one
 entry per job in the same order: {"file": ..., "kind": ..., "result": ...} where result is read_box_score's
 dict, read_table's list of rows or read_schedule's dict, read_top25's / read_heisman's / read_potw's dict or {"error": "..."} if that image couldn't be read.
 """
@@ -21,6 +21,7 @@ from PIL import Image  # noqa: E402
 from read_box_score import read_box_score  # noqa: E402
 from read_cursor import read_cursor  # noqa: E402
 from read_schedule import read_schedule  # noqa: E402
+from read_team_card import read_team_card  # noqa: E402
 from read_team_schedule import read_team_schedule  # noqa: E402
 from read_table import read_table  # noqa: E402
 from read_heisman import read_heisman  # noqa: E402
@@ -36,6 +37,8 @@ def read(job):
         return read_cursor(img)
     if job["kind"] == "schedule":
         return read_schedule(img)
+    if job["kind"] == "team_card":
+        return read_team_card(img)
     if job["kind"] == "team_schedule":
         return read_team_schedule(img)
     if job["kind"] == "potw":

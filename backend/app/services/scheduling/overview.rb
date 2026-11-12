@@ -50,7 +50,7 @@ module Scheduling
       end
 
       options = college_season.schedule_options.select { |option| option.week_id == week.id }
-      { week_id: week.id, week_number: week.number, state: "open", option_count: options.size, ranked_count: options.count(&:rank) }
+      { week_id: week.id, week_number: week.number, state: "open", option_count: options.size, ranked_count: options.count(&:ranked) }
     end
   end
 end
