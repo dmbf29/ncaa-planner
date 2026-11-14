@@ -653,6 +653,20 @@ export const removeCoachOpponent = (token, weekId) => api.delete(`/api/v1/schedu
 
 export const confirmCoachSchedule = (token) => api.post(`/api/v1/schedules/${token}/confirm`).then((r) => r.data);
 
+// Dynasty Rewired: GET reads their API and returns what would change, POST saves the ticked sections.
+export const fetchDynastyRewiredSync = (dynastyId, seasonId) =>
+  api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/dynasty_rewired_sync`).then((r) => r.data);
+
+export const runDynastyRewiredSync = (dynastyId, seasonId, sections) =>
+  api.post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/dynasty_rewired_sync`, { sections }).then((r) => r.data);
+
+// Roster ratings from Dynasty Rewired, one school per request (a school is one API call).
+export const fetchDynastyRewiredRosterSchools = (dynastyId, seasonId) =>
+  api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/dynasty_rewired_roster`).then((r) => r.data);
+
+export const refreshDynastyRewiredRoster = (dynastyId, seasonId, school, teamId) =>
+  api.post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/dynasty_rewired_roster`, { school, teamId }).then((r) => r.data);
+
 export const fetchScheduling = (dynastyId, seasonId) =>
   api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/scheduling`).then((r) => r.data);
 

@@ -35,6 +35,8 @@ Rails.application.routes.draw do
 
       resources :dynasties, only: %i[index] do
         resources :seasons, only: %i[show create destroy] do
+          resource :dynasty_rewired_sync, only: %i[show create]
+          resource :dynasty_rewired_roster, only: %i[show create]
           resource :scheduling, only: %i[show update] do
             post :analyze_team
             post :commit_team

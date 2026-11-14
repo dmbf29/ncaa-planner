@@ -5,6 +5,7 @@ import Card from "../components/Card";
 import { fetchDynasties, fetchSeason, fetchStandings, createSeason } from "../lib/apiClient";
 
 const WEEKLY_UPDATES = [
+  { key: "dynasty-rewired", label: "Sync from Dynasty Rewired", icon: "fa-solid fa-rotate", description: "Pull scores, box scores and the Top 25 straight from the game, no screenshots.", to: "/dynasty/updates/dynasty-rewired" },
   { key: "games", label: "Games/Results", icon: "fa-solid fa-stopwatch", description: "Upload the weekly schedule screenshots.", to: "/dynasty/updates/schedule" },
   { key: "top25", label: "Top 25", icon: "fa-solid fa-arrow-up-right-dots", description: "Upload the weekly AP-style poll screenshots.", to: "/dynasty/updates/top25" },
   { key: "players-of-the-week", label: "Players of the Week", icon: "fa-solid fa-award", description: "Upload the weekly Players of the Week screenshots.", to: "/dynasty/updates/players-of-the-week" },

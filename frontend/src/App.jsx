@@ -32,6 +32,7 @@ import CoachInfoUpdatePage from "./pages/CoachInfoUpdatePage";
 import CoachOutcomesUpdatePage from "./pages/CoachOutcomesUpdatePage";
 import NilSpendUpdatePage from "./pages/NilSpendUpdatePage";
 import TeamStatsUpdatePage from "./pages/TeamStatsUpdatePage";
+import DynastyRewiredSyncPage from "./pages/DynastyRewiredSyncPage";
 import SchedulingPage from "./pages/SchedulingPage";
 import SchedulingTeamPage from "./pages/SchedulingTeamPage";
 import ScheduleLinksPage from "./pages/ScheduleLinksPage";
@@ -82,6 +83,7 @@ function App() {
         <Route path="/dynasty/export" element={<ExportPage />} />
         <Route path="/dynasty/games/:gameId" element={<GameUpdatePage />} />
         <Route path="/dynasty/updates" element={<DynastyUpdatesPage />} />
+        <Route path="/dynasty/updates/dynasty-rewired" element={<DynastyRewiredSyncPage />} />
         <Route path="/dynasty/updates/top25" element={<Top25UpdatePage />} />
         <Route path="/dynasty/updates/schedule" element={<ScheduleUpdatePage />} />
         <Route path="/dynasty/updates/all-americans" element={<AllAmericansUpdatePage />} />
