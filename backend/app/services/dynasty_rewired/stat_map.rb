@@ -34,7 +34,15 @@ module DynastyRewired
       defense_interceptions_yards: "PDRY", defense_interceptions_avg: "PDRA",
       defense_deflections: "PDPD", defense_forced_fumbles: "PDFF", defense_fumble_recoveries: "PDFR",
       defense_fumble_return_yards: "PDFY",
-      defense_blocks: "PSBK", defense_safeties: "PDSY", defense_touchdowns: "PDDT"
+      defense_blocks: "PSBK", defense_safeties: "PDSY", defense_touchdowns: "PDDT",
+      # Not on the screens we capture, so no saved game to compare against; checked on all 5,178 player lines of
+      # the 33 box scores instead (made <= attempted, yards / count = the average code, and a game's XPs, field
+      # goals and touchdowns add up to its final score).
+      kicking_fgm: "PFGM", kicking_fga: "PFGA", kicking_fg_longest: "PFGL", kicking_xpm: "PKXM", kicking_xpa: "PKXA",
+      punting_punts: "PPNT", punting_yards: "PPYD", punting_longest: "PPLO", punting_inside_20: "PPDT", punting_touchbacks: "PPTB",
+      kick_returns: "PKRA", kick_return_yards: "PKRY", kick_return_tds: "PKRT", kick_return_longest: "PKRL",
+      punt_returns: "PPRA", punt_return_yards: "PPRY", punt_return_tds: "PPRT", punt_return_longest: "PPRL",
+      blocking_pancakes: "BLKP", blocking_sacks_allowed: "BKSA"
     }.freeze
   end
 end

@@ -56,6 +56,12 @@ export const PLAYER_FIELD_LABELS = {
   defenseInterceptionsYards: "INT Yds", defenseInterceptionsAvg: "INT Avg", defenseDeflections: "Defl",
   defenseForcedFumbles: "FF", defenseFumbleRecoveries: "Fum Rec", defenseFumbleReturnYards: "Fum Yds",
   defenseBlocks: "Blk", defenseSafeties: "Sfty", defenseTouchdowns: "Def TD",
+  kickingFgm: "FGM", kickingFga: "FGA", kickingFgPct: "FG %", kickingFgLongest: "FG Long", kickingXpm: "XPM",
+  kickingXpa: "XPA", kickingPoints: "Pts", puntingPunts: "Punts", puntingYards: "Yds", puntingAvg: "Avg",
+  puntingLongest: "Long", puntingInside20: "In 20", puntingTouchbacks: "TB", kickReturns: "KR",
+  kickReturnYards: "KR Yds", kickReturnAvg: "KR Avg", kickReturnLongest: "KR Long", kickReturnTds: "KR TD",
+  puntReturns: "PR", puntReturnYards: "PR Yds", puntReturnAvg: "PR Avg", puntReturnLongest: "PR Long",
+  puntReturnTds: "PR TD", blockingPancakes: "Pancakes", blockingSacksAllowed: "Sacks Allowed",
 };
 
 export const normalizeCollegeStats = (rows, awayCollege, homeCollege) => {

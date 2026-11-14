@@ -5,7 +5,10 @@ import Card from "../components/Card";
 import { fetchDynastyTeams, fetchPlayerStats } from "../lib/apiClient";
 import { PLAYER_FIELD_LABELS } from "../lib/gameStatFields";
 
-const CATEGORY_LABELS = { passing: "Passing", rushing: "Rushing", receiving: "Receiving", defense: "Defense" };
+const CATEGORY_LABELS = {
+  passing: "Passing", rushing: "Rushing", receiving: "Receiving", defense: "Defense",
+  kicking: "Kicking", punting: "Punting", returns: "Returns", blocking: "Blocking",
+};
 
 const CATEGORY_COLUMNS = {
   passing: [
@@ -20,6 +23,13 @@ const CATEGORY_COLUMNS = {
     "defenseForcedFumbles", "defenseFumbleRecoveries", "defenseFumbleReturnYards", "defenseBlocks",
     "defenseSafeties", "defenseTouchdowns",
   ],
+  kicking: ["kickingFgm", "kickingFga", "kickingFgPct", "kickingFgLongest", "kickingXpm", "kickingXpa", "kickingPoints"],
+  punting: ["puntingPunts", "puntingYards", "puntingAvg", "puntingLongest", "puntingInside20", "puntingTouchbacks"],
+  returns: [
+    "kickReturns", "kickReturnYards", "kickReturnAvg", "kickReturnLongest", "kickReturnTds",
+    "puntReturns", "puntReturnYards", "puntReturnAvg", "puntReturnLongest", "puntReturnTds",
+  ],
+  blocking: ["blockingPancakes", "blockingSacksAllowed"],
 };
 
 const inputClass =

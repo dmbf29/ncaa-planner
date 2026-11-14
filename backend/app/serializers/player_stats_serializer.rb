@@ -3,24 +3,29 @@
 # been played, plus a club-history view combining every one of those seasons
 # per player. Unlike TeamSeasonStats (single leader per category, for the
 # dashboard card), this returns every player's full stat line, grouped into
-# the four box-score categories.
+# the box-score categories (passing, rushing, receiving and defense from the screenshots; kicking, punting,
+# returns and blocking from the Dynasty Rewired box scores).
 #
 # Conference membership is a per-CollegeSeason attribute (colleges can
 # change conferences season to season), so a conference/national scope is
 # resolved fresh per season: "seasons" groups by year, not by CollegeSeason,
 # since a non-college scope can span many CollegeSeason rows per year.
 class PlayerStatsSerializer
-  CATEGORIES = %i[passing rushing receiving defense].freeze
+  CATEGORIES = %i[passing rushing receiving defense kicking punting returns blocking].freeze
 
-  # Column that decides whether a player belongs in a category's table, and
-  # how that table is sorted (best first).
-  PRIMARY_FIELD = {
-    passing: :passing_yards, rushing: :rushing_yards, receiving: :receiving_yards, defense: :defense_tackles
+  # Columns that decide whether a player belongs in a category's table (any one positive), the first of
+  # them also sorting that table (best first).
+  PRIMARY_FIELDS = {
+    passing: %i[passing_yards], rushing: %i[rushing_yards], receiving: %i[receiving_yards], defense: %i[defense_tackles],
+    kicking: %i[kicking_points kicking_fga], punting: %i[punting_punts], returns: %i[returns_total],
+    blocking: %i[blocking_pancakes blocking_sacks_allowed]
   }.freeze
 
   # Rate/derived columns (beyond SUM_FIELDS/MAX_FIELDS) worth showing per category.
   EXTRA_FIELDS = {
-    passing: %i[passing_avg passing_rating], rushing: %i[rushing_avg], receiving: %i[receiving_avg], defense: []
+    passing: %i[passing_avg passing_rating], rushing: %i[rushing_avg], receiving: %i[receiving_avg], defense: [],
+    kicking: %i[kicking_fg_pct kicking_points], punting: %i[punting_avg],
+    returns: %i[kick_return_avg punt_return_avg returns_total], blocking: []
   }.freeze
 
   def initialize(dynasty, college: nil, conference: nil, coached: false)
@@ -114,10 +119,10 @@ class PlayerStatsSerializer
   def category_rows(category, grouped)
     grouped.filter_map do |key, rows|
       totals = PlayerStatTotals.call(rows)
-      next unless (totals[PRIMARY_FIELD[category]] || 0).positive?
+      next unless PRIMARY_FIELDS[category].any? { |field| (totals[field] || 0).positive? }
 
       yield(key, rows).merge(totals: totals.slice(*fields_for(category)))
-    end.sort_by { |row| -row[:totals][PRIMARY_FIELD[category]] }
+    end.sort_by { |row| -(row[:totals][PRIMARY_FIELDS[category].first] || 0) }
   end
 
   def fields_for(category)

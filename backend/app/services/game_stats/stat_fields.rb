@@ -27,7 +27,15 @@ module GameStats
       defense_interceptions defense_interceptions_longest defense_interceptions_yards defense_interceptions_avg
       defense_deflections defense_forced_fumbles defense_fumble_recoveries defense_fumble_return_yards
       defense_blocks defense_safeties defense_touchdowns
+      kicking_fgm kicking_fga kicking_fg_longest kicking_xpm kicking_xpa
+      punting_punts punting_yards punting_longest punting_inside_20 punting_touchbacks
+      kick_returns kick_return_yards kick_return_tds kick_return_longest
+      punt_returns punt_return_yards punt_return_tds punt_return_longest
+      blocking_pancakes blocking_sacks_allowed
     ].freeze
+
+    # Only the four box-score categories are read off screenshots; kicking, punting, returns and blocking come
+    # from the Dynasty Rewired box scores alone (see PlayerStatsSerializer for how they're grouped).
 
     CATEGORIES = %w[passing rushing receiving defense].freeze
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_12_140000) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_14_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -672,6 +672,26 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_12_140000) do
     t.integer "defense_blocks"
     t.integer "defense_safeties"
     t.integer "defense_touchdowns"
+    t.integer "kicking_fgm"
+    t.integer "kicking_fga"
+    t.integer "kicking_fg_longest"
+    t.integer "kicking_xpm"
+    t.integer "kicking_xpa"
+    t.integer "punting_punts"
+    t.integer "punting_yards"
+    t.integer "punting_longest"
+    t.integer "punting_inside_20"
+    t.integer "punting_touchbacks"
+    t.integer "kick_returns"
+    t.integer "kick_return_yards"
+    t.integer "kick_return_tds"
+    t.integer "kick_return_longest"
+    t.integer "punt_returns"
+    t.integer "punt_return_yards"
+    t.integer "punt_return_tds"
+    t.integer "punt_return_longest"
+    t.integer "blocking_pancakes"
+    t.integer "blocking_sacks_allowed"
     t.index ["game_id", "student_season_id"], name: "index_student_game_stats_on_game_and_student_season", unique: true
     t.index ["game_id"], name: "index_student_game_stats_on_game_id"
     t.index ["student_season_id"], name: "index_student_game_stats_on_student_season_id"
