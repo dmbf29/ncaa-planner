@@ -70,7 +70,8 @@ function Stars({ count }) {
   );
 }
 
-// "Signed · Team" once a signing is recorded; for the signed-in owner, a team picker and Sign button until then.
+// "Signed · Team" once a signing is recorded, else the owner's team picker and Sign button. Only the signed-in
+// owner sees this: signings are tracked for user teams alone, so for anyone else "available" would mislead.
 function Signing({ recruit, teams, onSign }) {
   const [collegeId, setCollegeId] = useState("");
   const [saving, setSaving] = useState(false);
@@ -78,8 +79,6 @@ function Signing({ recruit, teams, onSign }) {
   if (recruit.signedWith) {
     return <span className="inline-block rounded-full bg-success/10 px-2 py-0.5 text-xs font-semibold text-success">Signed · {recruit.signedWith}</span>;
   }
-  if (!teams) return <span className="text-xs text-textSecondary">Available</span>;
-
   const sign = async () => {
     setSaving(true);
     await onSign(recruit, Number(collegeId));
@@ -107,6 +106,7 @@ function Signing({ recruit, teams, onSign }) {
 }
 
 function RecruitCard({ recruit, teams, onSign }) {
+  const showSigning = teams != null;
   return (
     <div className="space-y-2 px-4 py-3">
       <div className="flex items-start justify-between gap-3">
@@ -128,7 +128,7 @@ function RecruitCard({ recruit, teams, onSign }) {
         <div><dt className="inline font-semibold">Ht / Wt </dt><dd className="inline">{formatHeight(recruit.heightInches)} · {recruit.weightLbs ?? "—"}</dd></div>
         <div><dt className="inline font-semibold">Rank </dt><dd className="inline">St {recruit.stateRank} · Pos {recruit.positionRank}</dd></div>
       </dl>
-      <Signing recruit={recruit} teams={teams} onSign={onSign} />
+      {showSigning && <Signing recruit={recruit} teams={teams} onSign={onSign} />}
     </div>
   );
 }
@@ -146,6 +146,7 @@ function SeasonRecruitsPage() {
   const [teams, setTeams] = useState(null);
   const [weekNumber, setWeekNumber] = useState(null);
   const [notice, setNotice] = useState(null);
+  const showSigning = teams != null;
 
   useEffect(() => {
     setLoading(true);
@@ -171,7 +172,7 @@ function SeasonRecruitsPage() {
     setShownCount(PAGE_SIZE);
   };
 
-  const recruits = data?.recruits ?? [];
+  const recruits = useMemo(() => data?.recruits ?? [], [data]);
   const positionOptions = useMemo(() => toOptions([...new Set(recruits.map((r) => r.position))].filter(Boolean).sort()), [recruits]);
   const starOptions = useMemo(() => [5, 4, 3, 2, 1].map((n) => ({ value: String(n), label: `${n}★` })), []);
   const stateOptions = useMemo(() => toOptions([...new Set(recruits.map((r) => r.state))].filter(Boolean).sort()), [recruits]);
@@ -277,14 +278,16 @@ function SeasonRecruitsPage() {
                   <span>Search name</span>
                   <input type="text" value={filters.search} onChange={(e) => setFilter("search", e.target.value)} placeholder="Recruit name" autoComplete="off" data-1p-ignore className={inputClass} />
                 </label>
-                <label className={`${labelClass} col-span-2 lg:col-span-1`}>
-                  <span>Signing</span>
-                  <select value={filters.signing} onChange={(e) => setFilter("signing", e.target.value)} className={inputClass}>
-                    <option value="all">All recruits</option>
-                    <option value="available">Available</option>
-                    <option value="signed">Signed</option>
-                  </select>
-                </label>
+                {showSigning && (
+                  <label className={`${labelClass} col-span-2 lg:col-span-1`}>
+                    <span>Signing</span>
+                    <select value={filters.signing} onChange={(e) => setFilter("signing", e.target.value)} className={inputClass}>
+                      <option value="all">All recruits</option>
+                      <option value="available">Not signed by you</option>
+                      <option value="signed">Signed by you</option>
+                    </select>
+                  </label>
+                )}
                 <MultiSelect label="Positions" options={positionOptions} selected={filters.positions} onChange={(vals) => setFilter("positions", vals)} />
                 <MultiSelect label="Stars" options={starOptions} selected={filters.stars} onChange={(vals) => setFilter("stars", vals)} />
                 <MultiSelect label="Archetype" options={archetypeOptions} selected={filters.archetypes} onChange={(vals) => setFilter("archetypes", vals)} searchable />
@@ -347,13 +350,13 @@ function SeasonRecruitsPage() {
                     <SortableTh label="Pos" field="position" sort={sort} onSort={toggleSort} />
                     <SortableTh label="Stars" field="stars" sort={sort} onSort={toggleSort} />
                     <SortableTh label="Archetype" field="archetype" sort={sort} onSort={toggleSort} />
-                    <SortableTh label="Hometown" field="hometown" sort={sort} onSort={toggleSort} />
                     <SortableTh label="Ht" field="heightInches" sort={sort} onSort={toggleSort} align="right" />
                     <SortableTh label="Wt" field="weightLbs" sort={sort} onSort={toggleSort} align="right" />
                     <SortableTh label="Pipeline" field="pipeline" sort={sort} onSort={toggleSort} />
                     <SortableTh label="St" field="stateRank" sort={sort} onSort={toggleSort} align="right" />
                     <SortableTh label="Pos" field="positionRank" sort={sort} onSort={toggleSort} align="right" />
-                    <th className="px-3 py-2 text-left">Signing</th>
+                    <SortableTh label="Hometown" field="hometown" sort={sort} onSort={toggleSort} />
+                    {showSigning && <th className="px-3 py-2 text-left">Signing</th>}
                   </tr>
                 </thead>
                 <tbody className="text-textPrimary dark:text-white">
@@ -364,13 +367,13 @@ function SeasonRecruitsPage() {
                       <td className="px-3 py-2">{recruit.position}</td>
                       <td className="px-3 py-2"><Stars count={recruit.stars} /></td>
                       <td className="whitespace-nowrap px-3 py-2 text-textSecondary">{recruit.archetype ?? "—"}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-textSecondary">{recruit.hometown}, {recruit.state}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-textSecondary">{formatHeight(recruit.heightInches)}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-textSecondary">{recruit.weightLbs ?? "—"}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-textSecondary">{recruit.pipeline}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-textSecondary">{recruit.stateRank}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-textSecondary">{recruit.positionRank}</td>
-                      <td className="px-3 py-2"><Signing recruit={recruit} teams={teams} onSign={sign} /></td>
+                      <td className="whitespace-nowrap px-3 py-2 text-textSecondary">{recruit.hometown}, {recruit.state}</td>
+                      {showSigning && <td className="px-3 py-2"><Signing recruit={recruit} teams={teams} onSign={sign} /></td>}
                     </tr>
                   ))}
                 </tbody>
