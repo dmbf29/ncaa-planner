@@ -8,6 +8,7 @@ import OverallBadge from "../components/OverallBadge";
 import AddToSquadModal from "../components/AddToSquadModal";
 import { API_BASE_URL, fetchDynastyPortal, fetchFlags, fetchSeasonStudentSeasons } from "../lib/apiClient";
 import { formatHeight, parseHeight } from "../lib/height";
+import useWatchlist from "../lib/useWatchlist";
 
 // The full season pool is ~11k players — never render all of them. Filters
 // narrow it down; this is just the ceiling on how many rows we paint.
@@ -152,36 +153,6 @@ const ratingLabel = (key) =>
 // someone else's team, so they land as recruits tagged with this flag.
 const WATCH_FLAG_NAME = "watch";
 
-// Watched players live in this browser only (no login), keyed by the stable student id so the
-// list carries across seasons.
-function useWatchlist(dynastyId) {
-  const key = `watchlist:${dynastyId}`;
-  const [ids, setIds] = useState(() => new Set());
-
-  useEffect(() => {
-    try {
-      setIds(new Set(JSON.parse(localStorage.getItem(key) ?? "[]")));
-    } catch {
-      setIds(new Set());
-    }
-  }, [key]);
-
-  const toggle = (studentId) =>
-    setIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(studentId)) next.delete(studentId);
-      else next.add(studentId);
-      try {
-        localStorage.setItem(key, JSON.stringify([...next]));
-      } catch {
-        // storage unavailable: the star still works for this visit
-      }
-      return next;
-    });
-
-  return [ids, toggle];
-}
-
 function squadPayload(player, seasonYear, watchFlagId) {
   const attributes = {};
   STAT_COLUMNS.forEach(({ field }) => {
@@ -211,7 +182,7 @@ function SeasonPlayersPage() {
   // Which pool to browse. Defaults to the portal once anyone has been marked (Mark Transfers); until then there is
   // nothing to filter to, so it starts on everyone.
   const [pool, setPool] = useState("all");
-  const [watchlist, toggleWatch] = useWatchlist(dynastyId);
+  const [watchlist, toggleWatch] = useWatchlist(`watchlist:${dynastyId}`);
   const [sort, setSort] = useState({ field: "overall", direction: "desc" });
   const [activePlayer, setActivePlayer] = useState(null);
   const [addedIds, setAddedIds] = useState(() => new Set());

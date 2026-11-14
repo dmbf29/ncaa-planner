@@ -5,6 +5,7 @@ import Card from "../components/Card";
 import MultiSelect from "../components/MultiSelect";
 import { fetchRecruitSigningTeams, fetchSeason, fetchSeasonRecruits, signRecruit } from "../lib/apiClient";
 import { formatHeight, parseHeight } from "../lib/height";
+import useWatchlist from "../lib/useWatchlist";
 
 // The pool is ~4,100 recruits, so only this many rows are painted at a time; "Show more" adds another page.
 const PAGE_SIZE = 100;
@@ -37,6 +38,7 @@ const emptyFilters = () => ({
   archetypes: [],
   pipelines: [],
   signing: "all",
+  pool: "all",
   minHeight: "",
   maxHeight: "",
   minWeight: "",
@@ -105,15 +107,32 @@ function Signing({ recruit, teams, onSign }) {
   );
 }
 
-function RecruitCard({ recruit, teams, onSign }) {
+function WatchStar({ watched, onToggle }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      title={watched ? "Remove from watchlist" : "Add to watchlist"}
+      aria-pressed={watched}
+      className={`text-lg leading-none ${watched ? "text-warning" : "text-textSecondary/40 hover:text-warning"}`}
+    >
+      {watched ? "★" : "☆"}
+    </button>
+  );
+}
+
+function RecruitCard({ recruit, teams, onSign, watched, onToggleWatch }) {
   const showSigning = teams != null;
   return (
     <div className="space-y-1 px-4 py-2.5">
       <div className="flex items-baseline justify-between gap-3">
-        <p className="min-w-0 truncate font-semibold text-textPrimary dark:text-white">
-          <span className="mr-1.5 text-textSecondary">#{recruit.rank}</span>
-          {recruit.name}
-        </p>
+        <div className="flex min-w-0 items-center gap-2">
+          <WatchStar watched={watched} onToggle={onToggleWatch} />
+          <p className="min-w-0 truncate font-semibold text-textPrimary dark:text-white">
+            <span className="mr-1.5 text-textSecondary">#{recruit.rank}</span>
+            {recruit.name}
+          </p>
+        </div>
         <span className="whitespace-nowrap text-sm font-semibold text-warning" title={`${recruit.stars} stars`}>{recruit.stars}★</span>
       </div>
       <p className="text-sm text-textSecondary">
@@ -142,6 +161,8 @@ function SeasonRecruitsPage() {
   const [weekNumber, setWeekNumber] = useState(null);
   const [notice, setNotice] = useState(null);
   const showSigning = teams != null;
+  // Recruit ranks are only stable within a class, so each season keeps its own list.
+  const [watchlist, toggleWatch] = useWatchlist(`recruit-watchlist:${dynastyId}:${seasonId}`);
 
   useEffect(() => {
     setLoading(true);
@@ -188,6 +209,7 @@ function SeasonRecruitsPage() {
       if (filters.states.length && !filters.states.includes(r.state)) return false;
       if (filters.archetypes.length && !filters.archetypes.includes(r.archetype)) return false;
       if (filters.pipelines.length && !filters.pipelines.includes(r.pipeline)) return false;
+      if (filters.pool === "watchlist" && !watchlist.has(r.rank)) return false;
       if (filters.signing === "available" && r.signedWith) return false;
       if (filters.signing === "signed" && !r.signedWith) return false;
       if (minHeight != null && (r.heightInches ?? -1) < minHeight) return false;
@@ -206,7 +228,7 @@ function SeasonRecruitsPage() {
       if (bv == null) return -1;
       return (typeof av === "string" ? av.localeCompare(bv) : av - bv) * dir;
     });
-  }, [recruits, filters, sort]);
+  }, [recruits, filters, sort, watchlist]);
 
   const toggleSort = (field) =>
     setSort((prev) =>
@@ -217,7 +239,7 @@ function SeasonRecruitsPage() {
 
   const shown = filtered.slice(0, shownCount);
   const activeFilterCount = Object.entries(filters).filter(([key, value]) =>
-    key === "signing" ? value !== "all" : Array.isArray(value) ? value.length > 0 : value !== "",
+    key === "signing" || key === "pool" ? value !== "all" : Array.isArray(value) ? value.length > 0 : value !== "",
   ).length;
 
   const sign = async (recruit, collegeId) => {
@@ -272,6 +294,13 @@ function SeasonRecruitsPage() {
                 <label className={`${labelClass} col-span-2 lg:col-span-1`}>
                   <span>Search name</span>
                   <input type="text" value={filters.search} onChange={(e) => setFilter("search", e.target.value)} placeholder="Recruit name" autoComplete="off" data-1p-ignore className={inputClass} />
+                </label>
+                <label className={`${labelClass} col-span-2 lg:col-span-1`}>
+                  <span>Show</span>
+                  <select value={filters.pool} onChange={(e) => setFilter("pool", e.target.value)} className={inputClass}>
+                    <option value="all">All recruits</option>
+                    <option value="watchlist">Watchlist ({watchlist.size.toLocaleString()})</option>
+                  </select>
                 </label>
                 {showSigning && (
                   <label className={`${labelClass} col-span-2 lg:col-span-1`}>
@@ -340,6 +369,7 @@ function SeasonRecruitsPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-xs uppercase tracking-wide text-textSecondary dark:border-darkborder">
+                    <th className="w-8 px-2 py-2" aria-label="Watchlist" />
                     <SortableTh label="Nat" field="rank" sort={sort} onSort={toggleSort} />
                     <SortableTh label="Name" field="name" sort={sort} onSort={toggleSort} />
                     <SortableTh label="Pos" field="position" sort={sort} onSort={toggleSort} />
@@ -357,6 +387,7 @@ function SeasonRecruitsPage() {
                 <tbody className="text-textPrimary dark:text-white">
                   {shown.map((recruit) => (
                     <tr key={recruit.rank} className="border-b border-border/60 last:border-0 dark:border-darkborder/60">
+                      <td className="px-2 py-2"><WatchStar watched={watchlist.has(recruit.rank)} onToggle={() => toggleWatch(recruit.rank)} /></td>
                       <td className="px-3 py-2 font-semibold tabular-nums">{recruit.rank}</td>
                       <td className="whitespace-nowrap px-3 py-2 font-semibold">{recruit.name}</td>
                       <td className="px-3 py-2">{recruit.position}</td>
@@ -377,7 +408,7 @@ function SeasonRecruitsPage() {
 
             <div className="divide-y divide-border/60 md:hidden dark:divide-darkborder/60">
               {shown.map((recruit) => (
-                <RecruitCard key={recruit.rank} recruit={recruit} teams={teams} onSign={sign} />
+                <RecruitCard key={recruit.rank} recruit={recruit} teams={teams} onSign={sign} watched={watchlist.has(recruit.rank)} onToggleWatch={() => toggleWatch(recruit.rank)} />
               ))}
             </div>
 
