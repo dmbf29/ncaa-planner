@@ -24,6 +24,8 @@ module RecruitmentTrail
   # warning rather than aborting the batch, mirroring the other
   # CommitServices.
   class CommitService
+    ATHLETE = "ATH".freeze
+
     def initialize(college_season, week)
       @college_season = college_season
       @week = week
@@ -45,10 +47,9 @@ module RecruitmentTrail
     def commit_row(row)
       return if row[:last_name].blank? || row[:position].blank?
 
-      recruit = @college_season.signed_recruits.find_or_initialize_by(
-        last_name: row[:last_name], position: row[:position], state: row[:state].presence
-      )
+      recruit = find_or_build_recruit(row)
       recruit.week = @week if recruit.new_record?
+      recruit.position = row[:position] unless row[:position] == ATHLETE # never back to "ATH" once placed
       recruit.first_name = row[:first_name] if row[:first_name].present? || recruit.first_name.blank?
       recruit.star_rating = row[:star_rating]
       recruit.nil_amount = row[:nil_amount]
@@ -59,6 +60,17 @@ module RecruitmentTrail
       recruit.transfer = row[:transfer] unless row[:transfer].nil?
       assign_student(recruit, row) if recruit.transfer
       recruit.save!
+    end
+
+    # A recruit marked signed from the recruit pool has the pool's position, usually "ATH" (undecided); the
+    # signing screen later shows the position the coach placed them at. Same last name, state and national
+    # rank is the same person, so that updates the row instead of adding a second one.
+    def find_or_build_recruit(row)
+      signed = @college_season.signed_recruits
+      state = row[:state].presence
+      signed.find_by(last_name: row[:last_name], position: row[:position], state: state) ||
+        (signed.find_by(last_name: row[:last_name], state: state, national_rank: row[:national_rank]) if row[:national_rank].present?) ||
+        signed.new(last_name: row[:last_name], position: row[:position], state: state)
     end
 
     # The reviewer's choice wins whenever the row carries one (including an

@@ -39,6 +39,7 @@ import ScheduleLinksPage from "./pages/ScheduleLinksPage";
 import CoachSchedulePage from "./pages/CoachSchedulePage";
 import RecruitingUpdatePage from "./pages/RecruitingUpdatePage";
 import RecruitmentTrailUpdatePage from "./pages/RecruitmentTrailUpdatePage";
+import RecruitSearchPage from "./pages/RecruitSearchPage";
 import SignedRecruitOverallsPage from "./pages/SignedRecruitOverallsPage";
 import SeasonCoachesPage from "./pages/SeasonCoachesPage";
 import TeamAttributesPage from "./pages/TeamAttributesPage";
@@ -97,6 +98,7 @@ function App() {
         <Route path="/dynasty/updates/scheduling/:collegeSeasonId" element={<SchedulingTeamPage />} />
         <Route path="/dynasty/updates/recruiting" element={<RecruitingUpdatePage />} />
         <Route path="/dynasty/updates/recruitment-trail" element={<RecruitmentTrailUpdatePage />} />
+        <Route path="/dynasty/updates/recruits" element={<RecruitSearchPage />} />
         <Route path="/dynasty/updates/recruit-overalls" element={<SignedRecruitOverallsPage />} />
         <Route path="/dynasty/updates/portal-preview" element={<PortalPreviewUpdatePage />} />
         <Route path="/dynasty/updates/mark-transfers" element={<MarkTransfersUpdatePage />} />
