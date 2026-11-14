@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_11_14_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_11_14_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -718,7 +718,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_11_14_120000) do
     t.string "archetype"
     t.integer "height_inches"
     t.integer "weight_lbs"
+    t.string "dynasty_rewired_player_id"
     t.index ["college_season_id"], name: "index_student_seasons_on_college_season_id"
+    t.index ["dynasty_rewired_player_id"], name: "index_student_seasons_on_dynasty_rewired_player_id"
     t.index ["student_id", "college_season_id"], name: "index_student_seasons_on_student_id_and_college_season_id", unique: true
     t.index ["student_id"], name: "index_student_seasons_on_student_id"
   end

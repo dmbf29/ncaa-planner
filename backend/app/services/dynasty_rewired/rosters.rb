@@ -1,6 +1,6 @@
 module DynastyRewired
   # Imports a school's roster from Dynasty Rewired's roster capture: players already on the roster get their
-  # ratings, height and weight refreshed, and players the roster doesn't have yet are created. That is the
+  # ratings, height and weight refreshed (and Dynasty Rewired's player id saved, which its transfer portal data uses), and players the roster doesn't have yet are created. That is the
   # whole start-of-season import (every roster starts empty) as well as the in-season refresh. Players are
   # matched to roster spots by name; anyone who matches more than one player is listed instead of guessed.
   #
@@ -33,7 +33,8 @@ module DynastyRewired
       awareness: ->(p) { p.dig("ratings", "PAWR") },
       height_inches: ->(p) { p["heightInches"] },
       weight_lbs: ->(p) { p["weightPounds"] },
-      ratings: ->(p) { p["ratings"].presence }
+      ratings: ->(p) { p["ratings"].presence },
+      dynasty_rewired_player_id: ->(p) { p["playerId"]&.to_s }
     }.freeze
 
     # updates: [{ student_season:, changes: }]; creates: [{ player:, name:, position:, class_year:, student:, from: }];
