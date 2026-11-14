@@ -108,27 +108,22 @@ function Signing({ recruit, teams, onSign }) {
 function RecruitCard({ recruit, teams, onSign }) {
   const showSigning = teams != null;
   return (
-    <div className="space-y-2 px-4 py-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="font-semibold text-textPrimary dark:text-white">
-            <span className="mr-2 text-textSecondary">#{recruit.rank}</span>
-            {recruit.name}
-          </p>
-          <p className="text-sm text-textSecondary">
-            {recruit.position}
-            {recruit.archetype ? ` · ${recruit.archetype}` : ""}
-          </p>
-        </div>
-        <Stars count={recruit.stars} />
+    <div className="space-y-1 px-4 py-2.5">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="min-w-0 truncate font-semibold text-textPrimary dark:text-white">
+          <span className="mr-1.5 text-textSecondary">#{recruit.rank}</span>
+          {recruit.name}
+        </p>
+        <span className="whitespace-nowrap text-sm font-semibold text-warning" title={`${recruit.stars} stars`}>{recruit.stars}★</span>
       </div>
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-textSecondary">
-        <div><dt className="inline font-semibold">From </dt><dd className="inline">{recruit.hometown}, {recruit.state}</dd></div>
-        <div><dt className="inline font-semibold">Pipeline </dt><dd className="inline">{recruit.pipeline}</dd></div>
-        <div><dt className="inline font-semibold">Ht / Wt </dt><dd className="inline">{formatHeight(recruit.heightInches)} · {recruit.weightLbs ?? "—"}</dd></div>
-        <div><dt className="inline font-semibold">Rank </dt><dd className="inline">St {recruit.stateRank} · Pos {recruit.positionRank}</dd></div>
-      </dl>
-      {showSigning && <Signing recruit={recruit} teams={teams} onSign={onSign} />}
+      <p className="text-sm text-textSecondary">
+        {recruit.position}
+        {recruit.archetype ? ` · ${recruit.archetype}` : ""}
+      </p>
+      <p className="text-xs text-textSecondary">
+        {formatHeight(recruit.heightInches)} · {recruit.weightLbs ?? "—"} · {recruit.pipeline} · St {recruit.stateRank} · Pos {recruit.positionRank}
+      </p>
+      {showSigning && <div className="pt-1"><Signing recruit={recruit} teams={teams} onSign={onSign} /></div>}
     </div>
   );
 }
