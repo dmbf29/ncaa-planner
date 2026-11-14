@@ -36,6 +36,12 @@ module DynastyRewired
       get("leagues/#{league_id}/seasons/#{year}/rankings")["data"]
     end
 
+    # The recruiting captures: weekly class rankings (`top_classes`) and the recruit pool (`all_recruits`,
+    # about 1 MB).
+    def recruiting(year)
+      get("leagues/#{league_id}/seasons/#{year}/recruiting")["data"]["captures"]
+    end
+
     # Every box score for the season, following the `next` cursor; each page is a few MB.
     def box_scores(year)
       games = []

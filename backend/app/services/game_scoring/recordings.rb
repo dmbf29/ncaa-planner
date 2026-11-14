@@ -25,7 +25,7 @@ module GameScoring
 
         id = recording_id(path)
         { id: id, channel: id.split("/").first, teams: report["teams"], plays: report["scoring"].size,
-          verified: verified?(report), final_score: report["last_score"] }
+          verified: verified?(report), final_score: report["scoring"].last&.dig("score") }
       end
     end
 
@@ -58,22 +58,29 @@ module GameScoring
       end
     end
 
-    # true: scoreboard left = home team, false: left = away team, nil: this recording isn't of this game.
+    # true: scoreboard left = home team, false: left = away team, nil: this recording isn't of this game. The last
+    # scoreboard reading can be stale or misread (27-17 when the game ended 27-24), so the score after the last
+    # scoring play counts too.
     def orientation(report)
+      return nil unless final_scores
+
+      scoreboard_pairs(report).each do |pair|
+        return true if pair == final_scores
+        return false if pair == final_scores.reverse
+      end
+      nil
+    end
+
+    def scoreboard_pairs(report)
       last = report["last_score"]
-      return nil unless last && final_scores
-
-      pair = [ last["left"], last["right"] ]
-      return true if pair == final_scores
-
-      false if pair == final_scores.reverse
+      [ last && [ last["left"], last["right"] ], report["scoring"].last&.dig("score") ].compact
     end
 
     def verified?(report)
       last_play = report["scoring"].last
       return false unless last_play
 
-      last_play["score"] == [ report["last_score"]["left"], report["last_score"]["right"] ]
+      [ final_scores, final_scores.reverse ].include?(last_play["score"])
     end
 
     def recording_id(path)

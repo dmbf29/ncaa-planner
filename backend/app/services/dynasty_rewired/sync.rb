@@ -7,8 +7,9 @@ module DynastyRewired
   #   results    - final scores for every game of each week, bowls included (the CPU games' only data)
   #   box_scores - team and player stats for games with a box score (user-team games)
   #   rankings   - the Top 25 for the week: media poll before CFP_FIRST_WEEK, the CFP poll from then on
+  #   recruiting - the national recruiting class rankings, kept current until the class is finalized
   class Sync
-    SECTIONS = %w[results box_scores rankings].freeze
+    SECTIONS = %w[results box_scores rankings recruiting].freeze
     CFP_FIRST_WEEK = 10
 
     def initialize(season, client: Client.new)
@@ -22,7 +23,8 @@ module DynastyRewired
         stage: plan[:stage],
         results: results_json,
         box_scores: box_scores_json,
-        rankings: rankings_json
+        rankings: rankings_json,
+        recruiting: recruiting_json
       }
     end
 
@@ -33,6 +35,7 @@ module DynastyRewired
       saved[:results] = apply_results if sections.include?("results")
       saved[:box_scores] = apply_box_scores if sections.include?("box_scores")
       saved[:rankings] = apply_rankings if sections.include?("rankings")
+      saved[:recruiting] = apply_recruiting if sections.include?("recruiting")
       @plan = nil
       saved
     end
@@ -47,7 +50,8 @@ module DynastyRewired
           stage: schedule.dig("currentStage", "label"),
           results: week_results(schedule, colleges),
           box_scores: box_score_plans(@client.box_scores(@season.year), colleges),
-          rankings: ranking_plans(@client.rankings(@season.year), colleges)
+          rankings: ranking_plans(@client.rankings(@season.year), colleges),
+          recruiting: ClassRankings.new(@client.recruiting(@season.year), season: @season, colleges: colleges).call
         }
       end
     end
@@ -147,6 +151,21 @@ module DynastyRewired
       end
     end
 
+    def recruiting_json
+      result = plan[:recruiting]
+      by_status = result.rows.group_by { |row| row[:status] }
+      {
+        stage: result.stage,
+        class_year: result.class_year,
+        finalized: result.finalized,
+        new: Array(by_status[:new]).size,
+        changed: Array(by_status[:changed]).size,
+        same: Array(by_status[:same]).size,
+        top: result.rows.sort_by { |row| row[:entry]["rank"] }.first(5).map { |row| "#{row[:entry]['rank']}. #{row[:college].name}" },
+        unmatched_schools: result.unmatched
+      }
+    end
+
     def apply_results
       rows = plan[:results].flat_map(&:new_scores)
       WeekResults.commit(rows)
@@ -163,6 +182,10 @@ module DynastyRewired
         )
       end
       imports.size
+    end
+
+    def apply_recruiting
+      ClassRankings.commit(@season, plan[:recruiting].rows)
     end
 
     def apply_rankings

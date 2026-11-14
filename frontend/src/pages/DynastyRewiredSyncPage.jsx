@@ -16,6 +16,7 @@ const SECTION_NOUNS = {
   results: ["game score", "game scores"],
   boxScores: ["box score", "box scores"],
   rankings: ["Top 25", "Top 25s"],
+  recruiting: ["class ranking", "class rankings"],
 };
 
 const plural = (count, [one, many]) => `${count} ${count === 1 ? one : many}`;
@@ -214,10 +215,35 @@ function RostersSection({ dynastyId, seasonId }) {
   );
 }
 
+function RecruitingSection({ recruiting, checked, onToggle }) {
+  const count = recruiting.new + recruiting.changed;
+  return (
+    <SectionCard
+      title="Recruiting classes"
+      hint="National class rankings for every school: rank, points, commits and star counts. NIL spent is never changed."
+      count={count}
+      checked={checked}
+      onToggle={onToggle}
+    >
+      <p className="text-sm text-textPrimary dark:text-white">
+        <span className="font-semibold">{recruiting.classYear} class</span>
+        <span className="text-textSecondary">
+          {" "}· as of {recruiting.stage || "the latest capture"}{recruiting.finalized ? "" : ", not final yet"}
+          {recruiting.new > 0 && ` · ${recruiting.new} not saved yet`}
+          {recruiting.changed > 0 && ` · ${recruiting.changed} changed since you saved them`}
+          {recruiting.same > 0 && ` · ${recruiting.same} up to date`}
+        </span>
+      </p>
+      {recruiting.new > 0 && recruiting.top?.length > 0 && <p className="text-xs text-textSecondary">{recruiting.top.join("  ")} …</p>}
+      {recruiting.unmatchedSchools?.length > 0 && <Warning>Schools not in your list, skipped: {recruiting.unmatchedSchools.join(", ")}.</Warning>}
+    </SectionCard>
+  );
+}
+
 function DynastyRewiredSyncPage() {
   const { dynastyId, seasonId, year, error: seasonError } = useLatestSeason();
   const [preview, setPreview] = useState(null);
-  const [checked, setChecked] = useState({ results: false, boxScores: false, rankings: false });
+  const [checked, setChecked] = useState({ results: false, boxScores: false, rankings: false, recruiting: false });
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState(null);
@@ -229,6 +255,7 @@ function DynastyRewiredSyncPage() {
       results: next.results.newGames > 0,
       boxScores: next.boxScores.new.length > 0,
       rankings: next.rankings.some((item) => item.status === "new"),
+      recruiting: next.recruiting.new + next.recruiting.changed > 0,
     });
   };
 
@@ -249,7 +276,7 @@ function DynastyRewiredSyncPage() {
   }, [dynastyId, check]);
 
   const importSelected = async () => {
-    const sections = Object.entries({ results: "results", boxScores: "box_scores", rankings: "rankings" })
+    const sections = Object.entries({ results: "results", boxScores: "box_scores", rankings: "rankings", recruiting: "recruiting" })
       .filter(([key]) => checked[key])
       .map(([, name]) => name);
     setImporting(true);
@@ -261,6 +288,7 @@ function DynastyRewiredSyncPage() {
           saved.results != null && `${plural(saved.results, ["game", "games"])} of scores`,
           saved.boxScores != null && plural(saved.boxScores, SECTION_NOUNS.boxScores),
           saved.rankings != null && plural(saved.rankings, SECTION_NOUNS.rankings),
+          saved.recruiting != null && plural(saved.recruiting, SECTION_NOUNS.recruiting),
         ]
           .filter(Boolean)
           .join(", "),
@@ -320,6 +348,7 @@ function DynastyRewiredSyncPage() {
             checked={checked.rankings}
             onToggle={() => setChecked((c) => ({ ...c, rankings: !c.rankings }))}
           />
+          <RecruitingSection recruiting={preview.recruiting} checked={checked.recruiting} onToggle={() => setChecked((c) => ({ ...c, recruiting: !c.recruiting }))} />
 
           <div className="flex justify-end">
             <button

@@ -109,7 +109,7 @@ function SortableTh({ label, field, sort, onSort, align = "left", sticky = false
           active ? "text-textPrimary dark:text-white" : ""
         }`}
       >
-        {label}
+        <span className="whitespace-nowrap">{label}</span>
         {active && <span className="text-[10px]">{sort.direction === "asc" ? "▲" : "▼"}</span>}
       </button>
     </th>
@@ -157,7 +157,7 @@ const RATING_LABELS = {
 
 // "throwAccuracyShort" -> "Throw Accuracy Short" for anything not in the table above
 const ratingLabel = (key) =>
-  RATING_LABELS[key] ?? key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
+  RATING_LABELS[key] ?? (/^[A-Z0-9]+$/.test(key) ? key : key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()));
 
 // Players pulled onto a squad board from here are portal/scouting targets on
 // someone else's team, so they land as recruits tagged with this flag.
