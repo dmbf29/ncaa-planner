@@ -660,12 +660,12 @@ export const fetchDynastyRewiredSync = (dynastyId, seasonId) =>
 export const runDynastyRewiredSync = (dynastyId, seasonId, sections) =>
   api.post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/dynasty_rewired_sync`, { sections }).then((r) => r.data);
 
-// Roster ratings from Dynasty Rewired, one school per request (a school is one API call).
+// Rosters from Dynasty Rewired, one school per request (a school is one API call): `apply` false checks, true saves.
 export const fetchDynastyRewiredRosterSchools = (dynastyId, seasonId) =>
   api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/dynasty_rewired_roster`).then((r) => r.data);
 
-export const refreshDynastyRewiredRoster = (dynastyId, seasonId, school, teamId) =>
-  api.post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/dynasty_rewired_roster`, { school, teamId }).then((r) => r.data);
+export const refreshDynastyRewiredRoster = (dynastyId, seasonId, school, teamId, apply) =>
+  api.post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/dynasty_rewired_roster`, { school, teamId, apply }).then((r) => r.data);
 
 // The season's recruit pool from Dynasty Rewired: public to browse; the signed-in owner can mark a recruit signed.
 export const fetchSeasonRecruits = (dynastyId, seasonId) =>

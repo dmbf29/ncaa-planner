@@ -135,7 +135,7 @@ function RostersSection({ dynastyId, seasonId }) {
   const [schools, setSchools] = useState(null);
   const [choice, setChoice] = useState("all");
   const [progress, setProgress] = useState(null);
-  const [summary, setSummary] = useState(null);
+  const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const running = progress !== null;
 
@@ -146,27 +146,34 @@ function RostersSection({ dynastyId, seasonId }) {
       .catch((err) => setError(err.message));
   }, [dynastyId, seasonId]);
 
-  const refresh = async () => {
-    const targets = choice === "all" ? schools : schools.filter((school) => school.name === choice);
-    const totals = { updated: 0, unchanged: 0, unmatched: [], missing: [] };
+  const targets = () => (choice === "all" ? schools : schools.filter((school) => school.name === choice));
+
+  // One request per school: checking it only reads, importing it saves. Importing right after checking reuses
+  // the roster the server just fetched, so it doesn't call Dynasty Rewired again.
+  const run = async (apply) => {
+    const list = targets();
+    const totals = { applied: apply, schools: list.length, updated: 0, unchanged: 0, created: [], skipped: [], missing: [] };
     setError(null);
-    setSummary(null);
+    if (!apply) setResult(null);
     try {
-      for (const [index, school] of targets.entries()) {
-        setProgress({ done: index, total: targets.length, name: school.name });
-        const result = await refreshDynastyRewiredRoster(dynastyId, seasonId, school.name, school.teamId);
-        totals.updated += result.updated;
-        totals.unchanged += result.unchanged;
-        result.unmatched.forEach((name) => totals.unmatched.push(`${name} (${school.name})`));
-        result.missing.forEach((name) => totals.missing.push(`${name} (${school.name})`));
+      for (const [index, school] of list.entries()) {
+        setProgress({ done: index, total: list.length, name: school.name });
+        const data = await refreshDynastyRewiredRoster(dynastyId, seasonId, school.name, school.teamId, apply);
+        totals.updated += data.updated;
+        totals.unchanged += data.unchanged;
+        data.created.forEach((player) => totals.created.push({ ...player, school: school.name }));
+        data.skipped.forEach((player) => totals.skipped.push(`${player.name} (${school.name}: ${player.reason})`));
+        data.missing.forEach((name) => totals.missing.push(`${name} (${school.name})`));
       }
-      setSummary({ ...totals, schools: targets.length });
+      setResult(totals);
     } catch (err) {
-      setError(`${err.message}${totals.updated ? ` Stopped after saving ${plural(totals.updated, ["player", "players"])}.` : ""}`);
+      setError(`${err.message}${apply && totals.updated + totals.created.length ? ` Stopped after saving ${plural(totals.updated + totals.created.length, ["player", "players"])}.` : ""}`);
     } finally {
       setProgress(null);
     }
   };
+
+  const changes = result ? result.updated + result.created.length : 0;
 
   return (
     <Card>
@@ -174,14 +181,15 @@ function RostersSection({ dynastyId, seasonId }) {
         <div>
           <h3 className="font-varsity text-lg uppercase tracking-[0.06em] text-charcoal dark:text-white">Rosters</h3>
           <p className="text-sm text-textSecondary">
-            Refreshes ratings, height and weight for players already on a roster, matched by name. Positions and class years are never
-            changed and nobody is added. Saves as it goes; all schools takes about 4 minutes.
+            Updates ratings, height and weight for players on a roster and adds players it doesn&rsquo;t have yet, with their position.
+            Returning players are linked to last season&rsquo;s record. Existing positions and class years are never changed. Check first;
+            all schools takes about 4 minutes.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <select
             value={choice}
-            onChange={(event) => setChoice(event.target.value)}
+            onChange={(event) => { setChoice(event.target.value); setResult(null); }}
             disabled={!schools || running}
             className="rounded-md border border-border bg-transparent px-3 py-2 text-sm text-charcoal dark:border-darkborder dark:text-white"
           >
@@ -192,22 +200,45 @@ function RostersSection({ dynastyId, seasonId }) {
           </select>
           <button
             type="button"
-            onClick={refresh}
+            onClick={() => run(false)}
             disabled={!schools || running}
-            className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-charcoal transition hover:bg-border/30 disabled:cursor-not-allowed disabled:opacity-60 dark:border-darkborder dark:text-white dark:hover:bg-white/10"
           >
-            {running ? "Refreshing..." : "Refresh ratings"}
+            {running && !result?.applied ? "Checking..." : "Check rosters"}
           </button>
+          {result && !result.applied && changes > 0 && (
+            <button
+              type="button"
+              onClick={() => run(true)}
+              disabled={running}
+              className="rounded-md bg-burnt px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {running ? "Importing..." : `Import ${plural(changes, ["player", "players"])}`}
+            </button>
+          )}
           {running && <span className="text-sm text-textSecondary">{progress.done + 1} of {progress.total}: {progress.name}</span>}
         </div>
         {error && <p className="text-sm text-danger">{error}</p>}
-        {summary && (
+        {result && (
           <div className="space-y-2">
-            <p className="rounded-md bg-success/10 px-3 py-2 text-sm text-success">
-              Refreshed {plural(summary.schools, ["school", "schools"])}: {plural(summary.updated, ["player", "players"])} updated, {summary.unchanged} already up to date.
+            <p className={`rounded-md px-3 py-2 text-sm ${result.applied ? "bg-success/10 text-success" : "bg-border/40 text-textPrimary dark:text-white"}`}>
+              {result.applied ? "Imported" : "Checked"} {plural(result.schools, ["school", "schools"])}: {plural(result.updated, ["player", "players"])} {result.applied ? "updated" : "to update"},{" "}
+              {result.created.length} {result.applied ? "added" : "to add"}, {result.unchanged} already up to date.
             </p>
-            {summary.unmatched.length > 0 && <Warning>In Dynasty Rewired but not on your roster (skipped): {summary.unmatched.join(", ")}.</Warning>}
-            {summary.missing.length > 0 && <Warning>On your roster but not in Dynasty Rewired (check the spelling): {summary.missing.join(", ")}.</Warning>}
+            {result.created.length > 0 && (
+              <details className="text-sm text-textPrimary dark:text-white">
+                <summary className="cursor-pointer font-semibold">{result.applied ? "Added" : "Will add"} ({result.created.length})</summary>
+                <ul className="mt-1 space-y-0.5 text-textSecondary">
+                  {result.created.map((player) => (
+                    <li key={`${player.school}-${player.name}`}>
+                      {player.name} · {player.position} {player.classYear} · {player.school}{player.from ? ` (from ${player.from})` : " (new player)"}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+            {result.skipped.length > 0 && <Warning>Skipped, needs a look: {result.skipped.join("; ")}.</Warning>}
+            {result.missing.length > 0 && <Warning>On your roster but not in Dynasty Rewired (check the spelling): {result.missing.join(", ")}.</Warning>}
           </div>
         )}
       </div>

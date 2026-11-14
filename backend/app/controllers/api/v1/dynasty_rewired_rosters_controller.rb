@@ -1,8 +1,8 @@
 module Api
   module V1
-    # Refreshes player ratings from Dynasty Rewired's roster captures, one school per request since a
-    # school is one API call and a whole season would outlast a web request (see DynastyRewired::Rosters).
-    # #show lists the schools; #create refreshes the one named.
+    # Imports rosters from Dynasty Rewired's roster captures, one school per request since a school is one API
+    # call and a whole season would outlast a web request (see DynastyRewired::Rosters). #show lists the
+    # schools; #create checks the one named, or saves it when `apply` is true.
     class DynastyRewiredRostersController < BaseController
       skip_after_action :verify_policy_scoped
       skip_after_action :verify_authorized
@@ -18,12 +18,15 @@ module Api
       def create
         return render json: { error: "team_id must be the numeric id from the school list" }, status: :unprocessable_entity unless params[:team_id].to_s.match?(/\A\d+\z/)
 
-        school = DynastyRewired::Rosters.new(@season).refresh(name: params[:school], team_id: params[:team_id], apply: true)
+        apply = ActiveModel::Type::Boolean.new.cast(params[:apply])
+        school = DynastyRewired::Rosters.new(@season).refresh(name: params[:school], team_id: params[:team_id], apply: apply)
         render json: {
           school: school.name,
+          applied: apply,
           updated: school.updates.size,
           unchanged: school.unchanged,
-          unmatched: school.unmatched,
+          created: school.creates.map { |creation| creation.slice(:name, :position, :class_year, :from) },
+          skipped: school.skipped,
           missing: school.missing
         }
       rescue DynastyRewired::Client::Error => e
