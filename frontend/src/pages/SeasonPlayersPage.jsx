@@ -7,6 +7,7 @@ import MultiSelect from "../components/MultiSelect";
 import OverallBadge from "../components/OverallBadge";
 import AddToSquadModal from "../components/AddToSquadModal";
 import { API_BASE_URL, fetchDynastyPortal, fetchFlags, fetchSeasonStudentSeasons } from "../lib/apiClient";
+import { formatHeight, parseHeight } from "../lib/height";
 
 // The full season pool is ~11k players — never render all of them. Filters
 // narrow it down; this is just the ceiling on how many rows we paint.
@@ -75,18 +76,6 @@ const ARCHETYPE_ABBREVIATIONS = {
   "Route Artist": "Route Art",
 };
 const shortArchetype = (name) => ARCHETYPE_ABBREVIATIONS[name] ?? name;
-
-const formatHeight = (inches) => (inches == null ? "—" : `${Math.floor(inches / 12)}'${inches % 12}"`);
-
-// Accepts 6'2, 6'2", 6-2, 6 2 or plain inches (74); returns inches or null when blank/unparseable.
-function parseHeight(text) {
-  const t = text.trim();
-  if (!t) return null;
-  const ftIn = t.match(/^(\d)\s*['\-\s]\s*(\d{1,2})?\s*"?$/);
-  if (ftIn) return Number(ftIn[1]) * 12 + Number(ftIn[2] ?? 0);
-  const n = Number(t);
-  return Number.isFinite(n) ? n : null;
-}
 
 function sortValueFor(player, field) {
   if (field === "team") return player.team;

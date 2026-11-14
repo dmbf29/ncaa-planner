@@ -1,6 +1,6 @@
 module DynastyRewired
   # The season's recruit pool (Dynasty Rewired's `all_recruits` capture, about 4,100 recruits taken once a
-  # season) for searching and for filling in a signed recruit's details. It isn't saved: the parsed pool is
+  # season) for the public Recruits page and for filling in a signed recruit's details. It isn't saved: the parsed pool is
   # cached for a few hours (per server), so a page load doesn't re-download ~1 MB or spend API calls.
   #
   # The API says who a recruit is, not where they signed, so signing is still recorded here (see #match
@@ -15,24 +15,12 @@ module DynastyRewired
     end
 
     def all
-      Rails.cache.fetch("dynasty_rewired/recruit_pool/#{@season.year}", expires_in: CACHE_TTL) { load }
+      Rails.cache.fetch("dynasty_rewired/recruit_pool/#{@season.year}", expires_in: CACHE_TTL, race_condition_ttl: 30.seconds) { load }
     end
 
     def refresh
       Rails.cache.delete("dynasty_rewired/recruit_pool/#{@season.year}")
       all
-    end
-
-    # Filters are exact except `query` (a name fragment, accent- and punctuation-insensitive).
-    def search(query: nil, position: nil, stars: nil, state: nil, archetype: nil)
-      key = self.class.normalize(query)
-      all.select do |recruit|
-        (key.blank? || recruit[:search_name].include?(key)) &&
-          (position.blank? || recruit[:position] == position) &&
-          (stars.blank? || recruit[:stars] == stars.to_i) &&
-          (state.blank? || recruit[:state] == state) &&
-          (archetype.blank? || recruit[:archetype] == archetype)
-      end
     end
 
     def find(rank)

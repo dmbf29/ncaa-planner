@@ -82,6 +82,20 @@ module Api
         render json: ::SeasonStudentSeasonsSerializer.new(set_season).as_json
       end
 
+      # The season's recruit pool from Dynasty Rewired (cached, see DynastyRewired::RecruitPool), each
+      # recruit tagged with the coached team they signed with once one has been recorded.
+      def recruits
+        season = set_season
+        signed = SignedRecruit.joins(college_season: :college)
+                              .where(college_seasons: { season_id: season.id }, transfer: false)
+                              .where.not(national_rank: nil)
+                              .pluck(:national_rank, "colleges.name").to_h
+        recruits = DynastyRewired::RecruitPool.new(season).all.map { |recruit| recruit.except(:search_name).merge(signed_with: signed[recruit[:rank]]) }
+        render json: { season: { id: season.id, year: season.year }, recruits: recruits }
+      rescue DynastyRewired::Client::Error => e
+        render json: { error: e.message, code: "dynasty_rewired_error" }, status: :bad_gateway
+      end
+
       private
 
       def set_season

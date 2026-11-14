@@ -81,6 +81,7 @@ function TopNav() {
       { label: "Rivals", to: `${dynastyPath}/rivals` },
         seasonPath && { label: "Team Ratings", to: `${seasonPath}/team-ratings` },
         seasonPath && { label: "All Players", to: `${seasonPath}/players` },
+        seasonPath && { label: "Recruits", to: `${seasonPath}/recruits` },
         isOwner && { label: "Dynasty Updates", to: "/dynasty/updates" },
         isOwner && { label: "Export", to: "/dynasty/export" },
       ].filter(Boolean)

@@ -667,9 +667,12 @@ export const fetchDynastyRewiredRosterSchools = (dynastyId, seasonId) =>
 export const refreshDynastyRewiredRoster = (dynastyId, seasonId, school, teamId) =>
   api.post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/dynasty_rewired_roster`, { school, teamId }).then((r) => r.data);
 
-// The season's recruit pool from Dynasty Rewired: search it, and mark a recruit as signed with a coached team.
-export const fetchRecruitPool = (dynastyId, seasonId, params) =>
-  api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/recruit_pool`, { params }).then((r) => r.data);
+// The season's recruit pool from Dynasty Rewired: public to browse; the signed-in owner can mark a recruit signed.
+export const fetchSeasonRecruits = (dynastyId, seasonId) =>
+  api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/recruits`).then((r) => r.data);
+
+export const fetchRecruitSigningTeams = (dynastyId, seasonId) =>
+  api.get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/recruit_pool`).then((r) => r.data);
 
 export const signRecruit = (dynastyId, seasonId, rank, collegeId, weekNumber) =>
   api.post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/recruit_pool/sign`, { rank, collegeId, weekNumber }).then((r) => r.data);
