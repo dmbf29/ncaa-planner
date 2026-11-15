@@ -41,4 +41,38 @@ namespace :youtube do
     video = Youtube::Uploader.new(game, File.expand_path(args.fetch(:path)), title: args[:title], twitch_vod_id: ENV["TWITCH_VOD"]).call
     puts "Uploaded https://youtu.be/#{video.source} and attached it to game #{game.id}"
   end
+
+  desc "Upload the stream recording behind every game's scoring summary that has no video yet, oldest week first. " \
+       "Recordings are remuxed from .ts to .mp4 (no re-encode) in a temp dir. Re-run it to resume: it stops cleanly " \
+       "when YouTube's daily upload quota runs out (about 6 videos on the default quota). DRY_RUN=1 only lists; LIMIT=<n> caps the count."
+  task upload_scored: :environment do
+    streams = Rails.root.join("..", "streams").expand_path
+    games = Game.where.not(scoring_summary: nil).includes(:home_college, :away_college, :game_videos, week: :season)
+                .reject { |game| game.game_videos.any? }
+                .sort_by { |game| [ game.week.season.year, game.week.number, game.id ] }
+    games = games.first(ENV["LIMIT"].to_i) if ENV["LIMIT"].present?
+
+    games.each do |game|
+      source = streams.join("#{game.scoring_summary["source"]}.ts")
+      label = "#{game.id} #{game.away_college.name} at #{game.home_college.name} (#{game.week.season.year} wk #{game.week.number})"
+      unless source.file?
+        puts "SKIP #{label}: no recording at #{source}"
+        next
+      end
+      if ENV["DRY_RUN"].present?
+        puts "WOULD UPLOAD #{label}: #{source.basename} #{(source.size / 1e9).round(2)} GB"
+        next
+      end
+
+      Dir.mktmpdir("youtube-upload") do |dir|
+        mp4 = File.join(dir, "game.mp4")
+        system("ffmpeg", "-v", "error", "-y", "-i", source.to_s, "-c", "copy", "-movflags", "+faststart", mp4) || abort("ffmpeg failed on #{label}")
+        video = Youtube::Uploader.new(game, mp4).call
+        puts "UPLOADED #{label}: https://youtu.be/#{video.source}"
+      end
+    rescue Google::Apis::ClientError, Google::Apis::RateLimitError => e
+      abort "Stopped at #{label}: #{e.message.lines.first&.strip}. Run again after the quota resets (midnight Pacific)." if e.message.match?(/quota|uploadLimitExceeded/i)
+      raise
+    end
+  end
 end
