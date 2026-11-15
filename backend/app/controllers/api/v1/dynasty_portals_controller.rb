@@ -78,6 +78,10 @@ module Api
         render json: ::WeekGamesSerializer.new(week).as_json
       end
 
+      def videos
+        render json: ::DynastyVideosSerializer.new(Dynasty.find(params[:dynasty_id])).as_json
+      end
+
       def student_seasons
         render json: ::SeasonStudentSeasonsSerializer.new(set_season).as_json
       end

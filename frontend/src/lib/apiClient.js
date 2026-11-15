@@ -188,6 +188,9 @@ export const fetchSigningClass = (dynastyId, seasonId, collegeSeasonId) =>
     .get(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/college_seasons/${collegeSeasonId}/signing_class`)
     .then((r) => r.data);
 
+export const fetchDynastyVideos = (dynastyId) =>
+  api.get(`/api/v1/dynasties/${dynastyId}/videos`).then((r) => r.data);
+
 export const fetchRivals = (dynastyId) => api.get(`/api/v1/dynasties/${dynastyId}/rivals`).then((r) => r.data);
 
 export const fetchDynastyTeams = (dynastyId) =>

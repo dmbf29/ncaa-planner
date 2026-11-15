@@ -78,6 +78,7 @@ function TopNav() {
 
   const dynastyLinks = inDynasty
     ? [
+      { label: "Watch", to: `${dynastyPath}/watch` },
       { label: "Rivals", to: `${dynastyPath}/rivals` },
         seasonPath && { label: "Team Ratings", to: `${seasonPath}/team-ratings` },
         seasonPath && { label: "All Players", to: `${seasonPath}/players` },

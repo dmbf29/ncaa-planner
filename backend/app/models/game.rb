@@ -14,6 +14,7 @@ class Game < ApplicationRecord
   has_many :college_game_stats, dependent: :destroy
   has_many :student_game_stats, dependent: :destroy
   has_many :injuries, dependent: :destroy
+  has_many :game_videos, dependent: :destroy
   belongs_to :offensive_player_of_game, class_name: "StudentSeason", optional: true
   belongs_to :defensive_player_of_game, class_name: "StudentSeason", optional: true
   has_many_attached :box_score_screenshots

@@ -48,6 +48,7 @@ import TeamRatingsPage from "./pages/TeamRatingsPage";
 import BowlProjectionsUpdatePage from "./pages/BowlProjectionsUpdatePage";
 import AwardWinnersPage from "./pages/AwardWinnersPage";
 import RivalsPage from "./pages/RivalsPage";
+import WatchPage from "./pages/WatchPage";
 import PortalPreviewUpdatePage from "./pages/PortalPreviewUpdatePage";
 
 function App() {
@@ -81,6 +82,7 @@ function App() {
         <Route path="/dynasty/:dynastyId/seasons/:seasonId/players" element={<SeasonPlayersPage />} />
         <Route path="/dynasty/:dynastyId/seasons/:seasonId/recruits" element={<SeasonRecruitsPage />} />
         <Route path="/dynasty/:dynastyId/rivals" element={<RivalsPage />} />
+        <Route path="/dynasty/:dynastyId/watch" element={<WatchPage />} />
         <Route path="/dynasty/:dynastyId/player-stats" element={<PlayerStatsPage />} />
         <Route path="/dynasty/:dynastyId/seasons/:seasonId/weeks/:weekNumber/games" element={<WeekResultsPage />} />
         <Route path="/dynasty/export" element={<ExportPage />} />
