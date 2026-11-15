@@ -239,6 +239,26 @@ function PodcastEpisodePanel({ season, weeks, kind = "weekly" }) {
     }
   }, [dynastyId, seasonId, slug]);
 
+  // On arrival, pre-select the week after the last published episode (the first week if none are).
+  useEffect(() => {
+    if (!weekly || !weeks.length) return undefined;
+    let cancelled = false;
+    Promise.all(
+      weeks.map((week) =>
+        fetchPodcastEpisode(dynastyId, seasonId, `week-${week.number}`)
+          .then((data) => Boolean(data?.steps?.published))
+          .catch(() => true),
+      ),
+    ).then((published) => {
+      if (cancelled) return;
+      const next = Math.min(published.lastIndexOf(true) + 1, weeks.length - 1);
+      setWeekNumber((current) => current ?? weeks[next].number);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [weekly, weeks, dynastyId, seasonId]);
+
   // Picking a week resets everything, then loads that week's state.
   useEffect(() => {
     setEpisode(null);
