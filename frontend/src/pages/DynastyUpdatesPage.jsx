@@ -12,7 +12,7 @@ const WEEKLY_UPDATES = [
   { key: "heisman", label: "Heisman Candidates", icon: "fa-solid fa-trophy", description: "Upload the weekly Heisman Watch List screenshot.", to: "/dynasty/updates/heisman" },
   { key: "coach-info", label: "Coach Info", icon: "fa-solid fa-user-tie", description: "Enter each user coach's NIL amount and job security.", to: "/dynasty/updates/coach-info" },
   { key: "recruitment-trail", label: "Recruitment Trail", icon: "fa-solid fa-file-signature", description: "Upload a team's weekly recruits.", to: "/dynasty/updates/recruitment-trail" },
-  { key: "register-injuries", label: "Register Injuries", icon: "fa-solid fa-user-injured", description: "Log injuries from the conference standings page.", toStandings: true },
+  { key: "register-injuries", label: "Register Injuries", icon: "fa-solid fa-user-injured", description: "Upload the injury report screenshots for each team.", to: "/dynasty/updates/injuries" },
 ];
 
 const MIDSEASON_UPDATES = [

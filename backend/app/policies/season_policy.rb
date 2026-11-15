@@ -67,6 +67,14 @@ class SeasonPolicy < ApplicationPolicy
     owner?
   end
 
+  def analyze_injuries?
+    owner?
+  end
+
+  def commit_injuries?
+    owner?
+  end
+
   def team_attributes?
     owner?
   end

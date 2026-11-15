@@ -65,6 +65,8 @@ Rails.application.routes.draw do
             post :commit_all_americans
             post :analyze_nil_spend
             post :commit_nil_spend
+            post :analyze_injuries
+            post :commit_injuries
             post :analyze_team_stats
             post :commit_team_stats
             post :analyze_recruiting

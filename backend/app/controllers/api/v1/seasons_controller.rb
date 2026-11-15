@@ -148,6 +148,21 @@ module Api
         render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
       end
 
+      def analyze_injuries
+        authorize @season
+        render json: Injuries::Extractor.new(@season).call(Array(params[:images]))
+      rescue RubyLLM::Error => e
+        render json: { error: "AI extraction failed: #{e.message}", code: "extraction_failed" }, status: :unprocessable_entity
+      end
+
+      def commit_injuries
+        authorize @season
+        warnings = Injuries::CommitService.new(@season).call(commit_rows)
+        render json: { season_id: @season.id, warnings: warnings }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
+      end
+
       def team_attributes
         authorize @season
         render json: ::TeamAttributesSerializer.new(@season).as_json

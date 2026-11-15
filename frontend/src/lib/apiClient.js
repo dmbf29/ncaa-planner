@@ -442,6 +442,21 @@ export const commitNilSpend = (dynastyId, seasonId, rows) =>
     .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_nil_spend`, { rows })
     .then((r) => r.data);
 
+export const analyzeInjuries = (dynastyId, seasonId, files) => {
+  const formData = new FormData();
+  files.forEach((file) => formData.append("images[]", file));
+  return api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/analyze_injuries`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+    .then((r) => r.data);
+};
+
+export const commitInjuries = (dynastyId, seasonId, rows) =>
+  api
+    .post(`/api/v1/dynasties/${dynastyId}/seasons/${seasonId}/commit_injuries`, { rows })
+    .then((r) => r.data);
+
 export const analyzeTeamStats = (dynastyId, seasonId, files, statType) => {
   const formData = new FormData();
   files.forEach((file) => formData.append("images[]", file));
