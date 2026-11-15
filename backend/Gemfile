@@ -56,3 +56,6 @@ end
 gem "cloudinary"
 gem 'csv'
 gem "ruby_llm"
+
+gem "googleauth", "~> 1.17"
+gem "google-apis-youtube_v3", "~> 0.73.0"
