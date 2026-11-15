@@ -20,7 +20,7 @@ namespace :youtube do
 
     socket = server.accept
     request_line = socket.gets.to_s
-    params = URI.decode_www_form(URI(request_line.split[1].to_s, nil).query.to_s).to_h
+    params = URI.decode_www_form(URI.parse(request_line.split[1].to_s).query.to_s).to_h
     ok = params["state"] == state && params["code"].present?
     socket.print "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n" \
                  "#{ok ? "Done. You can close this tab and return to the terminal." : "Sign-in failed: #{params["error"] || "state mismatch"}"}"
