@@ -128,6 +128,7 @@ module Api
           player_stats: payload[:player_stats] || [],
           replace_screenshot_sections: payload[:replace_screenshot_sections] || []
         )
+        GameScoring::Recordings.new(@game.reload).refresh
         render json: game_json(reload: true)
       rescue ActiveRecord::RecordInvalid => e
         render json: { error: e.message, code: "unprocessable_entity" }, status: :unprocessable_entity
@@ -178,6 +179,7 @@ module Api
       def attach_scoring_summary
         authorize @game
         @game.update!(scoring_summary: GameScoring::Recordings.new(@game).build(params[:recording]))
+        publish_in_background
         render json: { scoring_summary: @game.scoring_summary }
       rescue GameScoring::Recordings::Error => e
         render json: { error: e.message, code: "scoring_summary_failed" }, status: :unprocessable_entity
@@ -193,6 +195,16 @@ module Api
 
       # The watcher drives the developer's own Mac (screen capture + a
       # process spawn), so it must never be reachable outside local dev.
+      # Local-only: cut the highlights and upload them and the full game to YouTube (rake youtube:publish_pending), as its own
+      # process so it outlives the request. AUTO_PUBLISH=0 turns it off.
+      def publish_in_background
+        return if ENV["AUTO_PUBLISH"] == "0"
+
+        log = Rails.root.join("log", "youtube_publish.log").to_s
+        Process.detach(Process.spawn({ "RAILS_ENV" => "development" }, Rails.root.join("bin", "rails").to_s, "youtube:publish_pending",
+                                     chdir: Rails.root.to_s, out: [ log, "a" ], err: [ log, "a" ]))
+      end
+
       def require_local_capture
         render json: { error: "Capture is only available in local development.", code: "not_available" }, status: :not_found unless Rails.env.development?
       end

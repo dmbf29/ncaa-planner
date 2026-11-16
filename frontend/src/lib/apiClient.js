@@ -599,6 +599,12 @@ export const fetchScoringRecordings = (id) => api.get(`/api/v1/games/${id}/scori
 //      turnovers: [{ time, quarter, clock, team, kind: "Turnover" | "Fumble", lost, homeScore, awayScore }] } }
 export const attachScoringSummary = (id, recording) => api.post(`/api/v1/games/${id}/attach_scoring_summary`, { recording }).then((r) => r.data);
 
+// Local-only inbox of scouted stream recordings not attached to a game yet, each with the game it probably is
+// => { recordings: [{ id, channel, startedAt, teams, plays, finalScore, suggestion: { gameId, label } | null, openGames: [{ gameId, label }] }] }
+export const fetchRecordingInbox = (dynastyId) => api.get(`/api/v1/dynasties/${dynastyId}/recordings`).then((r) => r.data);
+
+export const dismissRecording = (dynastyId, recording) => api.post(`/api/v1/dynasties/${dynastyId}/recordings/dismiss`, { recording });
+
 export const detachScoringSummary = (id) => api.delete(`/api/v1/games/${id}/detach_scoring_summary`);
 
 // Local-only capture from PS Remote Play (backend GameCapture::Session): the

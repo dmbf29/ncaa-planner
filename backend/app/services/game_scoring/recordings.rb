@@ -6,11 +6,18 @@ module GameScoring
   # A recording belongs to a game when its last scoreboard reading equals the game's recorded final score (either way
   # round, since the scoreboard's left side isn't always the home team). That also settles which side is which when
   # both teams print the same name (Bulls vs Bulls). `verified` says the plays themselves add up to the final score.
+  #
+  # A game with no box score yet (a recording attached the day it was played, see Inbox) has no final score to match, so
+  # the broadcast's usual layout is assumed (away team on the left) and the summary is marked `provisional` until the box
+  # score is saved and it is built again (see refresh).
   class Recordings
     STREAMS_DIR = Rails.root.join("..", "streams").expand_path
     ID_FORMAT = %r{\A[\w-]+/[\w-]+\z}
 
     Error = Class.new(StandardError)
+
+    # Every attached recording so far has the away team on the scoreboard's left.
+    PROVISIONAL_HOME_IS_LEFT = false
 
     def initialize(game)
       @game = game
@@ -36,17 +43,29 @@ module GameScoring
       raise Error, "No scouting report for that recording." unless path.exist?
 
       report = JSON.parse(path.read)
-      home_is_left = orientation(report)
+      home_is_left = final_scores ? orientation(report) : PROVISIONAL_HOME_IS_LEFT
       raise Error, "That recording's final score doesn't match this game." if home_is_left.nil?
 
       {
         "source" => recording_id,
         "verified" => verified?(report),
+        "provisional" => final_scores ? nil : true,
         "home" => @game.home_college.name,
         "away" => @game.away_college.name,
         "plays" => report["scoring"].map { |play| play_json(play, home_is_left) },
         "turnovers" => Turnovers.new(@game, report, STREAMS_DIR.join("#{recording_id}.keyplays.json"), home_is_left).call
       }
+    end
+
+    # Builds the game's summary again from its own recording, once the box score is in (a provisional one assumed the layout).
+    # Keeps the old summary when the recording doesn't match the box score.
+    def refresh
+      summary = @game.scoring_summary
+      return unless summary&.dig("provisional") && final_scores
+
+      @game.update!(scoring_summary: build(summary["source"]))
+    rescue Error
+      nil
     end
 
     private
@@ -80,6 +99,7 @@ module GameScoring
     def verified?(report)
       last_play = report["scoring"].last
       return false unless last_play
+      return scoreboard_pairs(report).first == last_play["score"] unless final_scores
 
       [ final_scores, final_scores.reverse ].include?(last_play["score"])
     end

@@ -13,6 +13,7 @@ import StandingsSnapshot from "../components/StandingsSnapshot";
 import AllAmericansSnapshot from "../components/AllAmericansSnapshot";
 import NilSquadSpending from "../components/NilSquadSpending";
 import TeamStatsComparison from "../components/TeamStatsComparison";
+import RecordingInbox from "../components/RecordingInbox";
 import { fetchDynastyPortal, fetchDynastyDashboard, fetchStandings, fetchAllAmericans, deleteSeason } from "../lib/apiClient";
 
 function TeamTabs({ teams, activeTeamId, onSelect }) {
@@ -128,6 +129,8 @@ function DynastyShowPage() {
         dynastyId={dynastyId}
         dashboard={dashboard}
       />
+
+      {import.meta.env.DEV && <RecordingInbox dynastyId={dynastyId} />}
 
       {loading && <p className="text-sm text-textSecondary">Loading dynasty...</p>}
       {error && <p className="text-sm text-danger">{error}</p>}

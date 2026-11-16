@@ -5,12 +5,14 @@
 
 A recording counts as finished once its file hasn't been written to for IDLE_MINUTES (streamlink writes continuously
 while the stream is live). When one session produced several files (disconnects, duplicate recorders), only the
-largest file within CLUSTER_MINUTES of its start is scouted and the rest get a .scout.skip marker. The recorder script
+largest file within CLUSTER_MINUTES of its start is scouted and the rest get a .scout.skip marker. Each scouted
+recording is then also read by key_plays.py (turnovers) and game_edges.py (game end, extra points). The recorder script
 isn't touched. A lock file keeps overlapping runs from scouting the same game twice.
 """
 import datetime
 import glob
 import os
+import subprocess
 import sys
 import time
 
@@ -56,6 +58,19 @@ def pending(channel_dir, dry=False):
     return todo
 
 
+def notify(f):
+    """A macOS notification that a recording is ready to attach to its game."""
+    if sys.platform != "darwin":
+        return
+    try:
+        import json
+        teams = " vs ".join(json.load(open(f[:-3] + ".scout.json")).get("teams") or [])
+        channel = os.path.basename(os.path.dirname(f))
+        subprocess.run(["osascript", "-e", f'display notification "{channel}: {teams}. Open the dynasty page to attach it to its game." with title "New game recording"'], check=False)
+    except Exception:
+        pass
+
+
 def main():
     dry = "--dry-run" in sys.argv
     lock = os.path.join(STREAMS, ".scout.lock")
@@ -75,6 +90,14 @@ def main():
                 scout_file(f)
             except Exception as e:  # one bad recording shouldn't block the rest
                 print("failed:", f, e, flush=True)
+                continue
+            # turnovers and where the game / extra points end, which the game's Game Events and highlights read
+            for script in ("key_plays.py", "game_edges.py"):
+                try:
+                    subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), script), f], check=True)
+                except Exception as e:
+                    print(f"{script} failed:", f, e, flush=True)
+            notify(f)
     finally:
         os.remove(lock)
 

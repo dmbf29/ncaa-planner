@@ -34,6 +34,10 @@ Rails.application.routes.draw do
       resources :coaches, only: %i[update]
 
       resources :dynasties, only: %i[index] do
+        # Local-only: scouted stream recordings not attached to a game yet. See GameScoring::Inbox.
+        resources :recordings, only: :index do
+          post :dismiss, on: :collection
+        end
         resources :seasons, only: %i[show create destroy] do
           resource :dynasty_rewired_sync, only: %i[show create]
           resource :dynasty_rewired_roster, only: %i[show create]

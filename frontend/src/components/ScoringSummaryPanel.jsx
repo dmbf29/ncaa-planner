@@ -95,7 +95,11 @@ function ScoringSummaryPanel({ gameId, played, summary, onChange }) {
         <div className="flex items-start justify-between gap-3">
           <p className="text-xs text-textSecondary">
             From <span className="font-semibold">{summary.source}</span>.{" "}
-            {summary.verified ? "The plays add up to the final score." : "The plays don't add up to the final score, so treat this as a rough guide."}
+            {summary.provisional
+              ? "Attached before the box score: it will be checked against the final score once the box score is saved."
+              : summary.verified
+                ? "The plays add up to the final score."
+                : "The plays don't add up to the final score, so treat this as a rough guide."}
           </p>
           <button
             type="button"

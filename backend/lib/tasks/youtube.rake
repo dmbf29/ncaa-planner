@@ -42,6 +42,21 @@ namespace :youtube do
     puts "Uploaded https://youtu.be/#{video.source} and attached it to game #{game.id}"
   end
 
+  desc "Build and upload everything still missing: the highlights of every game with a scoring summary first, then the full " \
+       "games. Safe to start twice (a lock lets only one run go; it picks up games attached meanwhile) and to re-run after " \
+       "YouTube's daily upload limit stops it. Attaching a scoring summary starts this in the background."
+  task publish_pending: :environment do
+    lock = File.open(Rails.root.join("tmp", "youtube_publish.lock"), File::CREAT | File::RDWR)
+    unless lock.flock(File::LOCK_EX | File::LOCK_NB)
+      puts "Another publish run is active; it will pick up this game too."
+      next
+    end
+
+    ENV["UPLOAD"] = "1"
+    Rake::Task["highlights:build_scored"].invoke
+    Rake::Task["youtube:upload_scored"].invoke
+  end
+
   desc "Upload the stream recording behind every game's scoring summary that has no video yet, oldest week first. " \
        "Recordings are remuxed from .ts to .mp4 (no re-encode) in a temp dir, cut off at the game's Final card when " \
        "tools/scouting/game_edges.py found it. Re-run it to resume: it stops cleanly " \
