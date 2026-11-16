@@ -25,10 +25,20 @@ module Youtube
       )
       uploaded = service.insert_video("snippet,status", video, upload_source: @path, content_type: "video/*")
 
-      @game.game_videos.create!(provider: "youtube", source: uploaded.id, title: @title, kind: @kind, source_twitch_vod_id: @twitch_vod_id)
+      video = @game.game_videos.create!(provider: "youtube", source: uploaded.id, title: @title, kind: @kind, source_twitch_vod_id: @twitch_vod_id)
+      announce
+      video
     end
 
     private
+
+    # Posts to Discord once the game has both its highlights and full video. A Discord problem never fails the upload.
+    def announce
+      @game.game_videos.reset
+      Discord::GameVideoPost.new(@game).call
+    rescue StandardError => e
+      Rails.logger.warn("Discord post for game #{@game.id} failed: #{e.message}")
+    end
 
     def default_title
       week = @game.week
