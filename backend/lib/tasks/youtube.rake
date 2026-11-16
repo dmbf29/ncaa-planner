@@ -43,7 +43,8 @@ namespace :youtube do
   end
 
   desc "Upload the stream recording behind every game's scoring summary that has no video yet, oldest week first. " \
-       "Recordings are remuxed from .ts to .mp4 (no re-encode) in a temp dir. Re-run it to resume: it stops cleanly " \
+       "Recordings are remuxed from .ts to .mp4 (no re-encode) in a temp dir, cut off at the game's Final card when " \
+       "tools/scouting/game_edges.py found it. Re-run it to resume: it stops cleanly " \
        "when YouTube's daily upload quota runs out (about 6 videos on the default quota). DRY_RUN=1 only lists; LIMIT=<n> caps the count."
   task upload_scored: :environment do
     streams = Rails.root.join("..", "streams").expand_path
@@ -66,7 +67,10 @@ namespace :youtube do
 
       Dir.mktmpdir("youtube-upload") do |dir|
         mp4 = File.join(dir, "game.mp4")
-        system("ffmpeg", "-v", "error", "-y", "-i", source.to_s, "-c", "copy", "-movflags", "+faststart", mp4) || abort("ffmpeg failed on #{label}")
+        # Stop at the end of the game (the "Final" card) so the post-game menus and their music stay out of the video.
+        final_end = GameScoring::Edges.new(game.scoring_summary["source"]).final_end
+        trim = final_end ? [ "-to", final_end.to_s ] : []
+        system("ffmpeg", "-v", "error", "-y", "-i", source.to_s, *trim, "-c", "copy", "-movflags", "+faststart", mp4) || abort("ffmpeg failed on #{label}")
         video = Youtube::Uploader.new(game, mp4).call
         puts "UPLOADED #{label}: https://youtu.be/#{video.source}"
       end

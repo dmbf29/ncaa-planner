@@ -79,9 +79,21 @@ module Highlights
         raise Error, "The saved scoring summary no longer matches the scouting report; re-attach it." unless entries.size == plays.size
 
         entries.zip(plays).map do |entry, play|
-          @score_padding.merge(time: entry["time"].to_f, label: label_for(play))
+          time = entry["time"].to_f
+          @score_padding.merge(time: time, label: label_for(play), tail: tail_for(entry, time))
         end
       end
+    end
+
+    # A touchdown's clip runs through the extra point or two-point try that follows (when game_edges.py found where it ends),
+    # however long the celebration and replays before it took; otherwise the fixed tail.
+    def tail_for(entry, time)
+      conversion_end = edges.conversion_end(time) if entry["kind"] == "Touchdown"
+      conversion_end ? [ conversion_end - time, @score_padding[:tail] ].max : @score_padding[:tail]
+    end
+
+    def edges
+      @edges ||= GameScoring::Edges.new(source)
     end
 
     # Empty when the summary was attached before turnovers were stored (re-attach it) or none were found.
@@ -101,11 +113,13 @@ module Highlights
 
     # [{ start:, finish:, events: [...] }, ...] in video order, overlapping windows merged.
     def merged_windows
-      duration = report["duration_s"].to_f
-      (scores + turnover_events).sort_by { |event| event[:time] }.each_with_object([]) do |event, windows|
+      end_of_game = edges.final_end || report["duration_s"].to_f
+      # Anything logged after the game is over was read off the post-game menus.
+      (scores + turnover_events).select { |event| !end_of_game.positive? || event[:time] < end_of_game }
+                                .sort_by { |event| event[:time] }.each_with_object([]) do |event, windows|
         start = [ event[:time] - event[:lead], 0 ].max
         finish = event[:time] + event[:tail]
-        finish = [ finish, duration ].min if duration.positive?
+        finish = [ finish, end_of_game ].min if end_of_game.positive?
         if windows.last && start <= windows.last[:finish]
           windows.last[:finish] = [ windows.last[:finish], finish ].max
           windows.last[:events] << event

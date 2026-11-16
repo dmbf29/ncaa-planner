@@ -14,7 +14,7 @@ function TopNav() {
   // Track auth based on presence of JWT in localStorage
   const [authed, setAuthed] = useState(() => Boolean(localStorage.getItem("jwt")));
   const [menuOpen, setMenuOpen] = useState(false);
-  const [linksOpen, setLinksOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [myDynastyIds, setMyDynastyIds] = useState([]);
   const [portal, setPortal] = useState(null);
 
@@ -28,7 +28,7 @@ function TopNav() {
   useEffect(() => {
     setAuthed(Boolean(localStorage.getItem("jwt")));
     setMenuOpen(false);
-    setLinksOpen(false);
+    setMoreOpen(false);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -88,6 +88,29 @@ function TopNav() {
       ].filter(Boolean)
     : [];
 
+  // Phone tab bar: the main pages get a tab, the rest live behind "More".
+  const tabs = inDynasty
+    ? [
+        { label: "Home", icon: "fa-house", to: seasonPath ?? dynastyPath, match: (p) => p === dynastyPath || p === seasonPath },
+        { label: "Watch", icon: "fa-circle-play", to: `${dynastyPath}/watch` },
+        seasonPath && { label: "Ratings", icon: "fa-ranking-star", to: `${seasonPath}/team-ratings` },
+        seasonPath && { label: "Players", icon: "fa-users", to: `${seasonPath}/players` },
+        seasonPath && { label: "Recruits", icon: "fa-user-plus", to: `${seasonPath}/recruits` },
+      ].filter(Boolean)
+    : [];
+  const moreLinks = inDynasty
+    ? [
+        { label: "Rivals", icon: "fa-fire", to: `${dynastyPath}/rivals` },
+        isOwner && { label: "Dynasty Updates", icon: "fa-pen-to-square", to: "/dynasty/updates" },
+        isOwner && { label: "Export", icon: "fa-file-export", to: "/dynasty/export" },
+      ].filter(Boolean)
+    : [];
+  // A lone extra link (everyone but the owner) gets its own tab rather than a "More" menu for one item.
+  const tabItems = moreLinks.length === 1 ? [...tabs, ...moreLinks] : tabs;
+  const showMore = moreLinks.length > 1;
+  const tabClass = (active) =>
+    clsx("flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-semibold", active ? "text-burnt" : "text-textSecondary");
+
   const handleLogout = async () => {
     try {
       await logout();
@@ -117,35 +140,11 @@ function TopNav() {
               {link.label}
             </Link>
           ))}
-          {dynastyLinks.length > 0 && (
-            <div className="relative md:hidden">
-              <button
-                onClick={() => {
-                  setLinksOpen((v) => !v);
-                  setMenuOpen(false);
-                }}
-                aria-label="Dynasty menu"
-                className="flex h-8 w-8 items-center justify-center rounded-md text-white/80 hover:bg-white/10"
-              >
-                <i className={clsx("fa-solid", linksOpen ? "fa-xmark" : "fa-bars")} />
-              </button>
-              {linksOpen && (
-                <div className="absolute right-0 z-50 mt-2 w-44 rounded-lg border border-border bg-surface text-charcoal shadow-card dark:border-darkborder dark:bg-darksurface dark:text-white">
-                  {dynastyLinks.map((link) => (
-                    <Link key={link.to} to={link.to} className="block px-4 py-2 text-sm hover:bg-border/50 dark:hover:bg-white/10">
-                      {link.label}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
           {authed ? (
             <div className="relative">
               <button
                 onClick={() => {
                   setMenuOpen((v) => !v);
-                  setLinksOpen(false);
                 }}
                 className="flex items-center gap-2 rounded-full border border-border bg-white/10 text-white hover:bg-white/20"
               >
@@ -173,7 +172,7 @@ function TopNav() {
               <Link
                 to="/auth/login"
                 className={clsx(
-                  "rounded-md px-3 py-2 transition",
+                  "whitespace-nowrap rounded-md px-3 py-2 transition",
                   location.pathname === "/auth/login"
                     ? ""
                     : "text-white/80 hover:bg-white/10",
@@ -184,7 +183,7 @@ function TopNav() {
               <Link
                 to="/auth/signup"
                 className={clsx(
-                  "rounded-md bg-burnt 0 px-3 py-2 transition",
+                  "hidden whitespace-nowrap rounded-md bg-burnt px-3 py-2 transition sm:block",
                   location.pathname === "/auth/signup"
                     ? "bg-burnt text-white font-semibold"
                     : "text-white hover:bg-white/10 font-semibold",
@@ -196,6 +195,42 @@ function TopNav() {
           )}
         </nav>
       </div>
+      {inDynasty && (
+        <>
+          {showMore && moreOpen && (
+            <div className="fixed inset-0 z-40 md:hidden" onClick={() => setMoreOpen(false)}>
+              <div className="absolute bottom-[calc(3.5rem+env(safe-area-inset-bottom))] right-2 w-48 rounded-lg border border-border bg-surface text-charcoal shadow-card dark:border-darkborder dark:bg-darksurface dark:text-white">
+                {moreLinks.map((link) => (
+                  <Link key={link.to} to={link.to} className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-border/50 dark:hover:bg-white/10">
+                    <i className={clsx("fa-solid w-4 text-center", link.icon)} />
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+          <nav
+            aria-label="Dynasty"
+            className="fixed inset-x-0 bottom-0 z-50 flex border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] dark:border-darkborder dark:bg-darksurface md:hidden"
+          >
+            {tabItems.map((tab) => {
+              const active = tab.match ? tab.match(location.pathname) : location.pathname === tab.to;
+              return (
+                <Link key={tab.to} to={tab.to} className={tabClass(active)} aria-current={active ? "page" : undefined}>
+                  <i className={clsx("fa-solid text-lg", tab.icon)} />
+                  {tab.label}
+                </Link>
+              );
+            })}
+            {showMore && (
+              <button type="button" onClick={() => setMoreOpen((v) => !v)} aria-expanded={moreOpen} className={tabClass(moreOpen || moreLinks.some((l) => l.to === location.pathname))}>
+                <i className="fa-solid fa-ellipsis text-lg" />
+                More
+              </button>
+            )}
+          </nav>
+        </>
+      )}
     </header>
   );
 }
