@@ -28,6 +28,10 @@ module Podcast
       commit(manifest.reject { |existing| existing["key"] == key } + [ entry ])
     end
 
+    def published?(key)
+      manifest.any? { |existing| existing["key"] == key }
+    end
+
     # Moves the episodes of the existing Spotify-hosted show (read by Podcast::SpotifyImporter into
     # pod/feed/backup/imported.json) into the new feed, with their original guids. exclude is a list of
     # [season, episode] pairs to leave out, e.g. episodes the new feed replaces.

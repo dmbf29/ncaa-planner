@@ -65,12 +65,18 @@ module Podcast
       final = @spec.final_audio_path
       FileUtils.mkdir_p(File.dirname(final))
       FileUtils.cp(path("episode.mp3"), final)
-      Publisher.new(live: @live).publish(
+      publisher = Publisher.new(live: @live)
+      new_episode = @live && !publisher.published?(@spec.key)
+      season = Show.season_for(@year)
+      episode = @episode || @status.to_h[:suggested_episode]
+      feed = publisher.publish(
         key: @spec.key, title: info.title, description: info.description,
-        season: Show.season_for(@year), episode: @episode || @status.to_h[:suggested_episode],
+        season: season, episode: episode,
         audio_path: final, art_path: art_path, preview_weeks: (@spec.preview_weeks || [] if @spec.weekly?),
         previewed_game_ids: (previewed_game_ids if @spec.weekly?)
       )
+      announce(info.title, season, episode) if new_episode
+      feed
     end
 
     # The terminal flow: prepare, pause for review unless approved, then produce and publish.
@@ -86,6 +92,16 @@ module Podcast
     end
 
     private
+
+    # Tells Discord about a first-time publish (not a "publish again" that replaces an episode). A Discord problem never fails the publish.
+    def announce(title, season, episode)
+      message_id = Discord::PodcastEpisodePost.new(title: title, season: season, episode: episode).call
+      return unless message_id && Spotify::Episodes.configured?
+
+      PodcastEpisodeLinkJob.perform_later(message_id: message_id, title: title, season: season, episode: episode)
+    rescue StandardError => e
+      log "Discord post failed: #{e.message}"
+    end
 
     def path(name) = File.join(@dir, name)
 
