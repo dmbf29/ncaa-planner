@@ -201,7 +201,7 @@ module Api
         return if ENV["AUTO_PUBLISH"] == "0"
 
         log = Rails.root.join("log", "youtube_publish.log").to_s
-        Process.detach(Process.spawn({ "RAILS_ENV" => "development" }, Rails.root.join("bin", "rails").to_s, "youtube:publish_pending",
+        Process.detach(Process.spawn({ "RAILS_ENV" => "development", "PRIORITY_GAME" => @game.id.to_s }, Rails.root.join("bin", "rails").to_s, "youtube:publish_pending",
                                      chdir: Rails.root.to_s, out: [ log, "a" ], err: [ log, "a" ]))
       end
 

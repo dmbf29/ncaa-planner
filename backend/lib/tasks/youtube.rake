@@ -44,7 +44,8 @@ namespace :youtube do
 
   desc "Build and upload everything still missing: the highlights of every game with a scoring summary first, then the full " \
        "games. Safe to start twice (a lock lets only one run go; it picks up games attached meanwhile) and to re-run after " \
-       "YouTube's daily upload limit stops it. Attaching a scoring summary starts this in the background."
+       "YouTube's daily upload limit stops it. Attaching a scoring summary starts this in the background. " \
+       "PRIORITY_GAME=<id> does that game first."
   task publish_pending: :environment do
     lock = File.open(Rails.root.join("tmp", "youtube_publish.lock"), File::CREAT | File::RDWR)
     unless lock.flock(File::LOCK_EX | File::LOCK_NB)
@@ -53,8 +54,20 @@ namespace :youtube do
     end
 
     ENV["UPLOAD"] = "1"
-    Rake::Task["highlights:build_scored"].invoke
-    Rake::Task["youtube:upload_scored"].invoke
+    publish = lambda do
+      %w[highlights:build_scored youtube:upload_scored].each do |name|
+        task = Rake::Task[name]
+        task.reenable
+        task.invoke
+      end
+    end
+    # The game that was just attached goes first (highlights, then the full game), ahead of the older backlog.
+    if ENV["PRIORITY_GAME"].present?
+      ENV["ONLY"] = ENV["PRIORITY_GAME"]
+      publish.call
+      ENV.delete("ONLY")
+    end
+    publish.call
   end
 
   desc "Upload the stream recording behind every game's scoring summary that has no video yet, oldest week first. " \
@@ -66,6 +79,7 @@ namespace :youtube do
     games = Game.where.not(scoring_summary: nil).includes(:home_college, :away_college, :game_videos, week: :season)
                 .reject { |game| game.game_videos.any? }
                 .sort_by { |game| [ game.week.season.year, game.week.number, game.id ] }
+    games = games.select { |game| game.id == ENV["ONLY"].to_i } if ENV["ONLY"].present?
     games = games.first(ENV["LIMIT"].to_i) if ENV["LIMIT"].present?
 
     games.each do |game|
@@ -124,6 +138,7 @@ namespace :highlights do
   task build_scored: :environment do
     games = Game.where.not(scoring_summary: nil).includes(:home_college, :away_college, :game_videos, week: :season)
                 .sort_by { |game| [ game.week.season.year, game.week.number, game.id ] }
+    games = games.select { |game| game.id == ENV["ONLY"].to_i } if ENV["ONLY"].present?
 
     games.each do |game|
       label = "#{game.id} #{game.away_college.name} at #{game.home_college.name} (#{game.week.season.year} wk #{game.week.number})"
