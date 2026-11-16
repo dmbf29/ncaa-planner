@@ -993,7 +993,7 @@ function GameUpdatePage() {
             )}
           </AccordionSection>
 
-          <AccordionSection title="Scoring Summary" expanded={openSections.scoring} onToggle={() => toggleSection("scoring")}>
+          <AccordionSection title="Game Events" expanded={openSections.scoring} onToggle={() => toggleSection("scoring")}>
             <ScoringSummaryPanel
               gameId={gameId}
               played={game.played}

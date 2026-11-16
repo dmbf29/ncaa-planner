@@ -44,7 +44,8 @@ module GameScoring
         "verified" => verified?(report),
         "home" => @game.home_college.name,
         "away" => @game.away_college.name,
-        "plays" => report["scoring"].map { |play| play_json(play, home_is_left) }
+        "plays" => report["scoring"].map { |play| play_json(play, home_is_left) },
+        "turnovers" => Turnovers.new(@game, report, STREAMS_DIR.join("#{recording_id}.keyplays.json"), home_is_left).call
       }
     end
 
@@ -91,7 +92,7 @@ module GameScoring
       left_score, right_score = play["score"]
       home_scored = (play["side"] == 0) == home_is_left
       {
-        "quarter" => play["quarter"], "clock" => play["clock"], "team" => home_scored ? @game.home_college.name : @game.away_college.name,
+        "time" => play["time"], "quarter" => play["quarter"], "clock" => play["clock"], "team" => home_scored ? @game.home_college.name : @game.away_college.name,
         "kind" => play["kind"], "points" => play["points"], "extra" => play["extra"], "approx" => play["approx"] || nil,
         "home_score" => home_is_left ? left_score : right_score, "away_score" => home_is_left ? right_score : left_score
       }.compact

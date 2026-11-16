@@ -3,25 +3,46 @@ import { attachScoringSummary, detachScoringSummary, fetchScoringRecordings } fr
 
 const quarterLabel = (quarter) => (quarter <= 4 ? `Quarter ${quarter}` : `Overtime ${quarter - 4}`);
 
-const playLine = (play) =>
-  `${play.clock || "?"} ${play.team} ${play.kind.toLowerCase()}${play.extra ? ` (${play.extra})` : ""}${play.approx ? " [approximate]" : ""}`;
+const clockSeconds = (clock) => {
+  const [minutes, seconds] = (clock || "").split(":").map(Number);
+  return (minutes || 0) * 60 + (seconds || 0);
+};
+
+const playLine = (play) => {
+  const clock = play.clock || "?";
+  if (play.kind === "Turnover") return `${clock} ${play.team} turnover`;
+  if (play.kind === "Fumble") return `${clock} ${play.team} fumble (${play.lost ? "lost" : "recovered"})`;
+  return `${clock} ${play.team} ${play.kind.toLowerCase()}${play.extra ? ` (${play.extra})` : ""}${play.approx ? " [approximate]" : ""}`;
+};
+
+// Scores and turnovers in the order they happened. Summaries attached before turnovers were read have no video times.
+const allEvents = (summary) => {
+  const turnovers = summary.turnovers || [];
+  if (turnovers.length === 0) return summary.plays;
+  const all = [...summary.plays, ...turnovers];
+  if (all.every((event) => event.time != null)) return all.sort((a, b) => a.time - b.time);
+  return all.sort((a, b) => a.quarter - b.quarter || clockSeconds(b.clock) - clockSeconds(a.clock));
+};
 
 function SummaryBody({ summary }) {
-  const quarters = [...new Set(summary.plays.map((play) => play.quarter))].sort((a, b) => a - b);
+  const events = allEvents(summary);
+  const quarters = [...new Set(events.map((play) => play.quarter))].sort((a, b) => a - b);
   return (
     <div className="space-y-3">
       {quarters.map((quarter) => (
         <div key={quarter}>
           <h4 className="text-xs font-semibold uppercase tracking-wide text-textSecondary">{quarterLabel(quarter)}</h4>
           <ul className="mt-1 space-y-0.5 text-sm text-charcoal dark:text-white">
-            {summary.plays
+            {events
               .filter((play) => play.quarter === quarter)
               .map((play, index) => (
                 <li key={index} className="flex justify-between gap-3">
                   <span>{playLine(play)}</span>
-                  <span className="shrink-0 text-textSecondary">
-                    {summary.home} {play.homeScore}, {summary.away} {play.awayScore}
-                  </span>
+                  {play.homeScore != null && play.awayScore != null && (
+                    <span className="shrink-0 text-textSecondary">
+                      {summary.home} {play.homeScore}, {summary.away} {play.awayScore}
+                    </span>
+                  )}
                 </li>
               ))}
           </ul>
@@ -31,7 +52,7 @@ function SummaryBody({ summary }) {
   );
 }
 
-// Every score of the game in order, read off the broadcast scoreboard of a stream recording by tools/scouting.
+// Every score and turnover of the game in order, read off the broadcast scoreboard of a stream recording by tools/scouting.
 // Attaching is local-only (the backend lists recordings from streams/ on this Mac); once attached it lives on the
 // game, feeds the recap's AI pass and prints in the podcast markdown.
 function ScoringSummaryPanel({ gameId, played, summary, onChange }) {
@@ -94,7 +115,7 @@ function ScoringSummaryPanel({ gameId, played, summary, onChange }) {
   return (
     <div className="space-y-2">
       <p className="text-xs text-textSecondary">
-        Optional. Every score in order (who, touchdown or field goal, clock), read from a stream recording of this game. It gives the
+        Optional. Every score and turnover in order (who, what, clock), read from a stream recording of this game. It gives the
         recap and the podcast markdown the flow of the game, not just the quarter totals.
       </p>
       {!played ? (

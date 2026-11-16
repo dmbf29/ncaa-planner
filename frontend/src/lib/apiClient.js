@@ -595,7 +595,8 @@ export const analyzeGameNarrative = (id, { collegeStats, playerStats, additional
 // => { recordings: [{ id, channel, teams, plays, verified, finalScore }] }
 export const fetchScoringRecordings = (id) => api.get(`/api/v1/games/${id}/scoring_recordings`).then((r) => r.data);
 
-// => { scoringSummary: { source, verified, home, away, plays: [{ quarter, clock, team, kind, points, extra, homeScore, awayScore }] } }
+// => { scoringSummary: { source, verified, home, away, plays: [{ time, quarter, clock, team, kind, points, extra, homeScore, awayScore }],
+//      turnovers: [{ time, quarter, clock, team, kind: "Turnover" | "Fumble", lost, homeScore, awayScore }] } }
 export const attachScoringSummary = (id, recording) => api.post(`/api/v1/games/${id}/attach_scoring_summary`, { recording }).then((r) => r.data);
 
 export const detachScoringSummary = (id) => api.delete(`/api/v1/games/${id}/detach_scoring_summary`);

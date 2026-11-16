@@ -86,14 +86,17 @@ module GameStats
       PROMPT
     end
 
-    # Who scored when, read off the broadcast scoreboard from the stream recording (GameScoring). Clock times are
-    # approximate and the plays only say touchdown / field goal / safety — not how the points were scored.
+    # Who scored and who gave the ball away, when, read off the broadcast scoreboard from the stream recording
+    # (GameScoring). Clock times are approximate; the plays only say touchdown / field goal / safety, and a turnover is
+    # an interception or a lost fumble (the team totals say how many of each) — not how it happened.
     def scoring_plays_section(scoring_summary)
       return "" if scoring_summary.blank? || scoring_summary["plays"].blank?
 
+      turnovers = scoring_summary["turnovers"].present?
       <<~SECTION
-        Scoring plays in order (from the game broadcast; clock times are approximate; it says who scored and
-        the kind of score, not how it was scored — don't invent the play behind a score):
+        Game events in order (from the game broadcast; clock times are approximate; it says who scored#{" or gave the ball away" if turnovers}
+        and the kind of #{turnovers ? "event" : "score"}, not how it happened — don't invent the play behind a score#{" or a turnover" if turnovers}.
+        #{"A turnover is an interception or a lost fumble; the team totals below say how many of each. A fumble marked recovered did not change possession." if turnovers}
         #{GameScoring::Formatter.text(scoring_summary)}
 
       SECTION

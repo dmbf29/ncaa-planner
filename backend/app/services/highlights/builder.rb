@@ -5,9 +5,8 @@ module Highlights
   # time, and clips that overlap are merged, then joined in game order. Two sources of moments:
   #   * scoring plays, from the scouting report next to the recording (see GameScoring::Recordings). The scoreboard changes
   #     just after the play, during the extra-point screen, so the clip starts well before the logged time.
-  #   * turnovers, from <recording>.keyplays.json (tools/scouting/key_plays.py): the "FUMBLE" label the scoreboard flashes, and
-  #     possession changes the scoreboard's ball marker shows (an interception shows no label at all). Both happen during the
-  #     play, so these clips start closer and run longer.
+  #   * turnovers, from the "turnovers" stored in the same summary (GameScoring::Turnovers, found by tools/scouting/key_plays.py).
+  #     They are logged while the play happens, so these clips start closer and run longer.
   class Builder
     Error = Class.new(StandardError)
 
@@ -18,13 +17,7 @@ module Highlights
     # Seconds of video kept before and after the logged time.
     SCORE_PADDING = { lead: 18, tail: 6 }.freeze
     TURNOVER_PADDING = { "Fumble" => { lead: 8, tail: 12 }, "Turnover" => { lead: 10, tail: 12 } }.freeze
-    # A possession change is a turnover only on downs 1-3 (4th down is a punt, field goal or turnover on downs), away from
-    # kickoffs and breaks, and not right at a scoring play (the kickoff that follows flips the marker too).
-    CHANGE_DOWNS = (1..3)
-    BEFORE_SCORE = 15
-    AFTER_SCORE = 75
-    # A lost fumble flips possession right after its label, so one clip stands for both.
-    FUMBLE_DEDUPE = 20
+
     # YouTube turns "0:00 ..." lines into chapters, so every moment gets its own time in the highlights video.
     def self.description(game, moments)
       week = game.week
@@ -74,10 +67,6 @@ module Highlights
       GameScoring::Recordings::STREAMS_DIR.join("#{source}.scout.json")
     end
 
-    def key_plays_path
-      GameScoring::Recordings::STREAMS_DIR.join("#{source}.keyplays.json")
-    end
-
     def report
       @report ||= JSON.parse(report_path.read)
     end
@@ -90,31 +79,24 @@ module Highlights
         raise Error, "The saved scoring summary no longer matches the scouting report; re-attach it." unless entries.size == plays.size
 
         entries.zip(plays).map do |entry, play|
-          @score_padding.merge(time: entry["time"].to_f, label: GameScoring::Formatter.line(@game.scoring_summary, play))
+          @score_padding.merge(time: entry["time"].to_f, label: label_for(play))
         end
       end
     end
 
-    # Empty when key_plays.py hasn't been run for this recording.
+    # Empty when the summary was attached before turnovers were stored (re-attach it) or none were found.
     def turnover_events
-      return [] unless @turnovers && key_plays_path.file?
+      return [] unless @turnovers
 
-      key_plays = JSON.parse(key_plays_path.read)
-      fumbles = key_plays["plays"].select { |play| play["kind"] == "Fumble" }.map { |play| play["time"].to_f }
-      events = fumbles.map { |time| TURNOVER_PADDING["Fumble"].merge(time: time, label: "Fumble") }
-      key_plays.fetch("possession_changes", []).each do |change|
-        time = change["time"].to_f
-        next unless turnover?(change, time)
-        next if fumbles.any? { |fumble| (fumble..(fumble + FUMBLE_DEDUPE)).cover?(time) }
-
-        events << TURNOVER_PADDING["Turnover"].merge(time: time, label: "Turnover")
+      (@game.scoring_summary["turnovers"] || []).filter_map do |event|
+        padding = TURNOVER_PADDING[event["kind"]]
+        padding&.merge(time: event["time"].to_f, label: label_for(event))
       end
-      events
     end
 
-    def turnover?(change, time)
-      CHANGE_DOWNS.cover?(change["down"].to_i) && !change["kickoff"] && !change["break"] &&
-        scores.none? { |score| (score[:time] - BEFORE_SCORE..score[:time] + AFTER_SCORE).cover?(time) }
+    def label_for(event)
+      quarter = event["quarter"].to_i
+      "#{quarter <= 4 ? "Q#{quarter}" : "OT#{quarter - 4}"} #{GameScoring::Formatter.line(@game.scoring_summary, event)}"
     end
 
     # [{ start:, finish:, events: [...] }, ...] in video order, overlapping windows merged.

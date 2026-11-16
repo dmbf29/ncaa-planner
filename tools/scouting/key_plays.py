@@ -1,13 +1,18 @@
 """Finds fumbles, sacks and possession changes in a stream recording from the scoreboard bar, with a cheap 1 fps read of
 just the bar. Writes <recording>.keyplays.json next to the recording:
 
-  plays: [{time, kind}]  the bar's centre slot flashes a label for a couple of seconds when something happens (a red
-                         "FUMBLE"), and a sack shows in the player ticker beside it; time = first second it is on screen.
-  possession_changes: [{time, down, kickoff}]  the small ball-spot marker above the clock box sits on the side of the team
+  plays: [{time, kind, side, ...}]  the bar's centre slot flashes a label for a couple of seconds when something happens
+                         (a red "FUMBLE"), and a sack shows in the player ticker beside it; time = first second it is on
+                         screen, side = "L"/"R" scoreboard side that had the ball.
+  possession_changes: [{time, to, down, kickoff, break, ...}]  the small ball-spot marker above the clock box sits on the side of the team
                          with the ball, so it jumps from one side to the other when possession changes. `down` is the last
                          down read in the 20 s before (4 = punt / field goal / turnover on downs), `kickoff` says a KICKOFF
                          label was up in the 45 s before and `break` that a halftime or end-of-quarter label was up around it.
-                         A turnover is a change on down 1-3 with neither; the caller also drops changes next to scoring plays.
+                         `to` is the side that has the ball afterwards. A turnover is a change on down 1-3 with neither; the
+                         caller also drops changes next to scoring plays.
+
+Fumbles and turnover candidates also carry quarter, clock, left_score and right_score, read from the bar just before the
+event (the bar is also readable in play, unlike most of the screen).
 
     backend/tools/roster_video/venv/bin/python tools/scouting/key_plays.py streams/etothebman/2026-11-08_22-01-30.ts
 """
@@ -22,6 +27,9 @@ import warnings
 warnings.filterwarnings("ignore")
 
 from PIL import Image  # noqa: E402
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import scout  # noqa: E402  (its scoreboard reader parses quarter, clock and score)
 
 BOARD_CROP = (250, 612, 1030, 685)  # same strip tools/scouting/scout.py reads, at 1280x720
 EVENT_GAP = 8  # seconds without the label that ends an event
@@ -101,7 +109,36 @@ def scan(path):
                     continue
                 last[kind] = t
                 events.append({"time": t, "kind": kind})
-    return events, possession_changes(sides, downs, kickoffs, breaks)
+    changes = possession_changes(sides, downs, kickoffs, breaks)
+    for event in events:
+        event["side"] = side_at(sides, event["time"])
+    for target in [e for e in events if e["kind"] == "Fumble"] + [c for c in changes if is_candidate(c)]:
+        target.update(read_situation(path, target["time"]))
+    return events, changes
+
+
+def is_candidate(change):
+    return change["down"] in (1, 2, 3) and not change["kickoff"] and not change["break"]
+
+
+def side_at(sides, t):
+    """The marker side at second t, or the nearest earlier reading within 10 s."""
+    return next((sides[s] for s in range(t, t - 10, -1) if sides.get(s)), None)
+
+
+def read_situation(path, t):
+    """{quarter, clock, left_score, right_score} from the bar a few seconds before t, or {} when it can't be read."""
+    for back in (2, 4, 1, 6, 8):
+        second = max(t - back, 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            frame = os.path.join(tmp, "f.jpg")
+            subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-ss", str(second), "-i", path, "-frames:v", "1", "-vf", "scale=1280:720", "-q:v", "2", frame], check=True)
+            if not os.path.exists(frame):
+                continue
+            board = scout.parse_board(scout.read_frame(Image.open(frame)))
+        if board.get("qtr") and board.get("clock"):
+            return {"quarter": board["qtr"], "clock": board["clock"], "left_score": board.get("left_score"), "right_score": board.get("right_score")}
+    return {}
 
 
 def possession_changes(sides, downs, kickoffs, breaks):
@@ -122,7 +159,7 @@ def possession_changes(sides, downs, kickoffs, breaks):
             continue
         t = after["first"]
         recent = [downs[s] for s in range(t - 20, t) if s in downs]
-        changes.append({"time": t, "down": recent[-1] if recent else None, "kickoff": any(t - 45 <= k <= t for k in kickoffs),
+        changes.append({"time": t, "to": after["side"], "down": recent[-1] if recent else None, "kickoff": any(t - 45 <= k <= t for k in kickoffs),
                         "break": any(t - 60 <= b <= t + 10 for b in breaks)})
     return changes
 
@@ -137,5 +174,5 @@ if __name__ == "__main__":
     for play in plays:
         print(f"  {play['time']:>5}s {play['kind']}")
     for change in changes:
-        if not change["kickoff"] and not change["break"] and change["down"] in (1, 2, 3):
-            print(f"  {change['time']:>5}s possession change after down {change['down']} (no kickoff)")
+        if is_candidate(change):
+            print(f"  {change['time']:>5}s possession change after down {change['down']} (Q{change.get('quarter')} {change.get('clock')}, ball to {change['to']})")
