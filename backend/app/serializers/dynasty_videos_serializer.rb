@@ -10,7 +10,7 @@ class DynastyVideosSerializer
                       .includes(game: [ { week: :season }, :college_game_stats,
                                         { home_college: { logo_attachment: :blob } },
                                         { away_college: { logo_attachment: :blob } } ])
-                      .order("seasons.year DESC, weeks.number DESC, game_videos.id DESC")
+                      .order("seasons.year DESC, weeks.number DESC, game_videos.kind ASC, game_videos.id DESC")
     { videos: videos.map { |video| video_json(video) } }
   end
 
@@ -31,6 +31,7 @@ class DynastyVideosSerializer
     {
       id: video.id,
       provider: video.provider,
+      kind: video.kind,
       source: video.source,
       title: video.title,
       duration_seconds: video.duration_seconds,

@@ -2,6 +2,7 @@
 # pluggable: "youtube" videos are embedded by id, "file" videos play from a direct URL.
 class GameVideo < ApplicationRecord
   PROVIDERS = %w[youtube file].freeze
+  KINDS = %w[full highlights].freeze
   YOUTUBE_ID = /\A[\w-]{11}\z/
   YOUTUBE_URL = %r{(?:youtu\.be/|youtube\.com/(?:watch\?(?:.*&)?v=|embed/|live/|shorts/))([\w-]{11})}
 
@@ -10,6 +11,7 @@ class GameVideo < ApplicationRecord
   before_validation :normalize_youtube_source
 
   validates :provider, inclusion: { in: PROVIDERS }
+  validates :kind, inclusion: { in: KINDS }
   validates :source, presence: true
   validates :source, format: { with: YOUTUBE_ID, message: "must be a YouTube video id or URL" }, if: -> { provider == "youtube" }
   validates :source, format: { with: %r{\Ahttps?://}, message: "must be an http(s) URL" }, if: -> { provider == "file" }

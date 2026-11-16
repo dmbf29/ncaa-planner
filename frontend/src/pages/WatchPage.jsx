@@ -8,6 +8,7 @@ import { API_BASE_URL, fetchDynastyVideos } from "../lib/apiClient";
 
 const LATEST_COUNT = 6;
 
+const isHighlights = (video) => video.kind === "highlights";
 const matchup = (video) => `${video.away.name} at ${video.home.name}`;
 const logoSrc = (side) => (side.logoUrl ? `${API_BASE_URL}${side.logoUrl}` : null);
 
@@ -54,9 +55,10 @@ function VideoCard({ video, active, onSelect }) {
         active ? "border-burnt bg-burnt/10" : "border-border dark:border-darkborder",
       )}
     >
-      {(video.bowlName || video.title) && (
-        <div className="truncate text-[10px] font-semibold uppercase tracking-wide text-textSecondary">
-          {video.bowlName || video.title}
+      {(isHighlights(video) || video.bowlName || video.title) && (
+        <div className="flex items-center gap-1.5 truncate text-[10px] font-semibold uppercase tracking-wide text-textSecondary">
+          {isHighlights(video) && <span className="rounded bg-burnt px-1 py-px text-white">Highlights</span>}
+          <span className="truncate">{video.bowlName || video.title}</span>
         </div>
       )}
       {[video.away, video.home].map((side) => (
@@ -167,6 +169,7 @@ function WatchPage() {
               {selected.title && `${matchup(selected)} · `}
               {selected.season.year} · {weekLabel(selected.week)}
               {selected.bowlName && ` · ${selected.bowlName}`}
+              {isHighlights(selected) && " · Highlights"}
             </p>
           </div>
         </>

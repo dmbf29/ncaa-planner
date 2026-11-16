@@ -5,11 +5,13 @@ module Youtube
   # Note: until the API project passes YouTube's compliance audit, YouTube forces API uploads
   # to private; the video id is still saved and the video can be set to unlisted in YouTube Studio.
   class Uploader
-    def initialize(game, path, title: nil, twitch_vod_id: nil)
+    def initialize(game, path, title: nil, twitch_vod_id: nil, kind: "full", description: nil)
       @game = game
       @path = path
       @title = title.presence || default_title
       @twitch_vod_id = twitch_vod_id
+      @kind = kind
+      @description = description
     end
 
     def call
@@ -23,17 +25,19 @@ module Youtube
       )
       uploaded = service.insert_video("snippet,status", video, upload_source: @path, content_type: "video/*")
 
-      @game.game_videos.create!(provider: "youtube", source: uploaded.id, title: @title, source_twitch_vod_id: @twitch_vod_id)
+      @game.game_videos.create!(provider: "youtube", source: uploaded.id, title: @title, kind: @kind, source_twitch_vod_id: @twitch_vod_id)
     end
 
     private
 
     def default_title
       week = @game.week
-      "#{@game.away_college.name} at #{@game.home_college.name} - #{week.season.year} #{week.name || "Week #{week.number}"}"
+      "#{@game.away_college.name} at #{@game.home_college.name} - #{week.season.year} #{week.name || "Week #{week.number}"}#{" Highlights" if @kind == "highlights"}"
     end
 
     def description
+      return @description if @description
+
       "#{@game.away_college.name} at #{@game.home_college.name}, #{@game.week.season.year} dynasty season."
     end
   end
