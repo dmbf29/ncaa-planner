@@ -2,6 +2,9 @@ module Discord
   # One Discord post per game with its highlights and full-game videos, hiding the score in a spoiler. It is posted when the
   # first video is uploaded (the other one reads "Coming soon") and edited (games.discord_message_id) when the other one arrives. Safe to call after every upload.
   class GameVideoPost
+    # Games before this season and week are never posted, so uploading older replays doesn't flood the channel.
+    FIRST_POSTED = [ 2028, 12 ].freeze
+
     LINES = { "highlights" => "🎬 Highlights", "full" => "📺 Full game" }.freeze
 
     def self.message(game)
@@ -40,6 +43,8 @@ module Discord
     end
 
     def ready?
+      return false if ([ @game.week.season.year, @game.week.number ] <=> FIRST_POSTED).negative?
+
       @game.game_videos.any? { |video| video.provider == "youtube" }
     end
   end
