@@ -86,15 +86,33 @@ def parse_board(items):
     clock = [i["t"] for i in b if re.fullmatch(r"\d{1,2}:\d\d", i["t"])]
     if clock:
         s["clock"] = clock[0]
-    scores = sorted((i for i in b if re.fullmatch(r"\d{1,2}", i["t"]) and i["h"] > 14), key=lambda i: i["x"])
+    # score digits are about 30 px tall; team records ("3 - 7") and the play clock are 10-16 px and must not count
+    scores = sorted((i for i in b if re.fullmatch(r"\d{1,2}", i["t"]) and i["h"] > 22), key=lambda i: i["x"])
     # only the two score boxes: the play clock sits between them and player-card overlays (RUSH 3 / YDS 15) can
     # reach into the crop, and both would otherwise read as a score
     left = [i for i in scores if 440 < i["x"] < 565]
     right = [i for i in scores if 712 < i["x"] < 800]
     if left:
         s["left_score"] = int(left[-1]["t"])
+    else:
+        # Vision often reads the left team's name and score as one item ("4USC 14", "3UL MONROE 35", "MIAMI (OH] 14")
+        merged = [re.search(r"[A-Za-z]\D*\s(\d{1,2})$", i["t"].strip()) for i in b if 330 < i["x"] < 500]
+        merged = [m for m in merged if m]
+        if merged:
+            s["left_score"] = int(merged[0].group(1))
     if right:
         s["right_score"] = int(right[0]["t"])
+    else:
+        # ... and the right score with the team name ("14 GA SOUTHERN"); a rank starts further right, after the score box
+        merged = [re.match(r"(\d{1,2})\s+\S", i["t"].strip()) for i in b if 700 < i["x"] < 785]
+        merged = [m for m in merged if m]
+        if merged:
+            s["right_score"] = int(merged[0].group(1))
+    # a real scoreboard always shows the clock: digits read without it come from an overlay or a replay graphic
+    # (Vision sometimes merges it with a neighbour, e.g. "4:55 | 21", so look for it anywhere in the bar's centre)
+    if "clock" not in s and not any(re.search(r"\b\d{1,2}:\d\d\b", i["t"]) for i in b if 560 < i["x"] < 680):
+        s.pop("left_score", None)
+        s.pop("right_score", None)
     # a ranked team prints as "22 GA SOUTHERN"; the rank is dropped
     def team(lo, hi):
         found = [re.sub(r"^\d{1,2}\s+", "", i["t"].strip()) for i in b if lo < i["x"] < hi]
