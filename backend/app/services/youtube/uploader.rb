@@ -42,7 +42,7 @@ module Youtube
 
     def default_title
       week = @game.week
-      "#{@game.away_college.name} at #{@game.home_college.name} - #{week.season.year} #{week.name || "Week #{week.number}"}#{" Highlights" if @kind == "highlights"}"
+      "#{@game.away_college.name} at #{@game.home_college.name} - #{week.season.year} #{week.name || "Week #{week.number}"} #{@kind == "highlights" ? "Highlights" : "Full Game"}"
     end
 
     def description

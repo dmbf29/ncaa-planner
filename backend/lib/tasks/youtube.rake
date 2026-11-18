@@ -42,6 +42,43 @@ namespace :youtube do
     puts "Uploaded https://youtu.be/#{video.source} and attached it to game #{game.id}"
   end
 
+  desc "Give every uploaded video a title ending in \"Highlights\" or \"Full Game\" (on YouTube and in game_videos). " \
+       "Keeps each video's description and category (YouTube's update replaces the whole snippet). DRY_RUN=1 only lists; " \
+       "ONLY=<video id> does one video."
+  task retitle: :environment do
+    service = Google::Apis::YoutubeV3::YouTubeService.new
+    service.authorization = Youtube::Credentials.authorized_client
+    suffixes = { "highlights" => "Highlights", "full" => "Full Game" }
+
+    videos = GameVideo.where(provider: "youtube").includes(game: [ :home_college, :away_college, { week: :season } ]).to_a
+    videos = videos.select { |video| video.source == ENV["ONLY"] } if ENV["ONLY"].present?
+    videos.each_slice(50) do |batch|
+      remote = service.list_videos("snippet", id: batch.map(&:source).join(",")).items.index_by(&:id)
+      batch.each do |video|
+        snippet = remote[video.source]&.snippet
+        unless snippet
+          puts "MISSING #{video.source} (game #{video.game_id}): not on YouTube any more"
+          next
+        end
+        suffix = suffixes.fetch(video.kind)
+        base = snippet.title.sub(/\s+(Highlights|Full Game)\z/, "")
+        title = "#{base} #{suffix}"
+        if snippet.title == title && video.title == title
+          puts "OK      #{video.source} #{title}"
+          next
+        end
+        puts "#{ENV["DRY_RUN"].present? ? "WOULD   " : "RENAME  "}#{video.source} #{snippet.title.inspect} -> #{title.inspect}"
+        next if ENV["DRY_RUN"].present?
+
+        snippet.title = title
+        service.update_video("snippet", Google::Apis::YoutubeV3::Video.new(id: video.source, snippet: snippet))
+        video.update!(title: title)
+      rescue Google::Apis::ClientError, Google::Apis::AuthorizationError => e
+        abort "Stopped at #{video.source}: #{e.message.lines.first&.strip}"
+      end
+    end
+  end
+
   desc "Build and upload everything still missing: the highlights of every game with a scoring summary first, then the full " \
        "games. Safe to start twice (a lock lets only one run go; it picks up games attached meanwhile) and to re-run after " \
        "YouTube's daily upload limit stops it. Attaching a scoring summary starts this in the background. " \

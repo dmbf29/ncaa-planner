@@ -5,7 +5,9 @@ module Youtube
   # come from a Google Cloud "Desktop app" OAuth client; the refresh token is issued once by
   # `rake youtube:authorize` and lets the uploader get fresh access tokens without signing in.
   module Credentials
-    SCOPE = "https://www.googleapis.com/auth/youtube.upload".freeze
+    # Full channel access (upload + editing titles/descriptions of videos the app uploaded); a refresh token issued
+    # with only youtube.upload can't rename videos, so re-run `rake youtube:authorize` after widening this.
+    SCOPE = "https://www.googleapis.com/auth/youtube".freeze
     AUTH_URI = "https://accounts.google.com/o/oauth2/v2/auth".freeze
     TOKEN_URI = "https://oauth2.googleapis.com/token".freeze
 
