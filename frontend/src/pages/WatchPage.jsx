@@ -63,8 +63,8 @@ function KindButtons({ game, kind, onKind }) {
   return (
     <div className="inline-flex rounded-full border border-white/20 p-0.5 text-xs font-semibold uppercase tracking-wide">
       {[
-        ["full", "Full game"],
         ["highlights", "Highlights"],
+        ["full", "Full game"],
       ].map(([value, label]) => (
         <button
           key={value}
@@ -112,7 +112,7 @@ const thumbnail = (video) =>
 
 function GameCard({ game, active, onSelect }) {
   const tag = gameTag(game);
-  const primary = game.full || game.highlights;
+  const primary = game.highlights || game.full;
   const thumb = thumbnail(primary);
   const duration = formatDuration(primary.durationSeconds);
   const winner = game.home.score > game.away.score ? game.home.id : game.away.score > game.home.score ? game.away.id : null;
@@ -227,12 +227,12 @@ function WatchPage() {
   const selectedGame =
     games.find((g) => [g.full, g.highlights].some((v) => v && String(v.id) === pickedId)) || filtered[0] || null;
   const selected =
-    selectedGame && ([selectedGame.full, selectedGame.highlights].find((v) => v && String(v.id) === pickedId) || selectedGame.full || selectedGame.highlights);
+    selectedGame && ([selectedGame.full, selectedGame.highlights].find((v) => v && String(v.id) === pickedId) || selectedGame.highlights || selectedGame.full);
   const selectVideo = (video, scroll) => {
     setSearchParams({ v: video.id }, { replace: true });
     if (scroll) window.scrollTo({ top: 0, behavior: "smooth" });
   };
-  const selectGame = (game) => selectVideo(game.full || game.highlights, true);
+  const selectGame = (game) => selectVideo(game.highlights || game.full, true);
 
   // Seasons newest first, each split into weeks; the first season and its first week start open.
   const seasons = useMemo(() => {
