@@ -77,7 +77,7 @@ namespace :youtube do
   task upload_scored: :environment do
     streams = Rails.root.join("..", "streams").expand_path
     games = Game.where.not(scoring_summary: nil).includes(:home_college, :away_college, :game_videos, week: :season)
-                .reject { |game| game.game_videos.any? }
+                .reject { |game| game.game_videos.any? { |video| video.kind == "full" } }
                 .sort_by { |game| [ game.week.season.year, game.week.number, game.id ] }
     games = games.select { |game| game.id == ENV["ONLY"].to_i } if ENV["ONLY"].present?
     games = games.first(ENV["LIMIT"].to_i) if ENV["LIMIT"].present?
