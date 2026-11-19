@@ -797,9 +797,25 @@ class SeasonWeeksSerializer
     game.week.conference_championship || (game.week.post_season && game.cfp_round != "first_round")
   end
 
+  # The two polls a recap compares: the one released AFTER the recapped week's games (week N+1's, since a week's own
+  # rankings are the poll entering it) against the one before them (week N's). Falls back to week N's against N-1's
+  # when the post-games poll hasn't been entered yet. Without this the recap's team sections and conference
+  # movement showed the stale pre-game poll ("#8 unchanged") next to the national Top 25's post-game one ("#9").
+  def recap_poll_weeks(week)
+    @recap_poll_weeks ||= {}
+    @recap_poll_weeks[week.id] ||= begin
+      next_week = @season.weeks.find_by(number: week.number + 1)
+      if next_week && next_week.college_week_rankings.exists?
+        [ next_week, week ]
+      else
+        [ week, @season.weeks.find_by(number: week.number - 1) ]
+      end
+    end
+  end
+
   def ranking_json(college_id, week)
-    current = CollegeWeekRanking.find_by(college_id: college_id, week_id: week.id)
-    previous_week = @season.weeks.find_by(number: week.number - 1)
+    current_week, previous_week = recap_poll_weeks(week)
+    current = CollegeWeekRanking.find_by(college_id: college_id, week_id: current_week.id)
     previous = previous_week && CollegeWeekRanking.find_by(college_id: college_id, week_id: previous_week.id)
 
     {
@@ -929,7 +945,54 @@ class SeasonWeeksSerializer
     return [] unless week.number > MIN_WEEK_NUMBER_FOR_CHAMPIONSHIP_PROJECTION
 
     coached_conferences.compact.filter_map do |conference|
-      confirmed_conference_championship_json(conference, week) || projected_conference_championship_json(conference)
+      entry = confirmed_conference_championship_json(conference, week) || projected_conference_championship_json(conference)
+      entry&.merge(division_races: division_races_json(conference, entry))
+    end
+  end
+
+  # Per division: who has clinched it and who is out of the race, so the hosts never call a mathematically dead team
+  # "alive". A team is out when another team in its division is guaranteed to finish ahead of it even if the other
+  # team loses out and this one wins out: more conference wins, or the same wins plus the head-to-head win (the
+  # same tiebreak order as the seeding). Once the title game is on the schedule every other team is out. Pairwise
+  # head-to-head only, like compare_for_championship_seeding, so a 3+ way tie is approximated.
+  def division_races_json(conference, entry)
+    college_seasons = conference_college_seasons(conference)
+    divisions = conference_divisions(college_seasons)
+    return [] unless divisions
+
+    records = college_seasons.to_h { |cs| [ cs.college_id, conference_team_record(cs.college_id, conference) ] }
+    head_to_head = conference_head_to_head(conference)
+    finalists = entry[:status] == "confirmed" ? entry[:teams].map { |team| team[:college][:id] } : []
+
+    divisions.map do |division, rows|
+      seeded = rows.sort { |a, b| compare_for_championship_seeding(a, b, records, head_to_head) }
+      winner = seeded.find { |cs| finalists.include?(cs.college_id) }
+      rest = seeded - [ winner ].compact
+      eliminated = winner ? rest : rest.select { |team| out_of_division_race?(team, seeded, records, head_to_head, conference) }
+      leader = winner || seeded.first
+      {
+        division: division,
+        leader: leader.college.name,
+        clinched: winner.present? || seeded.drop(1).all? { |team| eliminated.include?(team) },
+        eliminated: eliminated.map { |team| team.college.name },
+        alive: (seeded.drop(1) - eliminated).map { |team| team.college.name }
+      }
+    end
+  end
+
+  def out_of_division_race?(team, division_teams, records, head_to_head, conference)
+    best_possible = records[team.college_id][:conference_wins] + remaining_conference_games(team.college_id, conference)
+    (division_teams - [ team ]).any? do |other|
+      guaranteed = records[other.college_id][:conference_wins]
+      guaranteed > best_possible ||
+        (guaranteed == best_possible && head_to_head[[ other.college_id, team.college_id ]] > head_to_head[[ team.college_id, other.college_id ]])
+    end
+  end
+
+  def remaining_conference_games(college_id, conference)
+    regular_season_games_for(college_id).count do |game|
+      opponent_id = game.home_college_id == college_id ? game.away_college_id : game.home_college_id
+      conference_for(opponent_id) == conference && game_result(game, college_id).nil?
     end
   end
 
@@ -1165,8 +1228,8 @@ class SeasonWeeksSerializer
   # entered, moved, held steady, or dropped out, between last week and this
   # one. Empty when no conference team appears in either week's poll.
   def conference_top_25_for_week(week)
-    previous_week = @season.weeks.find_by(number: week.number - 1)
-    current_by_college = week.college_week_rankings.includes(:college).index_by(&:college_id)
+    current_week, previous_week = recap_poll_weeks(week)
+    current_by_college = current_week.college_week_rankings.includes(:college).index_by(&:college_id)
     previous_by_college = previous_week ? previous_week.college_week_rankings.includes(:college).index_by(&:college_id) : {}
 
     relevant_college_ids = (current_by_college.keys + previous_by_college.keys).uniq.select do |college_id|

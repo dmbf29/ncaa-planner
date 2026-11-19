@@ -54,7 +54,7 @@ function ResultsSection({ results, checked, onToggle }) {
     <SectionCard
       title="Game results"
       hint="Final scores for every game of each week, including the CPU games."
-      count={results.newGames}
+      count={results.newGames + results.scheduledGames}
       checked={checked}
       onToggle={onToggle}
     >
@@ -63,6 +63,7 @@ function ResultsSection({ results, checked, onToggle }) {
           <li key={week.weekNumber}>
             <span className="font-semibold">Week {week.weekNumber}</span>
             {week.newGames > 0 && <span className="text-textSecondary"> · {plural(week.newGames, ["game", "games"])} missing a score</span>}
+            {week.scheduledGames > 0 && <span className="text-textSecondary"> · {plural(week.scheduledGames, ["game", "games"])} to add to the schedule</span>}
             {week.conflicts.map((conflict) => (
               <Warning key={`${conflict.game}-${conflict.team}`}>
                 {conflict.game}: you have {conflict.team} at {conflict.saved}, Dynasty Rewired says {conflict.api}. Not changed.
@@ -283,7 +284,7 @@ function DynastyRewiredSyncPage() {
   const acceptPreview = (next) => {
     setPreview(next);
     setChecked({
-      results: next.results.newGames > 0,
+      results: next.results.newGames + next.results.scheduledGames > 0,
       boxScores: next.boxScores.new.length > 0,
       rankings: next.rankings.some((item) => item.status === "new"),
       recruiting: next.recruiting.new + next.recruiting.changed > 0,

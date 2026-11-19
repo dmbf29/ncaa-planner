@@ -105,16 +105,17 @@ module DynastyRewired
 
     def results_json
       weeks = plan[:results].filter_map do |week|
-        next if week.new_scores.empty? && week.conflicts.empty? && week.unmatched.empty?
+        next if week.new_scores.empty? && week.scheduled.empty? && week.conflicts.empty? && week.unmatched.empty?
 
         {
           week_number: week.week_number,
           new_games: week.new_scores.map { |row| row[:game] }.uniq.size,
+          scheduled_games: week.scheduled.size,
           conflicts: week.conflicts.map { |row| { game: row[:label], team: row[:college].name, saved: row[:saved], api: row[:score] } },
           unmatched: week.unmatched.map { |game| "#{game['awayName']} @ #{game['homeName']}" }
         }
       end
-      { weeks: weeks, new_games: weeks.sum { |week| week[:new_games] } }
+      { weeks: weeks, new_games: weeks.sum { |week| week[:new_games] }, scheduled_games: weeks.sum { |week| week[:scheduled_games] } }
     end
 
     def box_scores_json
@@ -168,8 +169,9 @@ module DynastyRewired
 
     def apply_results
       rows = plan[:results].flat_map(&:new_scores)
-      WeekResults.commit(rows)
-      rows.map { |row| row[:game] }.uniq.size
+      scheduled = plan[:results].flat_map(&:scheduled)
+      WeekResults.commit(rows, scheduled)
+      (rows.map { |row| row[:game] } + scheduled.map { |row| row[:game] }).uniq.size
     end
 
     def apply_box_scores

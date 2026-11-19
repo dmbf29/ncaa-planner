@@ -434,9 +434,24 @@ class SeasonWeeksMarkdownPresenter
       elsif entry[:tiebreaker_note].present?
         lines << "- #{entry[:tiebreaker_note]}"
       end
+      lines.concat(division_race_lines(entry[:division_races])) unless championship_week?
       lines << ""
     end
     lines
+  end
+
+  # Settled division races, spelled out so a team that cannot win its division (tiebreakers included) is never
+  # described as still in it.
+  def division_race_lines(races)
+    Array(races).filter_map do |race|
+      next if race[:eliminated].blank? && !race[:clinched]
+
+      line = "- #{race[:division]} division: "
+      line += race[:clinched] ? "#{race[:leader]} has clinched the division title." : "#{race[:leader]} leads."
+      line += " Eliminated from the division race (cannot catch the leader, tiebreakers included): #{race[:eliminated].join(', ')}." if race[:eliminated].present?
+      line += " Still alive: #{race[:alive].join(', ')}." if race[:alive].present?
+      line
+    end
   end
 
   def championship_matchup_line(teams)

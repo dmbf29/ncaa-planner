@@ -205,6 +205,8 @@ module Podcast
     end
 
     FORBIDDEN_EPISODE_NAME = /big game breakdown/i
+    # The rules allow only "Saturday"; the model still slips ("a Ruston Tuesday"), and the fact-checker ignores weekdays.
+    FORBIDDEN_WEEKDAY = /\b(?:Sunday|Monday|Tuesday|Wednesday|Thursday|Friday)s?\b/i
     REWRITES = 2
     # How many turns back a new turn is compared with when looking for repeats.
     RECENT_TURNS = 6
@@ -230,6 +232,9 @@ module Podcast
       problems = []
       if combined? && (turn = segment_turns.find { |t| t[:text].match?(FORBIDDEN_EPISODE_NAME) })
         problems << "a host says \"Big Game Breakdown\" (\"#{turn[:text][0, 60]}...\"); there is no other show or episode, so refer only to the preview or next week's games"
+      end
+      if (turn = segment_turns.find { |t| t[:text].match?(FORBIDDEN_WEEKDAY) })
+        problems << "a host names a weekday other than Saturday (\"#{turn[:text][0, 60]}...\"); say \"this week\" or \"this weekend\" instead"
       end
       all = recent + segment_turns
       (recent.size...all.size).each do |index|
