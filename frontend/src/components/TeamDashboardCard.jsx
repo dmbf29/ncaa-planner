@@ -353,9 +353,17 @@ function NextGamePanel({ team }) {
   const nextGame = team.nextGame;
 
   if (!nextGame) {
+    const bowlEligible = (team.wins ?? 0) >= 6;
     return (
-      <div className="bg-charcoal/5 px-4 py-3 text-center text-xs italic text-textSecondary dark:bg-white/5">
-        Season complete — no games remaining
+      <div className="border-b border-border bg-charcoal/5 px-4 py-2.5 dark:bg-white/5">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-textSecondary">
+          {bowlEligible ? "Bowl Season" : "Season Over"}
+        </p>
+        <div className="mt-1.5 flex h-10 items-center">
+          <p className="font-varsity text-lg uppercase leading-tight tracking-[0.04em]">
+            {bowlEligible ? "Awaiting Bowl Invitation" : "No Bowl Bid — Season Complete"}
+          </p>
+        </div>
       </div>
     );
   }
