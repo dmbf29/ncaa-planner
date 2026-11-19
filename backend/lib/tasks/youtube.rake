@@ -136,7 +136,9 @@ namespace :youtube do
         # Stop at the end of the game (the "Final" card) so the post-game menus and their music stay out of the video.
         final_end = GameScoring::Edges.new(game.scoring_summary["source"]).final_end
         trim = final_end ? [ "-to", final_end.to_s ] : []
-        system("ffmpeg", "-v", "error", "-y", "-i", source.to_s, *trim, "-c", "copy", "-movflags", "+faststart", mp4) || abort("ffmpeg failed on #{label}")
+        remux = ->(*codecs) { system("ffmpeg", "-v", "error", "-y", "-i", source.to_s, *trim, *codecs, "-movflags", "+faststart", mp4) }
+        # A corrupt audio packet in the recording fails the plain copy; re-encoding only the audio gets past it.
+        remux.call("-c", "copy") || remux.call("-c:v", "copy", "-c:a", "aac", "-b:a", "160k") || abort("ffmpeg failed on #{label}")
         video = Youtube::Uploader.new(game, mp4).call
         puts "UPLOADED #{label}: https://youtu.be/#{video.source}"
       end
